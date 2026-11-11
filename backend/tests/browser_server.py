@@ -36,4 +36,8 @@ if __name__ == "__main__":
                 "PYTHONUTF8": "1",
             },
         )
-        uvicorn.run(create_app(database), host="127.0.0.1", port=8011)
+        uvicorn.run(
+            create_app(database),
+            host="127.0.0.1",
+            port=int(os.environ.get("AQP_TEST_PORT", "8011")),
+        )

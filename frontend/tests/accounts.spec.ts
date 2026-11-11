@@ -29,7 +29,7 @@ test("personal account lifecycle through the browser", async ({
   await page.screenshot({ path: "test-results/accounts.png", fullPage: true });
   const memberContext = await browser.newContext();
   const member = await memberContext.newPage();
-  await member.goto("http://127.0.0.1:8011/");
+  await member.goto(page.url());
   await member.getByLabel("用户名", { exact: true }).fill("synthetic-member");
   await member
     .getByLabel("密码", { exact: true })
