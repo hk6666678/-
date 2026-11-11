@@ -102,6 +102,9 @@ def register_resolutions(app, path: Path, current):
                 "SELECT * FROM import_resolutions WHERE row_id=? ORDER BY version",
                 (r["id"],),
             ):
+                candidate = json.loads(v["payload"])
+                if not permitted(db, actor, batch["category"], candidate):
+                    continue
                 revisions.append(
                     {
                         "version": v["version"],
@@ -109,7 +112,9 @@ def register_resolutions(app, path: Path, current):
                             db, actor, batch["category"], json.loads(v["payload"])
                         ),
                         "evidence": v["evidence"]
-                        if permitted(db, actor, batch["category"], p, "identity")
+                        if permitted(
+                            db, actor, batch["category"], candidate, "identity"
+                        )
                         else "依据已脱敏",
                         "actor_id": v["actor_id"],
                         "created_at": v["created_at"],
@@ -139,7 +144,9 @@ def register_resolutions(app, path: Path, current):
     def get_batch(batch_id: int, request: Request):
         with connection(path) as db:
             actor, _ = current(db, request)
-            return view(db, actor["id"], batch_id)
+            result = view(db, actor["id"], batch_id)
+            audit(db, actor["id"], "import.resolve.view", str(batch_id))
+            return result
 
     @app.post("/api/resolutions/rows/{row_id}/validate")
     def validate(row_id: int, body: Correction, request: Request):
