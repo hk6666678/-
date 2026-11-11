@@ -345,6 +345,9 @@ def register_students(
             from aqp.milestones import reconcile_milestones
 
             reconcile_milestones(db, actor["id"])
+            from aqp.courses import reconcile_courses
+
+            reconcile_courses(db, actor["id"])
             db.execute("UPDATE import_batches SET confirmed=1 WHERE id=?", (batch_id,))
             audit(db, actor["id"], "import.confirm", str(batch_id))
             return batch_view(db, actor["id"], batch_id)

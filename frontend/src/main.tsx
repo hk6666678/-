@@ -4,6 +4,7 @@ import "./style.css";
 import { AccessPanel } from "./AccessPanel";
 import { AuditPanel } from "./AuditPanel";
 import { MilestonePanel } from "./MilestonePanel";
+import { CoursePanel } from "./CoursePanel";
 import { StudentPanel } from "./StudentPanel";
 import { ModelPanel } from "./ModelPanel";
 
@@ -233,6 +234,7 @@ function App() {
         <nav>
           {admin && <button onClick={() => setPage("audit")}>审计查询</button>}
           <button onClick={() => setPage("milestones")}>选题与中期导入</button>
+          <button onClick={() => setPage("courses")}>课程导入与待关联</button>
           <button onClick={() => setPage("students")}>
             基础导入与学生档案
           </button>
@@ -299,6 +301,8 @@ function App() {
           <AuditPanel fetcher={request} />
         ) : page === "milestones" ? (
           <MilestonePanel csrf={session.csrf_token} fetcher={request} />
+        ) : page === "courses" ? (
+          <CoursePanel csrf={session.csrf_token} />
         ) : page === "students" ? (
           <StudentPanel csrf={session.csrf_token} fetcher={request} />
         ) : page === "model" && admin ? (

@@ -220,7 +220,12 @@ export function StudentPanel({ csrf, fetcher }: Props) {
                     className="secondary"
                     onClick={() =>
                       void act(async () =>
-                        setDetail(await fetcher(`/api/students/${student.id}`)),
+                        setDetail({
+                          archive: await fetcher(`/api/students/${student.id}`),
+                          courses: await fetcher(
+                            `/api/students/${student.id}/courses`,
+                          ),
+                        }),
                       )
                     }
                   >

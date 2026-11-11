@@ -146,9 +146,15 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     from aqp.milestones import register_milestones
 
     register_milestones(app, path, current)
+
     from aqp.attachments import register_attachments
 
     register_attachments(app, path, current)
+
+    from aqp.courses import register_courses
+
+    register_courses(app, path, current)
+
     from aqp.model_connection import register_model_connection
 
     register_model_connection(app, path, current)
@@ -156,4 +162,5 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     if frontend.is_dir():
         app.mount("/", StaticFiles(directory=frontend, html=True), name="frontend")
     return app
+
 
