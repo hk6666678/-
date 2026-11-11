@@ -342,6 +342,9 @@ def register_students(
                         "UPDATE import_rows SET state=?,error=? WHERE id=?",
                         (state, error, row["id"]),
                     )
+            from aqp.courses import reconcile_courses
+
+            reconcile_courses(db, actor["id"])
             db.execute("UPDATE import_batches SET confirmed=1 WHERE id=?", (batch_id,))
             audit(db, actor["id"], "import.confirm", str(batch_id))
             return batch_view(db, actor["id"], batch_id)
