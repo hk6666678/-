@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from test_accounts import client, login_admin  # noqa: F401
 
 
-def test_model_disabled_by_default(client: TestClient) -> None:  # noqa: F811
+def test_model_disabled_by_default(client: TestClient) -> None:
     headers = login_admin(client)
     response = client.get("/api/model/config")
     assert response.status_code == 200
@@ -59,7 +59,7 @@ def test_approved_connection_and_failure(
     assert client.post("/api/model/check", headers=headers).status_code == 503
 
 
-def test_external_endpoint_needs_approval(client: TestClient) -> None:  # noqa: F811
+def test_external_endpoint_needs_approval(client: TestClient) -> None:
     headers = login_admin(client)
     assert (
         client.put(
