@@ -48,7 +48,38 @@ def audit(
     outcome: str = "success",
     details: dict[str, object] | None = None,
 ) -> None:
+    def redact(value: object) -> object:
+        sensitive = {
+            "password",
+            "password_hash",
+            "token",
+            "api_key",
+            "secret",
+            "content",
+            "text",
+            "body",
+            "raw",
+            "student_number",
+            "name",
+        }
+        if isinstance(value, dict):
+            return {
+                key: redact(item)
+                for key, item in value.items()
+                if str(key).lower() not in sensitive
+            }
+        if isinstance(value, list):
+            return [redact(item) for item in value]
+        return value
+
     db.execute(
         "INSERT INTO audit(actor_id,action,target,outcome,created_at,details) VALUES (?,?,?,?,?,?)",
-        (actor, action, target, outcome, int(time.time()), json.dumps(details or {})),
+        (
+            actor,
+            action,
+            target,
+            outcome,
+            int(time.time()),
+            json.dumps(redact(details or {})),
+        ),
     )

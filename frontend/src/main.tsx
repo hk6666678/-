@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
 import { AccessPanel } from "./AccessPanel";
+import { AuditPanel } from "./AuditPanel";
 
 type Role = "platform_admin" | "college_data_admin" | "college_analyst";
 type User = {
@@ -227,6 +228,7 @@ function App() {
           AQP-PGS<small>研究生培养质量研究</small>
         </div>
         <nav>
+          {admin && <button onClick={() => setPage("audit")}>审计查询</button>}
           <button onClick={() => setPage("access")}>授权与脱敏验证</button>
           <button
             className={page === "overview" ? "active" : ""}
@@ -283,7 +285,9 @@ function App() {
           </div>
         </header>
         {alert}
-        {page === "access" ? (
+        {page === "audit" && admin ? (
+          <AuditPanel fetcher={request} />
+        ) : page === "access" ? (
           <AccessPanel
             key={session.user.id}
             admin={admin}

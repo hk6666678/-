@@ -160,10 +160,16 @@ def register_management(
 
     @app.get("/api/account-audit")
     def account_audit(request: Request) -> list[dict[str, object]]:
+        from aqp.audit_viewer import safe_details
+
         with connection(path) as db:
             actor, _ = current(db, request)
             require_admin(actor)
-            return [
-                dict(row)
-                for row in db.execute("SELECT * FROM audit ORDER BY id DESC LIMIT 100")
-            ]
+            result = []
+            for row in db.execute(
+                "SELECT * FROM audit WHERE action IN ('bootstrap','login','logout','user.create','user.update','grants.replace') ORDER BY id DESC LIMIT 100"
+            ):
+                item = dict(row)
+                item["details"] = json.dumps(safe_details(json.loads(row["details"])))
+                result.append(item)
+            return result
