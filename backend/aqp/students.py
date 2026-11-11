@@ -113,7 +113,7 @@ def register_students(
         batch = db.execute(
             "SELECT * FROM import_batches WHERE id=?", (batch_id,)
         ).fetchone()
-        if not batch or batch["uploaded_by"] != actor:
+        if not batch or batch["category"] != "basic" or batch["uploaded_by"] != actor:
             raise HTTPException(404, "批次不存在或无权查看")
         rows = []
         for record in db.execute(
