@@ -51,7 +51,7 @@ export function AttachmentPanel({ csrf }: { csrf: string }) {
     <section className="card">
       <h2>选题与中期正文附件</h2>
       <p>
-        后补 PDF、DOCX；每次上传保留独立版本。请核对文件涉及的全体学生
+        后补 PDF、DOCX；每次上传保留独立版本。范围由来源维护者声明，系统不自动识别全文身份。请核对文件涉及的全体学生
         ID；待关联记录须先核对身份。预览为文字，不执行文档内容。
       </p>
       {error && <p role="alert">{error}</p>}
@@ -169,3 +169,4 @@ export function AttachmentPanel({ csrf }: { csrf: string }) {
     </section>
   );
 }
+
