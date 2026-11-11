@@ -140,6 +140,9 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     from aqp.audit_viewer import register_audit_viewer
 
     register_audit_viewer(app, path, current)
+    from aqp.students import register_students
+
+    register_students(app, path, current)
     frontend = Path(__file__).resolve().parents[2] / "frontend" / "dist"
     if frontend.is_dir():
         app.mount("/", StaticFiles(directory=frontend, html=True), name="frontend")

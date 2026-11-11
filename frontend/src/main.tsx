@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./style.css";
 import { AccessPanel } from "./AccessPanel";
 import { AuditPanel } from "./AuditPanel";
+import { StudentPanel } from "./StudentPanel";
 
 type Role = "platform_admin" | "college_data_admin" | "college_analyst";
 type User = {
@@ -229,6 +230,9 @@ function App() {
         </div>
         <nav>
           {admin && <button onClick={() => setPage("audit")}>审计查询</button>}
+          <button onClick={() => setPage("students")}>
+            基础导入与学生档案
+          </button>
           <button onClick={() => setPage("access")}>授权与脱敏验证</button>
           <button
             className={page === "overview" ? "active" : ""}
@@ -287,6 +291,8 @@ function App() {
         {alert}
         {page === "audit" && admin ? (
           <AuditPanel fetcher={request} />
+        ) : page === "students" ? (
+          <StudentPanel csrf={session.csrf_token} fetcher={request} />
         ) : page === "access" ? (
           <AccessPanel
             key={session.user.id}

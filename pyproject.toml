@@ -2,10 +2,22 @@
 name = "aqp-pgs"
 version = "0.1.0"
 requires-python = ">=3.12,<3.13"
-dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.34,<1", "pwdlib[argon2]>=0.2,<1"]
+dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn>=0.34,<1",
+    "pwdlib[argon2]>=0.2,<1",
+    "openpyxl>=3.1.5",
+    "python-multipart>=0.0.33",
+]
 
 [dependency-groups]
-dev = ["pytest>=8,<10", "httpx>=0.28,<1", "mypy>=1.15,<2", "ruff>=0.11,<1"]
+dev = [
+    "pytest>=8,<10",
+    "httpx>=0.28,<1",
+    "mypy>=1.15,<2",
+    "ruff>=0.11,<1",
+    "types-openpyxl>=3.1.5.20261017",
+]
 
 [tool.pytest.ini_options]
 pythonpath = ["backend"]
