@@ -134,6 +134,9 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     from aqp.management import register_management
 
     register_management(app, path, current)
+    from aqp.authorization import register_authorization
+
+    register_authorization(app, path, current)
     frontend = Path(__file__).resolve().parents[2] / "frontend" / "dist"
     if frontend.is_dir():
         app.mount("/", StaticFiles(directory=frontend, html=True), name="frontend")
