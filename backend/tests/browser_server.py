@@ -36,8 +36,22 @@ if __name__ == "__main__":
                 "PYTHONUTF8": "1",
             },
         )
-        uvicorn.run(
-            create_app(database),
-            host="127.0.0.1",
-            port=int(os.environ.get("AQP_TEST_PORT", "8011")),
+        worker = subprocess.Popen(
+            [sys.executable, "-m", "aqp.paper_worker"],
+            cwd=ROOT,
+            env={
+                **os.environ,
+                "AQP_DB": str(database),
+                "PYTHONPATH": str(ROOT / "backend"),
+                "PYTHONUTF8": "1",
+            },
         )
+        try:
+            uvicorn.run(
+                create_app(database),
+                host="127.0.0.1",
+                port=int(os.environ.get("AQP_TEST_PORT", "8011")),
+            )
+        finally:
+            worker.terminate()
+            worker.wait(timeout=10)
