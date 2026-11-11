@@ -10,9 +10,20 @@ def course_file(rows):
     wb = Workbook()
     ws = wb.active
     ws.append(["AQP-PGS", "courses", "1"])
-    ws.append(["学号", "课程编号", "修读学期", "考核次数", "评分制度", "成绩", "姓名"])
+    ws.append(
+        [
+            "学号",
+            "课程编号",
+            "修读学期",
+            "考核次数",
+            "评分制度",
+            "原始成绩",
+            "姓名",
+            "课程名称",
+        ]
+    )
     for row in rows:
-        ws.append(row)
+        ws.append([*row, "合成课程"])
     stream = BytesIO()
     wb.save(stream)
     return stream.getvalue()
@@ -80,7 +91,7 @@ def test_pending_courses_link_without_inventing_student(client):  # noqa: F811
     student = client.get("/api/students").json()["items"][0]
     records = client.get(f"/api/students/{student['id']}/courses").json()["items"]
     assert len(records) == 2
-    assert records[0]["data"]["成绩"] == ""
+    assert records[0]["data"]["原始成绩"] == ""
     assert "学号" not in str(records)
     assert records[0]["source"]["row_number"] == 3
 

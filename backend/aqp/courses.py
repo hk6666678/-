@@ -18,8 +18,17 @@ from openpyxl import Workbook, load_workbook
 from aqp.authorization import allowed
 from aqp.store import audit, connection
 
-REQUIRED = ["学号", "课程编号", "修读学期", "考核次数", "评分制度", "成绩"]
-OPTIONAL = ["课程名称", "学分", "通过结果", "姓名", "所属学院", "专业"]
+REQUIRED = [
+    "学号",
+    "姓名",
+    "课程编号",
+    "课程名称",
+    "修读学期",
+    "考核次数",
+    "评分制度",
+    "原始成绩",
+]
+OPTIONAL = ["学分", "业务通过结果", "课程类别", "考核日期", "所属学院", "专业"]
 IDENTITY = {"学号", "姓名"}
 
 
@@ -36,7 +45,7 @@ def visible(db: sqlite3.Connection, actor: int, p: dict[str, Any]) -> dict[str, 
 
 
 def classify(db: sqlite3.Connection, p: dict[str, Any]) -> tuple[str, str]:
-    if any(not p.get(k) for k in REQUIRED if k != "成绩"):
+    if any(not p.get(k) for k in REQUIRED if k != "原始成绩"):
         return "invalid", "必要字段为空"
     try:
         if int(p["考核次数"]) < 1:
@@ -45,7 +54,7 @@ def classify(db: sqlite3.Connection, p: dict[str, Any]) -> tuple[str, str]:
             raise ValueError
         if p["评分制度"] not in ["百分制", "五级制", "二级制"]:
             raise ValueError
-        score = p["成绩"]
+        score = p["原始成绩"]
         if score:
             if p["评分制度"] == "百分制" and not 0 <= float(score) <= 100:
                 raise ValueError
@@ -64,7 +73,7 @@ def classify(db: sqlite3.Connection, p: dict[str, Any]) -> tuple[str, str]:
                 "不合格",
             ]:
                 raise ValueError
-        if p.get("通过结果") not in ["", "通过", "不通过"]:
+        if p.get("业务通过结果") not in ["", "通过", "不通过"]:
             raise ValueError
     except (ValueError, OverflowError):
         return "invalid", "次数、学分、评分制度或成绩格式无效"
@@ -194,15 +203,17 @@ def register_courses(app: FastAPI, path: Path, current: Callable[..., Any]) -> N
             ws.append(
                 [
                     "SYN0001",
+                    "合成学生甲",
                     "SYN-C1",
+                    "合成课程",
                     "2025秋",
                     "1",
                     "百分制",
                     "",
-                    "合成课程",
                     "2",
                     "",
-                    "合成学生甲",
+                    "",
+                    "",
                     "合成学院",
                     "合成专业",
                 ]

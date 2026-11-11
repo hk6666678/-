@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
 test("course pending import then basic archive links original course", async ({
   page,
@@ -32,23 +33,24 @@ test("course pending import then basic archive links original course", async ({
       })
     ).status(),
   ).toBe(200);
-  const file = await page.request.get("/api/templates/courses?sample=true");
+
   await page
     .getByRole("button", { name: "课程导入与待关联", exact: true })
     .click();
   await page.getByLabel("课程来源部门").fill("合成教务");
-  await page
-    .getByLabel("课程 Excel")
-    .setInputFiles({
-      name: "synthetic.xlsx",
-      mimeType:
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      buffer: await file.body(),
-    });
+  await page.getByLabel("课程 Excel").setInputFiles({
+    name: "synthetic.xlsx",
+    mimeType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    buffer: Buffer.from(
+      readFileSync("tests/course-synthetic.base64", "utf8"),
+      "base64",
+    ),
+  });
   await page.getByRole("button", { name: "预览课程", exact: true }).click();
   await expect(page.getByText("pending: 1", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "确认课程有效及待关联行" }).click();
-  const basic = await page.request.get("/api/templates/basic?sample=true");
+
   const preview = await page.request.post("/api/imports/basic/preview", {
     headers: { "X-CSRF-Token": session.csrf_token },
     multipart: {
@@ -57,7 +59,10 @@ test("course pending import then basic archive links original course", async ({
         name: "basic.xlsx",
         mimeType:
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        buffer: await basic.body(),
+        buffer: Buffer.from(
+          readFileSync("tests/basic-synthetic.base64", "utf8"),
+          "base64",
+        ),
       },
     },
   });
