@@ -14,3 +14,13 @@ API：
 可复用公共边界：`authorize_students(db, actor, category, ids, operations)` 验证全体正式身份与当前范围；`storage_root(path)` 定位目录；`read_version_blob(root, row)` 校验路径、文件存在、hash后读取。调用读取前必须按实际类别与覆盖范围授权。任务11可在论文版本表沿用相同字段，并用 papers 类别授权；不得通过论文证据链接绕开身份／下载权限。
 
 原件完整性不符返回409，不提供损坏内容。上传、历史、下载、预览有审计；拒绝授权有脱敏审计，不记录文件正文。原件读取不走静态目录，附件不得放入 frontend/dist。
+
+## 论文版本与基础特征（任务11）
+
+`POST /api/papers` 接收 multipart `file`（PDF，最大20MB）、`student_id`、`title`、`level`、`discipline`、`year`、`expected_version`、`covered_student_ids`（全体学生ID JSON数组）。后三项元信息可空，空值表示缺失，不推定论文对照组。版本按学生递增，冲突409；授权全部通过后才写业务数据。扫描、加密或损坏PDF仍保留受控原件，由worker记录失败。
+
+`GET /api/papers` 返回当前范围内版本状态、基础计数及明确“未提取”的语义状态。无全体身份权限不返回标题、学生ID、文件名或正文。`POST /api/papers/{id}/retry` 仅重排失败版本；替换上传新版本。历史版本引用不变。
+
+`GET /api/papers/{id}/evidence` 返回 `version_id` 与本地结果：`pages[{page,text}]`、`sections[{page,text}]`、`references[{page,text}]`，page 始终是1起始PDF文件页序；`page_count/character_count/section_count/reference_count` 为基础统计。章节按行首编号识别，参考文献按参考文献标题之后非空行识别，计数是行数而非经过语义归并的文献条数。语义特征、研究问题、方法和创新主张尚未提取，属于任务13。证据读取和 `/download` 每次重查papers查看、全体身份、原始下载授权，并校验原件hash，不提供静态文件链接。
+
+独立命令 `python -m aqp.paper_worker`；`--once` 单次驱动，`--lease-seconds` 可配置恢复等待（默认60秒）。SQLite原子领取及token围栏保证多worker仅有一次有效发布；进程中断后任务保留processing，租约过期后重新领取。结果与完成状态同一事务提交，重试不新增论文版本。`Start-Aqp.ps1` 隐藏启动自有worker并在服务退出时清理；重复运行的worker由数据库领取互斥，过期worker不能覆盖新token结果。数据库与attachments须成套备份。
