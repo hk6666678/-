@@ -168,3 +168,63 @@ def test_category_isolation_and_masking(client: TestClient):  # noqa: F811
         ).status_code
         == 403
     )
+
+
+def test_scope_mismatch_does_not_auto_associate(client: TestClient):  # noqa: F811
+    headers = login_admin(client)
+    grant(client, headers)
+    row = [
+        "001",
+        "另一个合成姓名",
+        "甲",
+        "合成选题",
+        "百分制",
+        "",
+        "示例学院",
+        "计算机",
+    ]
+    batch = client.post(
+        "/api/milestones/topic/preview",
+        headers=headers,
+        data={"source_department": "合成来源"},
+        files={"file": ("sample.xlsx", sheet(rows=[row]))},
+    ).json()
+    client.post(f"/api/milestone-imports/{batch['id']}/confirm", headers=headers)
+    from test_students import workbook
+
+    basic = client.post(
+        "/api/imports/basic/preview",
+        headers=headers,
+        data={"source_department": "合成来源"},
+        files={"file": ("basic.xlsx", workbook())},
+    ).json()
+    client.post(f"/api/imports/{basic['id']}/confirm", headers=headers)
+    assert client.get(f"/api/milestone-imports/{batch['id']}").json()["counts"] == {
+        "conflict": 1
+    }
+    assert client.get("/api/milestones").json()["items"][0]["student_id"] is None
+    student = client.get("/api/students").json()["items"][0]
+    assert client.get(f"/api/students/{student['id']}").json()["milestones"] == []
+
+
+def test_template_schema_rejects_wrong_type_and_missing_topic_title(client: TestClient):  # noqa: F811
+    headers = login_admin(client)
+    grant(client, headers)
+    assert client.get("/api/templates/milestones/topic").status_code == 200
+    assert (
+        client.post(
+            "/api/milestones/topic/preview",
+            headers=headers,
+            data={"source_department": "合成来源"},
+            files={"file": ("sample.xlsx", sheet("midterm"))},
+        ).status_code
+        == 422
+    )
+    row = ["001", "合成学生", "甲", "", "百分制", "", "示例学院", "计算机"]
+    result = client.post(
+        "/api/milestones/topic/preview",
+        headers=headers,
+        data={"source_department": "合成来源"},
+        files={"file": ("sample.xlsx", sheet(rows=[row]))},
+    )
+    assert result.json()["counts"] == {"invalid": 1}

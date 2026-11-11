@@ -31,4 +31,4 @@
 
 公开API：GET /api/templates/milestones/{category}；POST /api/milestones/{category}/preview；GET /api/milestone-imports/{id}；POST /api/milestone-imports/{id}/confirm；GET /api/milestones（支持student_id与分页）；基础档案详情 milestones 字段。评分制度支持百分制、五级制、二级制；内容变更保留conflict供06/07处理。
 
-验证：API公共边界3条测试；浏览器合成选题模板下载、上传预览与确认闭环；mypy、ruff、TypeScript/Vite构建。最终整体验证记录见交付消息。
+验证：API公共边界5条测试；浏览器合成选题模板下载、上传预览与确认闭环；mypy、ruff、TypeScript/Vite构建。最终整体验证记录见交付消息。
