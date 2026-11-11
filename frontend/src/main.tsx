@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./style.css";
 import { AccessPanel } from "./AccessPanel";
 import { AuditPanel } from "./AuditPanel";
+import { MilestonePanel } from "./MilestonePanel";
 import { StudentPanel } from "./StudentPanel";
 import { ModelPanel } from "./ModelPanel";
 
@@ -231,6 +232,7 @@ function App() {
         </div>
         <nav>
           {admin && <button onClick={() => setPage("audit")}>审计查询</button>}
+          <button onClick={() => setPage("milestones")}>选题与中期导入</button>
           <button onClick={() => setPage("students")}>
             基础导入与学生档案
           </button>
@@ -295,6 +297,8 @@ function App() {
         {alert}
         {page === "audit" && admin ? (
           <AuditPanel fetcher={request} />
+        ) : page === "milestones" ? (
+          <MilestonePanel csrf={session.csrf_token} fetcher={request} />
         ) : page === "students" ? (
           <StudentPanel csrf={session.csrf_token} fetcher={request} />
         ) : page === "model" && admin ? (

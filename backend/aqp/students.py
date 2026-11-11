@@ -342,6 +342,9 @@ def register_students(
                         "UPDATE import_rows SET state=?,error=? WHERE id=?",
                         (state, error, row["id"]),
                     )
+            from aqp.milestones import reconcile_milestones
+
+            reconcile_milestones(db, actor["id"])
             db.execute("UPDATE import_batches SET confirmed=1 WHERE id=?", (batch_id,))
             audit(db, actor["id"], "import.confirm", str(batch_id))
             return batch_view(db, actor["id"], batch_id)
@@ -420,5 +423,8 @@ def register_students(
                     }
                 )
             result["history"] = history
+            from aqp.milestones import milestone_details
+
+            result["milestones"] = milestone_details(db, actor["id"], student_id)
             audit(db, actor["id"], "student.detail", str(student_id))
             return result
