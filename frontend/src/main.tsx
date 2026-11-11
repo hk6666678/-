@@ -6,6 +6,7 @@ import { AuditPanel } from "./AuditPanel";
 import { MilestonePanel } from "./MilestonePanel";
 import { PaperPanel } from "./PaperPanel";
 import { CoursePanel } from "./CoursePanel";
+import { ResolutionPanel } from "./ResolutionPanel";
 import { StudentPanel } from "./StudentPanel";
 import { ModelPanel } from "./ModelPanel";
 
@@ -194,6 +195,7 @@ function App() {
           <h2>登录工作平台</h2>
           <p className="muted">使用管理员为您创建的个人账号</p>
           {alert}
+
           <form onSubmit={login}>
             <label>
               用户名
@@ -299,6 +301,7 @@ function App() {
           </div>
         </header>
         {alert}
+        <ResolutionPanel csrf={session.csrf_token} />
         {page === "audit" && admin ? (
           <AuditPanel fetcher={request} />
         ) : page === "milestones" ? (
