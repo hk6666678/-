@@ -1,3 +1,4 @@
+# ruff: noqa: F811
 import pytest
 from aqp import model_connection
 from fastapi.testclient import TestClient
