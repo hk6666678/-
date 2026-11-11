@@ -1,3 +1,4 @@
+import { AttachmentPanel } from "./AttachmentPanel";
 import { useState } from "react";
 type Props = {
   csrf: string;
@@ -187,6 +188,7 @@ export function MilestonePanel({ csrf, fetcher }: Props) {
           </>
         )}
       </section>
+      <AttachmentPanel csrf={csrf} />
     </>
   );
 }
