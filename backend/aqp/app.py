@@ -152,6 +152,9 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     from aqp.model_connection import register_model_connection
 
     register_model_connection(app, path, current)
+    from aqp.resolutions import register_resolutions
+
+    register_resolutions(app, path, current)
     frontend = Path(__file__).resolve().parents[2] / "frontend" / "dist"
     if frontend.is_dir():
         app.mount("/", StaticFiles(directory=frontend, html=True), name="frontend")

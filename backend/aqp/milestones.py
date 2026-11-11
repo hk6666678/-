@@ -13,7 +13,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from openpyxl import Workbook, load_workbook
 
-from aqp.authorization import allowed, grants_for
+from aqp.authorization import allowed, compatible_scope, grants_for
 from aqp.store import audit, connection
 
 BASIC_REQUIRED = ["学号", "姓名", "考核批次", "评分制度", "原始成绩"]
@@ -47,6 +47,8 @@ def scope(
     payload: dict[str, object],
     category: str,
 ) -> bool:
+    if op == "maintain" and (not payload.get("所属学院") or not payload.get("专业")):
+        return compatible_scope(db, actor, category, payload)
     return allowed(
         db,
         actor,
@@ -68,7 +70,10 @@ def masked(
 
 
 def classify_milestone(
-    db: sqlite3.Connection, payload: dict[str, object], category: str
+    db: sqlite3.Connection,
+    payload: dict[str, object],
+    category: str,
+    source_row_id: int = -1,
 ) -> tuple[str, str]:
     required = ["学号", "姓名", "考核批次", "评分制度", "所属学院", "专业"] + (
         ["选题标题"] if category == "topic" else []
@@ -104,8 +109,8 @@ def classify_milestone(
     ):
         return "conflict", "身份或来源范围不一致，需人工确认"
     record = db.execute(
-        "SELECT * FROM milestone_records WHERE student_number=? AND category=? AND assessment_batch=?",
-        (payload["学号"], category, payload["考核批次"]),
+        "SELECT * FROM milestone_records WHERE student_number=? AND category=? AND assessment_batch=? AND source_row_id!=?",
+        (payload["学号"], category, payload["考核批次"], source_row_id),
     ).fetchone()
     if record:
         return (

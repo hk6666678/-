@@ -145,7 +145,7 @@ def test_course_conflicts_duplicates_and_scope_are_explicit(client):  # noqa: F8
     changed = first.copy()
     changed[5] = "90"
     assert preview([changed]).json()["counts"] == {"conflict": 1}
-    assert preview([first], {"source_department": "合成教务"}).status_code == 403
+    assert preview([first], {"source_department": "合成教务"}).json()["counts"] == {"invalid": 1}
     assert preview([first], {**data, "college": "其他学院"}).status_code == 403
     conflict = preview([["010", *first[1:]], ["010", *changed[1:]]]).json()
     assert conflict["counts"] == {"conflict": 2}
@@ -202,3 +202,4 @@ def test_course_identity_conflict_stays_manual_after_basic_arrives(client):  # n
     }
     student = client.get("/api/students").json()["items"][0]
     assert client.get(f"/api/students/{student['id']}/courses").json()["total"] == 0
+

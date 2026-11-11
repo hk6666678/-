@@ -15,7 +15,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from openpyxl import Workbook, load_workbook
 
-from aqp.authorization import allowed
+from aqp.authorization import allowed, compatible_scope
 from aqp.store import audit, connection
 
 REQUIRED = [
@@ -33,6 +33,8 @@ IDENTITY = {"学号", "姓名"}
 
 
 def permitted(db: sqlite3.Connection, actor: int, op: str, p: dict[str, Any]) -> bool:
+    if op == "maintain" and (not p.get("所属学院") or not p.get("专业")):
+        return compatible_scope(db, actor, "courses", p)
     return allowed(db, actor, "courses", op, p.get("所属学院", ""), p.get("专业", ""))
 
 
@@ -44,7 +46,11 @@ def visible(db: sqlite3.Connection, actor: int, p: dict[str, Any]) -> dict[str, 
     }
 
 
-def classify(db: sqlite3.Connection, p: dict[str, Any]) -> tuple[str, str]:
+def classify(
+    db: sqlite3.Connection, p: dict[str, Any], source_row_id: int = -1
+) -> tuple[str, str]:
+    if not p.get("所属学院") or not p.get("专业"):
+        return "invalid", "缺少来源学院或专业，待补齐范围"
     if any(not p.get(k) for k in REQUIRED if k != "原始成绩"):
         return "invalid", "必要字段为空"
     try:
@@ -78,8 +84,8 @@ def classify(db: sqlite3.Connection, p: dict[str, Any]) -> tuple[str, str]:
     except (ValueError, OverflowError):
         return "invalid", "次数、学分、评分制度或成绩格式无效"
     old = db.execute(
-        "SELECT * FROM course_records WHERE student_number=? AND course_code=? AND term=? AND attempt=?",
-        key(p),
+        "SELECT * FROM course_records WHERE student_number=? AND course_code=? AND term=? AND attempt=? AND source_row_id!=?",
+        (*key(p), source_row_id),
     ).fetchone()
     if old:
         return (
@@ -285,11 +291,7 @@ def register_courses(app: FastAPI, path: Path, current: Callable[..., Any]) -> N
                     p["专业"] = (
                         p["专业"] or major or (student["major"] if student else "")
                     )
-                    if (
-                        not p["所属学院"]
-                        or not p["专业"]
-                        or not permitted(db, actor["id"], "maintain", p)
-                    ):
+                    if not permitted(db, actor["id"], "maintain", p):
                         raise HTTPException(403, "须明确来源学院专业且具备课程维护权限")
                     state, error = classify(db, p)
                     if not isinstance(values[headers.index("学号")], str):
