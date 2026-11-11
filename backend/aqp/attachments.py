@@ -75,6 +75,18 @@ def validate_document(content: bytes, suffix: str) -> str:
     raise HTTPException(422, "仅支持PDF、DOCX")
 
 
+def read_version_blob(root: Path, row: sqlite3.Row) -> bytes:
+    """Read an authorized immutable version, checking containment and integrity."""
+    root = root.resolve()
+    target = (root / str(row["relative_path"])).resolve()
+    if target.parent != root or not target.is_file():
+        raise HTTPException(404, "文件不可用")
+    content = target.read_bytes()
+    if hashlib.sha256(content).hexdigest() != row["sha256"]:
+        raise HTTPException(409, "文件完整性校验失败")
+    return content
+
+
 def register_attachments(
     app: FastAPI,
     path: Path,
@@ -244,12 +256,7 @@ def register_attachments(
                 json.loads(row["covered_student_ids"]),
                 ("view", "identity", "download"),
             )
-            target = (root / row["relative_path"]).resolve()
-            if target.parent != root or not target.is_file():
-                raise HTTPException(404, "文件不可用")
-            content = target.read_bytes()
-            if hashlib.sha256(content).hexdigest() != row["sha256"]:
-                raise HTTPException(409, "文件完整性校验失败")
+            content = read_version_blob(root, row)
             audit(
                 db,
                 actor["id"],
@@ -299,3 +306,4 @@ def register_attachments(
     @app.get("/api/attachments/{version_id}/preview")
     def preview(version_id: int, request: Request) -> Response:
         return access(version_id, request, True)
+
