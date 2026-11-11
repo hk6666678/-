@@ -109,13 +109,13 @@ def create_app(db_path: Path | None = None) -> FastAPI:
                 max_age=28800,
                 secure=request.url.scheme == "https",
             )
-            return {"user": public_user(user), "csrf_token": csrf}
+            return {"user": public_user(user, db), "csrf_token": csrf}
 
     @app.get("/api/me")
     def me(request: Request) -> dict[str, object]:
         with connection(path) as db:
             user, csrf = current(db, request)
-            return {"user": public_user(user), "csrf_token": csrf}
+            return {"user": public_user(user, db), "csrf_token": csrf}
 
     @app.post("/api/logout", status_code=204)
     def logout(request: Request) -> Response:

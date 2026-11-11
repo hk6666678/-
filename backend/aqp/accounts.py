@@ -34,14 +34,24 @@ def create_user(
     return cursor.lastrowid
 
 
-def public_user(row: sqlite3.Row) -> dict[str, object]:
+def public_user(
+    row: sqlite3.Row, db: sqlite3.Connection | None = None
+) -> dict[str, object]:
     return {
         "id": row["id"],
         "username": row["username"],
         "roles": json.loads(row["roles"]),
         "active": bool(row["active"]),
         "version": row["version"],
-        "business_permissions": [],
+        "business_permissions": [
+            dict(grant)
+            for grant in db.execute(
+                "SELECT category,operation,college,major FROM grants WHERE user_id=?",
+                (row["id"],),
+            )
+        ]
+        if db
+        else [],
     }
 
 

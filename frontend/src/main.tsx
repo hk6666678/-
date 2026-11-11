@@ -323,7 +323,7 @@ function App() {
                 <p>
                   角色不自动开放学生数据。数据维护、查看、分析和导出需要分别授权。
                 </p>
-                <span className="badge">当前尚未授予业务数据权限</span>
+                <span className="badge">业务数据权限请在授权验证页面查看</span>
               </section>
             </div>
           </>

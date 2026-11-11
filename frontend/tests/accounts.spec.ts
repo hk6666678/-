@@ -35,7 +35,9 @@ test("personal account lifecycle through the browser", async ({
     .getByLabel("密码", { exact: true })
     .fill("Synthetic-member-password!");
   await member.getByRole("button", { name: "登录平台" }).click();
-  await expect(member.getByText("当前尚未授予业务数据权限")).toBeVisible();
+  await expect(
+    member.getByText("业务数据权限请在授权验证页面查看"),
+  ).toBeVisible();
   await expect(
     member.getByRole("button", { name: "个人账号管理" }),
   ).toHaveCount(0);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 type Grant = {
   category: string;
   operation: string;
@@ -36,6 +36,7 @@ const operations: Record<string, string> = {
   review: "人工复核",
 };
 export function AccessPanel({ admin, csrf, users, fetcher }: Props) {
+  const loadSequence = useRef(0);
   const [target, setTarget] = useState(""),
     [version, setVersion] = useState(0),
     [grants, setGrants] = useState<Grant[]>([]),
@@ -48,21 +49,26 @@ export function AccessPanel({ admin, csrf, users, fetcher }: Props) {
     [busy, setBusy] = useState(false),
     [samples, setSamples] = useState<Record<string, unknown>[]>([]);
   async function load(id: string) {
+    const sequence = ++loadSequence.current;
     setTarget(id);
     setVersion(0);
     setGrants([]);
     setError("");
     setNotice("");
+    setBusy(Boolean(id));
     if (!id) return;
     try {
       const data = (await fetcher(`/api/users/${id}/grants`)) as {
         version: number;
         grants: Grant[];
       };
+      if (sequence !== loadSequence.current) return;
       setVersion(data.version);
       setGrants(data.grants);
     } catch (e) {
-      setError((e as Error).message);
+      if (sequence === loadSequence.current) setError((e as Error).message);
+    } finally {
+      if (sequence === loadSequence.current) setBusy(false);
     }
   }
   async function save(next: Grant[]) {
