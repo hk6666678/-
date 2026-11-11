@@ -183,3 +183,14 @@ def register_authorization(
             if not rows:
                 raise HTTPException(403, "没有示例记录的查看权限")
             return rows
+
+
+def compatible_scope(db, actor, category, payload):
+    """Only an upload holding area may use this check; never grants identity."""
+    return any(
+        g["category"] == category
+        and g["operation"] == "maintain"
+        and (not payload.get("所属学院") or g["college"] == payload["所属学院"])
+        and (not payload.get("专业") or not g["major"] or g["major"] == payload["专业"])
+        for g in grants_for(db, actor)
+    )

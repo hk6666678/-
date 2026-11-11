@@ -14,7 +14,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from openpyxl import Workbook, load_workbook
 
-from aqp.authorization import allowed, grants_for
+from aqp.authorization import allowed, compatible_scope, grants_for
 from aqp.store import audit, connection
 
 BASIC_REQUIRED = ["学号", "姓名", "所属学院", "专业", "培养层次", "入学年份"]
@@ -50,6 +50,8 @@ SAFE_FIELDS = {
 def scope(
     db: sqlite3.Connection, actor: int, op: str, payload: dict[str, object]
 ) -> bool:
+    if op == "maintain" and (not payload.get("所属学院") or not payload.get("专业")):
+        return compatible_scope(db, actor, "basic", payload)
     return allowed(
         db,
         actor,
