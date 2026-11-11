@@ -112,7 +112,7 @@ export function CoursePanel({ csrf }: { csrf: string }) {
                   <td>{row.state}</td>
                   <td>
                     {JSON.stringify(row.data)}
-                    {row.existing && (
+                    {row.existing !== undefined && (
                       <p>当前版本：{JSON.stringify(row.existing)}</p>
                     )}
                   </td>
