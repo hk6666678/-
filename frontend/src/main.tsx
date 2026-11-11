@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
 import { AccessPanel } from "./AccessPanel";
+import { ModelPanel } from "./ModelPanel";
 
 type Role = "platform_admin" | "college_data_admin" | "college_analyst";
 type User = {
@@ -227,6 +228,9 @@ function App() {
           AQP-PGS<small>研究生培养质量研究</small>
         </div>
         <nav>
+          {admin && (
+            <button onClick={() => setPage("model")}>获准模型连接</button>
+          )}
           <button onClick={() => setPage("access")}>授权与脱敏验证</button>
           <button
             className={page === "overview" ? "active" : ""}
@@ -283,7 +287,9 @@ function App() {
           </div>
         </header>
         {alert}
-        {page === "access" ? (
+        {page === "model" && admin ? (
+          <ModelPanel csrf={session.csrf_token} fetcher={request} />
+        ) : page === "access" ? (
           <AccessPanel
             key={session.user.id}
             admin={admin}
