@@ -1,14 +1,18 @@
 """Pending import correction; immutable originals and explicit revision confirmation."""
 
 import json
+import sqlite3
 import time
 import uuid
+from collections.abc import Callable
 from io import BytesIO
 from pathlib import Path
+from typing import TypedDict
 
-from fastapi import HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response
 from openpyxl import Workbook
+from openpyxl.worksheet.worksheet import Worksheet
 from pydantic import BaseModel, Field
 
 from aqp.authorization import allowed, compatible_scope
@@ -17,6 +21,22 @@ from aqp.milestones import classify_milestone
 from aqp.milestones import masked as milestone_masked
 from aqp.store import audit, connection
 from aqp.students import classify_basic, masked
+
+
+class ResolutionRow(TypedDict):
+    id: int
+    row_number: int
+    state: str
+    error: str
+    original: dict[str, object]
+    data: dict[str, object]
+    revisions: list[dict[str, object]]
+
+
+class ResolutionBatch(TypedDict):
+    id: int
+    category: str
+    rows: list[ResolutionRow]
 
 
 class Correction(BaseModel):
@@ -29,19 +49,29 @@ class Confirmation(BaseModel):
     version: int
 
 
-def register_resolutions(app, path: Path, current):
-    def permitted(db, actor, category, payload, op="maintain"):
+def register_resolutions(
+    app: FastAPI,
+    path: Path,
+    current: Callable[[sqlite3.Connection, Request], tuple[sqlite3.Row, str]],
+) -> None:
+    def permitted(
+        db: sqlite3.Connection,
+        actor: int,
+        category: str,
+        payload: dict[str, object],
+        op: str = "maintain",
+    ) -> bool:
         return allowed(
             db,
             actor,
             category,
             op,
-            payload.get("所属学院", ""),
-            payload.get("专业", ""),
+            str(payload.get("所属学院", "")),
+            str(payload.get("专业", "")),
         )
 
-    def access(db, actor, row_id):
-        r = db.execute(
+    def access(db: sqlite3.Connection, actor: int, row_id: int) -> sqlite3.Row:
+        r: sqlite3.Row | None = db.execute(
             "SELECT i.*,b.category,b.uploaded_by FROM import_rows i JOIN import_batches b ON b.id=i.batch_id WHERE i.id=?",
             (row_id,),
         ).fetchone()
@@ -63,7 +93,9 @@ def register_resolutions(app, path: Path, current):
             raise HTTPException(404, "记录不存在或无权处理")
         return r
 
-    def mask(db, actor, category, p):
+    def mask(
+        db: sqlite3.Connection, actor: int, category: str, p: dict[str, object]
+    ) -> dict[str, object]:
         if category == "basic":
             return masked(db, actor, p)
         if category == "courses":
@@ -72,20 +104,22 @@ def register_resolutions(app, path: Path, current):
             )
         return milestone_masked(db, actor, p, category)
 
-    def classify_row(db, category, p, row_id):
+    def classify_row(
+        db: sqlite3.Connection, category: str, p: dict[str, object], row_id: int
+    ) -> tuple[str, str]:
         if category == "basic":
             return classify_basic(db, p)
         if category == "courses":
             return classify(db, p, row_id)
         return classify_milestone(db, p, category, row_id)
 
-    def view(db, actor, batch_id):
+    def view(db: sqlite3.Connection, actor: int, batch_id: int) -> ResolutionBatch:
         batch = db.execute(
             "SELECT * FROM import_batches WHERE id=?", (batch_id,)
         ).fetchone()
         if not batch:
             raise HTTPException(404, "批次不存在")
-        result = []
+        result: list[ResolutionRow] = []
         for r in db.execute(
             "SELECT * FROM import_rows WHERE batch_id=? ORDER BY row_number",
             (batch_id,),
@@ -97,7 +131,7 @@ def register_resolutions(app, path: Path, current):
                 and (not p.get("所属学院") or not p.get("专业"))
             ):
                 continue
-            revisions = []
+            revisions: list[dict[str, object]] = []
             for v in db.execute(
                 "SELECT * FROM import_resolutions WHERE row_id=? ORDER BY version",
                 (r["id"],),
@@ -141,7 +175,7 @@ def register_resolutions(app, path: Path, current):
         return {"id": batch_id, "category": batch["category"], "rows": result}
 
     @app.get("/api/resolutions/{batch_id}")
-    def get_batch(batch_id: int, request: Request):
+    def get_batch(batch_id: int, request: Request) -> ResolutionBatch:
         with connection(path) as db:
             actor, _ = current(db, request)
             result = view(db, actor["id"], batch_id)
@@ -149,7 +183,7 @@ def register_resolutions(app, path: Path, current):
             return result
 
     @app.post("/api/resolutions/rows/{row_id}/validate")
-    def validate(row_id: int, body: Correction, request: Request):
+    def validate(row_id: int, body: Correction, request: Request) -> ResolutionBatch:
         with connection(path) as db:
             db.execute("BEGIN IMMEDIATE")
             actor, _ = current(db, request)
@@ -207,7 +241,7 @@ def register_resolutions(app, path: Path, current):
             return view(db, aid, r["batch_id"])
 
     @app.post("/api/resolutions/rows/{row_id}/confirm")
-    def confirm(row_id: int, body: Confirmation, request: Request):
+    def confirm(row_id: int, body: Confirmation, request: Request) -> ResolutionBatch:
         with connection(path) as db:
             db.execute("BEGIN IMMEDIATE")
             actor, _ = current(db, request)
@@ -291,7 +325,7 @@ def register_resolutions(app, path: Path, current):
             return view(db, aid, r["batch_id"])
 
     @app.get("/api/resolutions/{batch_id}/errors.xlsx")
-    def report(batch_id: int, request: Request):
+    def report(batch_id: int, request: Request) -> Response:
         with connection(path) as db:
             actor, _ = current(db, request)
             aid = actor["id"]
@@ -314,6 +348,7 @@ def register_resolutions(app, path: Path, current):
                 raise HTTPException(403, "没有错误报告导出权限")
             wb = Workbook()
             ws = wb.active
+            assert isinstance(ws, Worksheet)
             ws.append(["行号", "状态", "错误", "原始行", "当前值"])
             for r in data["rows"]:
                 p = json.loads(

@@ -185,7 +185,9 @@ def register_authorization(
             return rows
 
 
-def compatible_scope(db, actor, category, payload):
+def compatible_scope(
+    db: sqlite3.Connection, actor: int, category: str, payload: dict[str, object]
+) -> bool:
     """Only an upload holding area may use this check; never grants identity."""
     return any(
         g["category"] == category
