@@ -36,4 +36,6 @@ npm run test:e2e
 
 浏览器测试建立隔离数据库并使用明确的 synthetic 合成账号，不读写试用业务数据库。账号审计通过受平台管理权保护的 `/api/account-audit` 查询最近 100 条，仅涉及账号事件；完整审计查询界面在任务 20。
 
+测试默认使用 Playwright 安装的 Chromium。如本机已安装 Google Chrome，也可在运行测试前设置 `$env:AQP_BROWSER = 'chrome'`，此时无需另行下载 Chromium。
+
 开发前端可在 frontend 执行 `npm run dev`，并在另一个终端执行启动脚本。Vite 将 API 代理到本机 8000 端口。退出删除服务端会话；停用及角色改变撤销该账号所有会话。登录有限次尝试保护，超限后需等待五分钟。模型和外部服务尚未接入。

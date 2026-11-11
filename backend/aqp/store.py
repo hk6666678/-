@@ -1,3 +1,4 @@
+import json
 import os
 import sqlite3
 import time
@@ -45,8 +46,9 @@ def audit(
     action: str,
     target: str,
     outcome: str = "success",
+    details: dict[str, object] | None = None,
 ) -> None:
     db.execute(
-        "INSERT INTO audit(actor_id,action,target,outcome,created_at) VALUES (?,?,?,?,?)",
-        (actor, action, target, outcome, int(time.time())),
+        "INSERT INTO audit(actor_id,action,target,outcome,created_at,details) VALUES (?,?,?,?,?,?)",
+        (actor, action, target, outcome, int(time.time()), json.dumps(details or {})),
     )

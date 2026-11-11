@@ -8,6 +8,7 @@ type User = {
   username: string;
   roles: Role[];
   active: boolean;
+  version: number;
   business_permissions: string[];
 };
 type Session = { user: User; csrf_token: string };
@@ -67,6 +68,8 @@ function App() {
       setSession(null);
       setUsers([]);
       setPassword("");
+      setUsername("");
+      setPage("overview");
     };
     window.addEventListener("session-expired", expired);
     request<Session>("/api/me")
@@ -105,6 +108,7 @@ function App() {
       );
       setPassword("");
       setUsername("");
+      setPage("overview");
     });
   }
   async function create(event: React.FormEvent) {
@@ -113,7 +117,12 @@ function App() {
       await request(
         "/api/users",
         "POST",
-        { username, password, roles: selected },
+        {
+          username,
+          password,
+          roles: selected,
+          request_id: crypto.randomUUID(),
+        },
         session?.csrf_token,
       );
       setUsername("");
@@ -127,7 +136,12 @@ function App() {
       await request(
         `/api/users/${user.id}`,
         "PATCH",
-        { roles: nextRoles, active },
+        {
+          roles: nextRoles,
+          active,
+          expected_version: user.version,
+          request_id: crypto.randomUUID(),
+        },
         session?.csrf_token,
       );
       setNotice("账号已更新，受影响账号需重新登录");
@@ -257,6 +271,8 @@ function App() {
                   setSession(null);
                   setUsers([]);
                   setPage("overview");
+                  setUsername("");
+                  setPassword("");
                 })
               }
             >
@@ -265,7 +281,7 @@ function App() {
           </div>
         </header>
         {alert}
-        {page === "overview" ? (
+        {page === "overview" || !admin ? (
           <>
             <section className="welcome">
               <span className="eyebrow">统一平台 · 清晰职责</span>

@@ -5,7 +5,7 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:8011",
     headless: true,
-    channel: process.env.AQP_BROWSER || "chrome",
+    ...(process.env.AQP_BROWSER ? { channel: process.env.AQP_BROWSER } : {}),
   },
   webServer: {
     command:

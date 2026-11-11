@@ -1,7 +1,9 @@
+import json
 import os
 import subprocess
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from aqp.app import create_app
@@ -52,6 +54,7 @@ def test_create_combined_roles_and_disable_revokes_session(client: TestClient) -
             "username": "synthetic-user",
             "password": "Synthetic-user-password!",
             "roles": ["college_data_admin", "college_analyst"],
+            "request_id": str(uuid4()),
         },
     )
     assert created.status_code == 201
@@ -76,7 +79,12 @@ def test_create_combined_roles_and_disable_revokes_session(client: TestClient) -
             client.patch(
                 f"/api/users/{user_id}",
                 headers=headers,
-                json={"active": False, "roles": ["college_analyst"]},
+                json={
+                    "active": False,
+                    "roles": ["college_analyst"],
+                    "expected_version": 1,
+                    "request_id": str(uuid4()),
+                },
             ).status_code
             == 200
         )
@@ -121,16 +129,23 @@ def test_csrf_last_admin_and_duplicate_guards(client: TestClient) -> None:
         "username": "synthetic-analyst",
         "password": "Synthetic-password-123!",
         "roles": ["college_analyst"],
+        "request_id": str(uuid4()),
     }
     assert client.post("/api/users", json=body).status_code == 403
     assert client.post("/api/users", json=body, headers=headers).status_code == 201
     body["username"] = "SYNTHETIC-ANALYST"
+    body["request_id"] = str(uuid4())
     assert client.post("/api/users", json=body, headers=headers).status_code == 409
     user_id = client.get("/api/me").json()["user"]["id"]
     assert (
         client.patch(
             f"/api/users/{user_id}",
-            json={"active": False, "roles": ["platform_admin"]},
+            json={
+                "active": False,
+                "roles": ["platform_admin"],
+                "expected_version": 1,
+                "request_id": str(uuid4()),
+            },
             headers=headers,
         ).status_code
         == 409
@@ -156,6 +171,7 @@ def test_roles_persist_and_change_invalidates_session(
             "username": "second-admin",
             "password": "Synthetic-password-123!",
             "roles": ["platform_admin"],
+            "request_id": str(uuid4()),
         },
         headers=headers,
     ).json()
@@ -168,7 +184,12 @@ def test_roles_persist_and_change_invalidates_session(
         assert (
             client.patch(
                 f"/api/users/{created['id']}",
-                json={"active": True, "roles": ["college_analyst"]},
+                json={
+                    "active": True,
+                    "roles": ["college_analyst"],
+                    "expected_version": 1,
+                    "request_id": str(uuid4()),
+                },
                 headers=headers,
             ).status_code
             == 200
@@ -199,3 +220,53 @@ def test_failed_logins_are_limited_and_audited(client: TestClient) -> None:
         )
         == 10
     )
+
+
+def test_stale_account_update_cannot_reenable_disabled_user(client: TestClient) -> None:
+    headers = login_admin(client)
+    create_body = {
+        "username": "synthetic-target",
+        "password": "Synthetic-password-123!",
+        "roles": ["college_analyst"],
+        "request_id": str(uuid4()),
+    }
+    created = client.post("/api/users", json=create_body, headers=headers)
+    assert created.status_code == 201
+    assert (
+        client.post("/api/users", json=create_body, headers=headers).json()
+        == created.json()
+    )
+    user = created.json()
+    url = f"/api/users/{user['id']}"
+    disable = {
+        "active": False,
+        "roles": ["college_analyst"],
+        "expected_version": user["version"],
+        "request_id": str(uuid4()),
+    }
+    disabled = client.patch(url, json=disable, headers=headers)
+    assert disabled.status_code == 200
+    assert client.patch(url, json=disable, headers=headers).json() == disabled.json()
+    stale = {
+        "active": True,
+        "roles": ["college_data_admin"],
+        "expected_version": user["version"],
+        "request_id": str(uuid4()),
+    }
+    assert client.patch(url, json=stale, headers=headers).status_code == 409
+    current = next(
+        row for row in client.get("/api/users").json() if row["id"] == user["id"]
+    )
+    assert current["active"] is False
+    assert current["version"] == 2
+    events = [
+        row
+        for row in client.get("/api/account-audit").json()
+        if row["action"] == "user.update" and row["target"] == str(user["id"])
+    ]
+    assert len(events) == 1
+    details = json.loads(events[0]["details"])
+    assert details["before"]["active"] is True
+    assert details["after"]["active"] is False
+    assert details["before"]["version"] == 1
+    assert details["after"]["version"] == 2

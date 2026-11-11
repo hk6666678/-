@@ -40,6 +40,7 @@ def public_user(row: sqlite3.Row) -> dict[str, object]:
         "username": row["username"],
         "roles": json.loads(row["roles"]),
         "active": bool(row["active"]),
+        "version": row["version"],
         "business_permissions": [],
     }
 
