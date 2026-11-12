@@ -108,3 +108,50 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
     assert result["distinct_outputs"] == 1
     assert result["items"][0]["version"] == 2
     assert result["items"][0]["title"] == "合成科研论文更正"
+    # A newly linked student in another college immediately revokes visibility;
+    # the submitted participant scope cannot override the live student archive.
+    from test_students import workbook
+
+    user = client.get("/api/me").json()["user"]
+    grants = client.get("/api/access/grants").json()
+    grants.append(
+        {
+            "category": "basic",
+            "operation": "maintain",
+            "college": "示例学院",
+            "major": "计算机",
+        }
+    )
+    assert (
+        client.put(
+            f"/api/users/{user['id']}/grants",
+            headers=headers,
+            json={
+                "expected_version": user["version"],
+                "request_id": str(uuid4()),
+                "grants": grants,
+            },
+        ).status_code
+        == 200
+    )
+    basic = client.post(
+        "/api/imports/basic/preview",
+        headers=headers,
+        data={"source_department": "合成档案"},
+        files={"file": ("synthetic.xlsx", workbook())},
+    )
+    assert basic.status_code == 200
+    assert (
+        client.post(
+            f"/api/imports/{basic.json()['id']}/confirm", headers=headers
+        ).status_code
+        == 200
+    )
+    assert client.get("/api/research-outputs").json()["distinct_outputs"] == 0
+    spoof = client.post(
+        "/api/research-outputs/preview",
+        headers=headers,
+        data={"source_department": "合成科研处"},
+        files={"file": ("synthetic.xlsx", stream.getvalue())},
+    )
+    assert spoof.status_code == 409
