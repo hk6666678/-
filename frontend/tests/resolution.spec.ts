@@ -9,6 +9,9 @@ test("synthetic basic error is corrected with evidence and second confirmation",
     .getByLabel("密码", { exact: true })
     .fill("Synthetic-password-123!");
   await page.getByRole("button", { name: "登录平台" }).click();
+  await page
+    .getByRole("button", { name: "数据纠错与维护", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: "在线纠错与身份确认" }),
   ).toBeVisible();

@@ -9,6 +9,9 @@ test("synthetic formal correction and void preserve history", async ({
     .getByLabel("密码", { exact: true })
     .fill("Synthetic-password-123!");
   await page.getByRole("button", { name: "登录平台" }).click();
+  await page
+    .getByRole("button", { name: "数据纠错与维护", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: "正式记录更正与历史" }),
   ).toBeVisible();

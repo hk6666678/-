@@ -383,3 +383,88 @@ td small {
     padding: 18px;
   }
 }
+
+/* Keep navigation and the working area independently reachable. */
+.workspace {
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+.workspace aside {
+  min-height: 0;
+}
+.brand,
+.aside-foot {
+  flex-shrink: 0;
+}
+.brand {
+  margin-bottom: 30px;
+}
+.workspace nav {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 3px;
+  margin: -3px;
+  scrollbar-width: thin;
+}
+nav button {
+  border-left: 3px solid transparent;
+  border-radius: 0 6px 6px 0;
+  transition: background-color 120ms ease;
+}
+nav button:hover {
+  background: #ffffff20;
+  color: white;
+  filter: none;
+}
+nav button.active {
+  background: #ffffff26;
+  border-left-color: #85c5af;
+}
+nav button:focus-visible {
+  outline: 2px solid #b4eadb;
+  outline-offset: -2px;
+  background: #ffffff26;
+}
+.aside-foot {
+  padding-top: 24px;
+}
+.content {
+  overflow: auto;
+  min-height: 0;
+}
+@media (max-width: 550px) {
+  .workspace {
+    display: flex;
+    flex-direction: column;
+  }
+  .workspace aside {
+    flex-shrink: 0;
+    padding: 14px 18px 8px;
+  }
+  .brand {
+    font-size: 19px;
+    margin-bottom: 10px;
+  }
+  .brand small {
+    display: inline;
+    margin-left: 12px;
+    letter-spacing: 0;
+  }
+  .workspace nav {
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-shrink: 0;
+  }
+  nav button {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 10px 14px;
+  }
+  .content {
+    flex: 1;
+  }
+  .user-menu {
+    flex-wrap: wrap;
+  }
+}

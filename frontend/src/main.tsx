@@ -240,23 +240,83 @@ function App() {
           AQP-PGS<small>研究生培养质量研究</small>
         </div>
         <nav>
-          {admin && <button onClick={() => setPage("audit")}>审计查询</button>}
-          <button onClick={() => setPage("milestones")}>选题与中期导入</button>
-          <button onClick={() => setPage("papers")}>论文上传与解析</button>
-          <button onClick={() => setPage("agent")}>Agent 查询</button>
-          <button onClick={() => setPage("analysis")}>
+          <button
+            className={page === "maintenance" ? "active" : ""}
+            aria-current={page === "maintenance" ? "page" : undefined}
+            onClick={() => setPage("maintenance")}
+          >
+            数据纠错与维护
+          </button>
+          {admin && (
+            <button
+              className={page === "audit" ? "active" : ""}
+              aria-current={page === "audit" ? "page" : undefined}
+              onClick={() => setPage("audit")}
+            >
+              审计查询
+            </button>
+          )}
+          <button
+            className={page === "milestones" ? "active" : ""}
+            aria-current={page === "milestones" ? "page" : undefined}
+            onClick={() => setPage("milestones")}
+          >
+            选题与中期导入
+          </button>
+          <button
+            className={page === "papers" ? "active" : ""}
+            aria-current={page === "papers" ? "page" : undefined}
+            onClick={() => setPage("papers")}
+          >
+            论文上传与解析
+          </button>
+          <button
+            className={page === "agent" ? "active" : ""}
+            aria-current={page === "agent" ? "page" : undefined}
+            onClick={() => setPage("agent")}
+          >
+            Agent 查询
+          </button>
+          <button
+            className={page === "analysis" ? "active" : ""}
+            aria-current={page === "analysis" ? "page" : undefined}
+            onClick={() => setPage("analysis")}
+          >
             课程统计与通过规则
           </button>
-          <button onClick={() => setPage("courses")}>课程导入与待关联</button>
-          <button onClick={() => setPage("students")}>
+          <button
+            className={page === "courses" ? "active" : ""}
+            aria-current={page === "courses" ? "page" : undefined}
+            onClick={() => setPage("courses")}
+          >
+            课程导入与待关联
+          </button>
+          <button
+            className={page === "students" ? "active" : ""}
+            aria-current={page === "students" ? "page" : undefined}
+            onClick={() => setPage("students")}
+          >
             基础导入与学生档案
           </button>
           {admin && (
-            <button onClick={() => setPage("model")}>获准模型连接</button>
+            <button
+              className={page === "model" ? "active" : ""}
+              aria-current={page === "model" ? "page" : undefined}
+              onClick={() => setPage("model")}
+            >
+              获准模型连接
+            </button>
           )}
-          <button onClick={() => setPage("access")}>授权与脱敏验证</button>
+          <button
+            className={page === "access" ? "active" : ""}
+            aria-current={page === "access" ? "page" : undefined}
+            onClick={() => setPage("access")}
+          >
+            授权与脱敏验证
+          </button>
           <button
             className={page === "overview" ? "active" : ""}
+            aria-current={page === "overview" ? "page" : undefined}
             onClick={() => setPage("overview")}
           >
             工作台概览
@@ -264,6 +324,7 @@ function App() {
           {admin && (
             <button
               className={page === "accounts" ? "active" : ""}
+              aria-current={page === "accounts" ? "page" : undefined}
               onClick={() => setPage("accounts")}
             >
               个人账号管理
@@ -282,7 +343,24 @@ function App() {
             <span className="eyebrow">
               工作平台 / {page === "accounts" ? "账号管理" : "概览"}
             </span>
-            <h1>{page === "accounts" ? "个人账号管理" : "欢迎回到工作台"}</h1>
+            <h1>
+              {
+                {
+                  maintenance: "数据纠错与维护",
+                  overview: "欢迎回到工作台",
+                  accounts: "个人账号管理",
+                  audit: "审计查询",
+                  milestones: "选题与中期导入",
+                  papers: "论文上传与解析",
+                  agent: "Agent 查询",
+                  analysis: "课程统计与通过规则",
+                  courses: "课程导入与待关联",
+                  students: "基础导入与学生档案",
+                  model: "获准模型连接",
+                  access: "授权与脱敏验证",
+                }[page]
+              }
+            </h1>
           </div>
           <div className="user-menu">
             <span>{session.user.username}</span>
@@ -310,8 +388,10 @@ function App() {
           </div>
         </header>
         {alert}
-        <ResolutionPanel csrf={session.csrf_token} />
-        <RecordPanel csrf={session.csrf_token} />
+        {page === "maintenance" && (
+          <ResolutionPanel csrf={session.csrf_token} />
+        )}
+        {page === "maintenance" && <RecordPanel csrf={session.csrf_token} />}
         {page === "audit" && admin ? (
           <AuditPanel fetcher={request} />
         ) : page === "milestones" ? (
