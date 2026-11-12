@@ -7,6 +7,7 @@ import { AccessPanel } from "./AccessPanel";
 import { AuditPanel } from "./AuditPanel";
 import { MilestonePanel } from "./MilestonePanel";
 import { PaperPanel } from "./PaperPanel";
+import { CandidatePanel } from "./CandidatePanel";
 import { ComparisonPanel } from "./ComparisonPanel";
 import { CoursePanel } from "./CoursePanel";
 import { ResolutionPanel } from "./ResolutionPanel";
@@ -317,6 +318,7 @@ function App() {
           <>
             <PaperPanel csrf={session.csrf_token} />
             <ComparisonPanel csrf={session.csrf_token} />
+            <CandidatePanel csrf={session.csrf_token} />
           </>
         ) : page === "analysis" ? (
           <AnalysisPanel csrf={session.csrf_token} />

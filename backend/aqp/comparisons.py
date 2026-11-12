@@ -37,7 +37,7 @@ def register_comparisons(
     app: FastAPI,
     path: Path,
     current: Callable[[sqlite3.Connection, Request], tuple[sqlite3.Row, str]],
-) -> None:
+) -> tuple[Callable[..., Any], Callable[..., Any]]:
     def paper(
         db: sqlite3.Connection, actor: int, ident: int, operations: tuple[str, ...]
     ) -> sqlite3.Row:
@@ -227,3 +227,5 @@ def register_comparisons(
             )
             audit(db, actor["id"], "paper.comparison.read", str(ident))
             return {"id": ident, "stale": stale, **saved}
+
+    return paper, snapshot
