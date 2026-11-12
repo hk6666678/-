@@ -1,3 +1,4 @@
+import { RecordPanel } from "./RecordPanel";
 import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
@@ -303,6 +304,7 @@ function App() {
         </header>
         {alert}
         <ResolutionPanel csrf={session.csrf_token} />
+        <RecordPanel csrf={session.csrf_token} />
         {page === "audit" && admin ? (
           <AuditPanel fetcher={request} />
         ) : page === "milestones" ? (

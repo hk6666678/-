@@ -24,3 +24,11 @@ API：
 `GET /api/papers/{id}/evidence` 返回 `version_id` 与本地结果：`pages[{page,text}]`、`sections[{page,text}]`、`references[{page,text}]`，page 始终是1起始PDF文件页序；`page_count/character_count/section_count/reference_count` 为基础统计。章节按行首编号识别，参考文献按参考文献标题之后非空行识别，计数是行数而非经过语义归并的文献条数。语义特征、研究问题、方法和创新主张尚未提取，属于任务13。证据读取和 `/download` 每次重查papers查看、全体身份、原始下载授权，并校验原件hash，不提供静态文件链接。
 
 独立命令 `python -m aqp.paper_worker`；`--once` 单次驱动，`--lease-seconds` 可配置恢复等待（默认60秒）。SQLite原子领取及token围栏保证多worker仅有一次有效发布；进程中断后任务保留processing，租约过期后重新领取。结果与完成状态同一事务提交，重试不新增论文版本。`Start-Aqp.ps1` 隐藏启动自有worker并在服务退出时清理；重复运行的worker由数据库领取互斥，过期worker不能覆盖新token结果。数据库与attachments须成套备份。
+
+## 智能论文特征（任务13）
+
+`POST /api/papers/{version_id}/semantic` 在本地解析成功后同步执行一次智能提取；调用前需文件涉及全体学生的 papers maintain/view/identity/download 权限，返回前再次检查读取权。`GET` 同路径需全体 view/identity/download，返回 `{items:[...]}` 历史（新到旧）。两者均校验原件完整性，拒绝访问沿用脱敏审计。
+
+130迁移 `paper_semantic_runs` 独立保存每次尝试，不改写本地解析与旧结果。结果包含id、version_id、file_version、sha256、model、model_config_version、parser_config、四类features和明确独立的expert_evaluation未提供状态。特征status为available/missing/failed/disabled；available保留text/page/quote，quote必须在对应1起始PDF文件页原文中逐字存在。结果整体disabled/failed/partial/succeeded；部分缺失或失败不能宣称完整成功。模型配置变更期间的结果拒绝接受。
+
+无获准模型时保存disabled尝试并保留本地结果。失败可重试，历史持续保留；错误不保存模型异常正文。不截断全文后声称完整分析。源文仅作为不可信数据输入，不能改变权限或触发工具。原文引文校验只验证出处，不证明模型概括或学术判断正确；真实效果须实际获准模型人工抽检。
