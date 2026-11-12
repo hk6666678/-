@@ -38,3 +38,8 @@ origin https://github.com/hk6666678/-.git。此前核实远程integration为fc7c
 
 5918ebb工作树干净；变更Ruff检查通过。另待适配旧frontend/tests/exports.spec.ts导航、完整复核原件页面入口；19双轴审查未做。代理push约21秒后Github443连接失败，未核实上传；无遗留测试、服务或同步进程。
 
+
+## GitHub同步恢复补记（2026-11-12）
+
+用户随后要求上传GitHub。读取本机已启用系统代理，使用仅本次命令的http.proxy连接后，已成功正常推送并在线核对：integration/aqp-trial为72eae44f4c472ce44884c5f55637432437271b17，implement/ticket-19为5918ebb5103aa2f440e83045dfcdc431a3201cda。此前仅本地保存状态已解除。此补记单独提交并再次同步集成分支；未修改全局代理，未恢复功能开发，09待修与19 WIP状态不变。
+
