@@ -1,17 +1,17 @@
 # 完整平台当前检查点（2026-11-12）
 
-本文件取代此前额度停止交接的过时状态。当前仍在工作，最近官方短周期剩13%、周剩48%；尚未达到5%停止线，尚未触发本轮GitHub上传。
+本文件取代此前额度停止交接的过时状态。当前仍在工作，最近官方短周期剩9%、周剩47%；尚未达到5%停止线，尚未触发本轮GitHub上传。
 
 ## 集成与已完成
 
-根 D:/AQP-PGS，integration/aqp-trial，当前HEAD5698851。full01导师显式绑定交集完整集成：9e62e2d合794c250；c6faaa7历史分析GET/evidence绑定撤销测试；5c77545绑定管理Chrome保存/刷新持久化/清空撤销专项及启用文案；5698851领取02/05。
+根 D:/AQP-PGS，integration/aqp-trial，功能HEAD5698851（后续交接文档提交以git log -1核实）。full01导师显式绑定交集完整集成：9e62e2d合794c250；c6faaa7历史分析GET/evidence绑定撤销测试；5c77545绑定管理Chrome保存/刷新持久化/清空撤销专项及启用文案；5698851领取02/05。
 
 验证：9e62e2d全后端103 passed；c6faaa7专项3 passed；mypy26、Ruff、TS/Vite、Chrome账号导师兼任创建及绑定管理专项通过。真实学校数据、导师对应关系、学校业务规则及专家验收未做。01本轮部分先实现后补测试，不能称严格TDD。
 
 ## 正在开发、不能合并宣称完成
 
-- D:/AQP-PGS-worktrees/full-02，codex/full-02，checkpoint52d1bf2（前edf2851）。科研论文独立于学位papers；migration210，Category research_papers。后端模板/preview确认/业务键共享参与/去重及显式变更版本/history/待关联审计，8相关测试及模块mypy/ruff通过。UI上传预览确认、列表统计及导航已写且build通过，部分未提交；伪学院/迁学院专项与Chrome仍在补，尚未最终集成回归/审查。
-- D:/AQP-PGS-worktrees/full-05，codex/full-05，checkpoint09899e0。独立盲审答辩创建/列表、模拟模板及全体covered_student_ids授权，2API测试+ruff通过。完整写入/重复/撤权/原文分离测试、评分模板版本持久化、Excel与UI尚在开发，不能视作闭环。
+- D:/AQP-PGS-worktrees/full-02，codex/full-02，HEAD b92b0a2（前edf2851/52d1bf2/e53a57b）。科研论文独立于学位papers；migration210，Category research_papers。后端模板/preview确认/业务键共享参与/去重及显式变更版本/history/待关联审计，相关回归8项及模块mypy/ruff通过；伪学院和当前学生迁学院约束测试补齐。UI上传预览确认/列表个人参与与范围去重统计/导航已实现，build通过，隔离Chrome登录上传预览确认与统计显示通过。WIP缺口：void、history/来源页面、引用日期快照、充分共享及mentor授权矩阵、最终全回归及双轴审查。未合并，不宣称完整02。分支自带HANDOFF，无运行进程。
+- D:/AQP-PGS-worktrees/full-05，codex/full-05，HEAD a85bd83（前09899e0）。独立盲审答辩创建/列表、模拟模板持久化、全体covered_student_ids授权、来源及原文download和identity分离、duplicate/conflict/即时撤权，5相关API测试+模块mypy/ruff通过。WIP缺口：Excel预览确认、模板管理完整版本流程、UI/browser、最终全回归与审查。未合并，不宣称完整05。分支自带HANDOFF，无运行进程。
 - 其他历史worktrees均保留；git worktree list核实全部，只有codex/full-02/full-05尚未合当前integration。full-01 HEAD794c250已合。
 
 ## 固定决定与下一步
