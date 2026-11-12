@@ -13,7 +13,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from openpyxl import Workbook, load_workbook
 
-from aqp.authorization import allowed, compatible_scope, grants_for
+from aqp.authorization import allowed, compatible_scope, grants_for, student_allowed
 from aqp.store import audit, connection
 
 BASIC_REQUIRED = ["学号", "姓名", "考核批次", "评分制度", "原始成绩"]
@@ -49,6 +49,11 @@ def scope(
     payload: dict[str, object],
     category: str,
 ) -> bool:
+    student = db.execute(
+        "SELECT id FROM students WHERE student_number=?", (payload.get("学号", ""),)
+    ).fetchone()
+    if not student_allowed(db, actor, student["id"] if student else None):
+        return False
     if op == "maintain" and (not payload.get("所属学院") or not payload.get("专业")):
         return compatible_scope(db, actor, category, payload)
     return allowed(

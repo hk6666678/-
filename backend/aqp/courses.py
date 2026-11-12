@@ -15,7 +15,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from openpyxl import Workbook, load_workbook
 
-from aqp.authorization import allowed, compatible_scope
+from aqp.authorization import allowed, compatible_scope, student_allowed
 from aqp.store import audit, connection
 
 REQUIRED = [
@@ -33,6 +33,11 @@ IDENTITY = {"学号", "姓名"}
 
 
 def permitted(db: sqlite3.Connection, actor: int, op: str, p: dict[str, Any]) -> bool:
+    student = db.execute(
+        "SELECT id FROM students WHERE student_number=?", (p.get("学号", ""),)
+    ).fetchone()
+    if not student_allowed(db, actor, student["id"] if student else None):
+        return False
     if op == "maintain" and (not p.get("所属学院") or not p.get("专业")):
         return compatible_scope(db, actor, "courses", p)
     return allowed(db, actor, "courses", op, p.get("所属学院", ""), p.get("专业", ""))

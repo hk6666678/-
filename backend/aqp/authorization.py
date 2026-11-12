@@ -187,7 +187,9 @@ def register_authorization(
             ]
             rows: list[dict[str, object]] = []
             for research_id, name, number, college, major in samples:
-                if allowed(db, user["id"], "basic", "view", college, major):
+                if student_allowed(db, user["id"], None) and allowed(
+                    db, user["id"], "basic", "view", college, major
+                ):
                     row: dict[str, object] = {
                         "research_id": research_id,
                         "college": college,

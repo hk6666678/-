@@ -15,7 +15,7 @@ import { ResolutionPanel } from "./ResolutionPanel";
 import { StudentPanel } from "./StudentPanel";
 import { ModelPanel } from "./ModelPanel";
 
-type Role = "platform_admin" | "college_data_admin" | "college_analyst" | "school_data_admin" | "school_analyst";
+type Role = "mentor" | "platform_admin" | "college_data_admin" | "college_analyst" | "school_data_admin" | "school_analyst";
 type User = {
   id: number;
   username: string;
@@ -29,6 +29,7 @@ const roleNames: Record<Role, string> = {
   platform_admin: "平台管理员",
   school_data_admin: "校级数据管理员",
   school_analyst: "校级分析人员",
+  mentor: "导师",
   college_data_admin: "学院数据管理员",
   college_analyst: "学院分析人员",
 };
@@ -407,7 +408,7 @@ function App() {
               <section className="card">
                 <h3>业务数据授权</h3>
                 <p>
-                  角色不自动开放学生数据。数据维护、查看、分析和导出需要分别授权。
+                  角色不自动开放学生数据。数据维护、查看、分析和导出需要分别授权。导师还须绑定学生，兼任其他角色也只能访问绑定学生与数据授权的交集；解绑立即生效。
                 </p>
                 <span className="badge">业务数据权限请在授权验证页面查看</span>
               </section>

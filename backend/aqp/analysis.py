@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from aqp.authorization import allowed
+from aqp.authorization import allowed, student_allowed
 from aqp.courses import visible
 from aqp.exports import excel_report
 from aqp.milestones import masked, reconcile_milestones
@@ -126,6 +126,8 @@ def sources(
         f"SELECT c.*,s.version AS student_version,s.payload AS student_payload,s.active AS student_active FROM {table} c JOIN students s ON s.id=c.student_id WHERE {condition} ORDER BY c.id",
         () if scope.category == "courses" else (scope.category,),
     ):
+        if not student_allowed(db, actor, r["student_id"]):
+            continue
         p = json.loads(r["payload"])
         student = json.loads(r["student_payload"])
         if p.get("所属学院") != scope.college:
@@ -499,6 +501,8 @@ def register_analysis(
         _, dv, _, rv, _ = sources(db, scope, actor)
         evidence = json.loads(row["evidence"])
         for e in evidence:
+            if not student_allowed(db, actor, e["student_id"]):
+                raise HTTPException(403, "历史证据当前学生范围未授权")
             current_row = db.execute(
                 f"SELECT payload FROM {'course_records' if scope.category == 'courses' else 'milestone_records'} WHERE id=?",
                 (e["id"],),

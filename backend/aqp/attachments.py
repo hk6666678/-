@@ -17,7 +17,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from pypdf import PdfReader
 
-from aqp.authorization import allowed
+from aqp.authorization import allowed, student_allowed
 from aqp.store import audit, connection
 
 
@@ -41,9 +41,13 @@ def authorize_students(
         student = db.execute(
             "SELECT * FROM students WHERE id=? AND active=1", (student_id,)
         ).fetchone()
-        if not student or not all(
-            allowed(db, actor, category, op, student["college"], student["major"])
-            for op in operations
+        if (
+            not student
+            or not student_allowed(db, actor, student_id)
+            or not all(
+                allowed(db, actor, category, op, student["college"], student["major"])
+                for op in operations
+            )
         ):
             audit(db, actor, "attachment.access", "restricted", "denied")
             db.commit()
