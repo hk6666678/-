@@ -30,6 +30,7 @@ const operations: Record<string, string> = {
   identity: "身份展示",
   export: "导出",
   download: "原始下载",
+  void: "作废",
   pass_rules: "通过规则",
   labels: "样本标签",
   candidate_rules: "候选规则启用",

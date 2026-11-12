@@ -18,6 +18,7 @@ Operation = Literal[
     "identity",
     "export",
     "download",
+    "void",
     "pass_rules",
     "labels",
     "candidate_rules",
