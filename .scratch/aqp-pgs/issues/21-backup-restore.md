@@ -1,6 +1,6 @@
 # 21: 本机备份恢复与任务恢复验证
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
 **Specification:** [AQP-PGS 第一版开发规格](../spec.md)
 
@@ -22,3 +22,11 @@
 
 遵循 AQP-PGS 第一版开发规格、项目术语和架构决策；不扩大第一版范围。涉及的修订、证据与原始文件不得静默覆盖。本任务拆分已于 2026-11-11 经用户确认发布。任务可执行性取决于前置任务及注明的外部条件，不由分诊标签单独决定。
 
+
+## Answer
+
+已交付 `python -m aqp.backup create/restore` 与 [维护说明](../../../docs/backup-restore.md)。服务停止前置条件显式确认；SQLite backup snapshot + 全附件 manifest SHA-256/长度 + 版本原件/外键检查。恢复先验证专属临时目录，只发布新目标目录，拒绝穿越/符号链接/目录联接/重复条目；不覆盖现有数据。旧 sessions 删除，账号保留，processing paper_jobs 清旧token重排，成功结果不重跑；保留全部业务版本表和恢复审计。
+
+验证：公共CLI+HTTP合成测试6项通过，覆盖成套往返、既有目标拒绝、恶意ZIP、hash损坏、重新登录与旧会话失效、论文原件/页序证据一致，以及真实worker领取后终止、备份恢复、安全继续及不重复发布。合并 integration/aqp-trial 727a9f1；mypy、Ruff backend、前端npm构建通过；全量pytest 56 passed（48.64s）。
+
+CLI为维护人员完整行为，无新增维护网页/API。最终恢复库浏览器中档案、来源、分析/复核全版本关联由任务22集成验收；当前合成测试不计真实模型验收。状态 ready-for-human 表示交付待最终浏览器验收，不表示已完成真实生产恢复。
