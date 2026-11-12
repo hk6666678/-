@@ -6,7 +6,13 @@ from fastapi import HTTPException
 from pwdlib import PasswordHash
 
 PASSWORDS = PasswordHash.recommended()
-ROLES = {"platform_admin", "college_data_admin", "college_analyst"}
+ROLES = {
+    "platform_admin",
+    "college_data_admin",
+    "college_analyst",
+    "school_data_admin",
+    "school_analyst",
+}
 DUMMY_HASH = PASSWORDS.hash("not-a-login-password")
 
 

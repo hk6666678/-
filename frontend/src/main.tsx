@@ -15,7 +15,7 @@ import { ResolutionPanel } from "./ResolutionPanel";
 import { StudentPanel } from "./StudentPanel";
 import { ModelPanel } from "./ModelPanel";
 
-type Role = "platform_admin" | "college_data_admin" | "college_analyst";
+type Role = "platform_admin" | "college_data_admin" | "college_analyst" | "school_data_admin" | "school_analyst";
 type User = {
   id: number;
   username: string;
@@ -27,6 +27,8 @@ type User = {
 type Session = { user: User; csrf_token: string };
 const roleNames: Record<Role, string> = {
   platform_admin: "平台管理员",
+  school_data_admin: "校级数据管理员",
+  school_analyst: "校级分析人员",
   college_data_admin: "学院数据管理员",
   college_analyst: "学院分析人员",
 };
