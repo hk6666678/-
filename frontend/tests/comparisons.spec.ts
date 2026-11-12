@@ -3,8 +3,8 @@ import {execFileSync} from 'node:child_process';
 test('synthetic expert label and comparison history',async({page})=>{
  test.setTimeout(90000);
  await page.goto('/');await page.getByLabel('用户名',{exact:true}).fill('synthetic-admin');await page.getByLabel('密码',{exact:true}).fill('Synthetic-password-123!');await page.getByRole('button',{name:'登录平台'}).click();await expect(page.getByRole('heading',{name:'欢迎回到工作台'})).toBeVisible();
- const session=await(await page.request.get('/api/me')).json();const headers={'X-CSRF-Token':session.csrf_token};const original=(await(await page.request.get(`/api/users/${session.user.id}/grants`)).json()).grants;
- async function grants(values:unknown){const me=await(await page.request.get('/api/me')).json();return page.request.put(`/api/users/${session.user.id}/grants`,{headers,data:{expected_version:me.user.version,request_id:crypto.randomUUID(),grants:values}});}
+ const session=await(await page.request.get('/api/me',{timeout:10000})).json();const headers={'X-CSRF-Token':session.csrf_token};const original=(await(await page.request.get(`/api/users/${session.user.id}/grants`)).json()).grants;
+ async function grants(values:unknown){const me=await(await page.request.get('/api/me',{timeout:10000})).json();return page.request.put(`/api/users/${session.user.id}/grants`,{headers,data:{expected_version:me.user.version,request_id:crypto.randomUUID(),grants:values}});}
  try{
   expect((await grants(['basic','papers'].flatMap(category=>['maintain','view','identity','download','labels','analyze'].map(operation=>({category,operation,college:'比较合成学院',major:'比较合成专业'}))))).status()).toBe(200);
   const workbook=execFileSync('../.venv/Scripts/python.exe',['-c',"import sys,io; from openpyxl import Workbook; w=Workbook();s=w.active;s.append(['AQP-PGS','basic','1']);s.append(['学号','姓名','所属学院','专业','培养层次','入学年份']);s.append(['COMPARE-SYN-14','论文合成学生','比较合成学院','比较合成专业','硕士','2025']);o=io.BytesIO();w.save(o);sys.stdout.buffer.write(o.getvalue())"],{env:{...process.env,PYTHONUTF8:'1'}});

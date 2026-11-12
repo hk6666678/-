@@ -167,7 +167,11 @@ def register_comparisons(
                 and target["discipline"]
                 and all(value is not None for value in feature_values(target).values())
                 and all(groups[k]["sample_count"] for k in ("优秀", "普通"))
-                and all(groups[k]['features'][feature]['denominator'] for k in ('优秀', '普通') for feature in FEATURES)
+                and all(
+                    groups[k]["features"][feature]["denominator"]
+                    for k in ("优秀", "普通")
+                    for feature in FEATURES
+                )
             )
             result = {
                 "target_version_id": ident,
