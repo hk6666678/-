@@ -550,6 +550,9 @@ def register_analysis(
         body: Scope, request: Request, category: Literal["courses", "topic", "midterm"]
     ) -> dict[str, Any]:
         with connection(path) as db:
+            # Five local analyses can queue behind a full baseline calculation.
+            # Keep the transaction snapshot intact with a bounded wait.
+            db.execute("PRAGMA busy_timeout=60000")
             db.execute("BEGIN IMMEDIATE")
             actor, _ = current(db, request)
             body.category = category
