@@ -1,6 +1,6 @@
 # 18: Agent 论文解释与综合摘要
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 **Specification:** [AQP-PGS 第一版开发规格](../spec.md)
 
