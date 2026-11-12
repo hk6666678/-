@@ -270,3 +270,68 @@ def test_stale_account_update_cannot_reenable_disabled_user(client: TestClient) 
     assert details["after"]["active"] is False
     assert details["before"]["version"] == 1
     assert details["after"]["version"] == 2
+
+
+def test_student_bindings_configuration(client: TestClient, tmp_path: Path) -> None:
+    from aqp.store import connection
+
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        db.execute(
+            "INSERT INTO students(research_id,student_number,name,college,major,level,entry_year,payload) VALUES (?,?,?,?,?,?,?,?)",
+            (
+                "SYN-BIND",
+                "SYN-TEST",
+                "合成学生",
+                "示例学院",
+                "数学",
+                "硕士",
+                2026,
+                "{}",
+            ),
+        )
+    headers = login_admin(client)
+    user_id = client.get("/api/me").json()["user"]["id"]
+    url = f"/api/users/{user_id}/student_bindings"
+    initial = client.get(url).json()
+    assert initial["student_bindings"] == []
+    body = {
+        "expected_version": initial["version"],
+        "request_id": str(uuid4()),
+        "student_bindings": ["SYN-NOT-FOUND"],
+    }
+    assert client.put(url, headers=headers, json=body).status_code == 422
+    body["student_bindings"] = ["SYN-BIND"]
+    saved = client.put(url, headers=headers, json=body)
+    assert saved.status_code == 200
+    assert saved.json()["version"] == initial["version"] + 1
+    assert saved.json()["student_bindings"] == ["SYN-BIND"]
+    assert client.get(url).json()["student_bindings"] == ["SYN-BIND"]
+    revoke = {
+        "expected_version": saved.json()["version"],
+        "request_id": str(uuid4()),
+        "student_bindings": [],
+    }
+    assert (
+        client.put(url, headers=headers, json=revoke).json()["student_bindings"] == []
+    )
+    body["request_id"] = str(uuid4())
+    assert client.put(url, headers=headers, json=body).status_code == 409
+    created = client.post(
+        "/api/users",
+        headers=headers,
+        json={
+            "username": "binding-member",
+            "password": "Synthetic-user-password!",
+            "roles": ["college_analyst"],
+            "request_id": str(uuid4()),
+        },
+    )
+    assert created.status_code == 201
+    with TestClient(client.app) as member:
+        result = member.post(
+            "/api/login",
+            json={"username": "binding-member", "password": "Synthetic-user-password!"},
+        )
+        member_headers = {"X-CSRF-Token": result.json()["csrf_token"]}
+        assert member.get(url).status_code == 403
+        assert member.put(url, headers=member_headers, json=body).status_code == 403

@@ -137,6 +137,9 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     from aqp.authorization import register_authorization
 
     register_authorization(app, path, current)
+    from aqp.student_bindings import register_student_bindings
+
+    register_student_bindings(app, path, current)
     from aqp.audit_viewer import register_audit_viewer
 
     register_audit_viewer(app, path, current)
