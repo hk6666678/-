@@ -184,8 +184,8 @@ def register_candidates(
                 (row["family_id"],),
             )
             db.execute(
-                "UPDATE candidate_rules SET enabled=1,confirmed_by=?,basis=? WHERE id=?",
-                (body.confirmed_by, body.basis, ident),
+                "UPDATE candidate_rules SET enabled=1,confirmed_by=?,basis=?,enabled_by=?,enabled_at=? WHERE id=?",
+                (body.confirmed_by, body.basis, actor["id"], int(time.time()), ident),
             )
             audit(db, actor["id"], "candidate.rule.enable", str(ident))
             return rule_view(

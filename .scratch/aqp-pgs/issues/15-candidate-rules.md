@@ -27,3 +27,7 @@
 ## Answer
 
 已交付版本化结构化草稿、专家确认启用、独立授权、三态条件解释、必要证据/对照不足阻断、不可覆盖候选结果及过时检查。任务16契约见 `docs/candidate-contract.md`。Chrome8045独立合成验证已显示候选命中与原页依据；截图接口超时，使用AX树核验。真实专家规则效果留任务23。
+
+## Validation
+
+合入 integration/aqp-trial 的9ab3337（任务08/21），全量pytest 63通过，mypy、Ruff、前端build通过。仓库Playwright脚本 `backend/tests/browser_candidates.py` 在Chrome8045完整页面闭环通过，finally恢复授权并清理独立临时样例。原生CUA截图限制不影响可复现浏览器验收。软件实现完成；真实专家规则效果留任务23。
