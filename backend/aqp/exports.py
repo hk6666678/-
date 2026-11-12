@@ -87,10 +87,20 @@ def register_original_downloads(
                 deny()
             known = {(r["sheet"], r["row_number"]) for r in rows}
             original = bytes(batch["original_file"])
-            wb = load_workbook(BytesIO(original), read_only=True, data_only=False)
+            wb = load_workbook(BytesIO(original), read_only=False, data_only=False)
             try:
+                if wb.defined_names:
+                    deny()
                 for ws in wb:
-                    if ws.title not in {r["sheet"] for r in rows} and any(
+                    if getattr(ws, "_charts", []) or getattr(ws, "_images", []):
+                        deny()
+                    for row in ws.iter_rows():
+                        for cell in row:
+                            if cell.comment is not None or cell.hyperlink is not None:
+                                deny()
+                known_sheets = {r["sheet"] for r in rows}
+                for ws in wb:
+                    if ws.title not in known_sheets and any(
                         v is not None
                         for values in ws.iter_rows(values_only=True)
                         for v in values

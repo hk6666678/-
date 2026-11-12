@@ -2,6 +2,8 @@ from io import BytesIO
 from uuid import uuid4
 
 from openpyxl import load_workbook
+from openpyxl.comments import Comment
+from openpyxl.workbook.defined_name import DefinedName
 from test_accounts import client, login_admin  # noqa: F401
 
 
@@ -163,6 +165,44 @@ def test_original_rejects_untracked_sheet_rows(client):  # noqa: F811
     ).json()
     assert client.get(f"/api/imports/{batch['id']}/download").status_code == 403
 
+
+def test_original_rejects_hidden_workbook_content(client):  # noqa: F811
+    from test_students import workbook
+
+    h = login_admin(client)
+    u = client.get("/api/me").json()["user"]
+    grants = [
+        {"category": "basic", "operation": op, "college": "示例学院", "major": "计算机"}
+        for op in ["maintain", "download", "identity"]
+    ]
+    assert (
+        client.put(
+            f"/api/users/{u['id']}/grants",
+            headers=h,
+            json={
+                "expected_version": u["version"],
+                "request_id": str(uuid4()),
+                "grants": grants,
+            },
+        ).status_code
+        == 200
+    )
+    wb = load_workbook(BytesIO(workbook()))
+    ws = wb.active
+    assert ws is not None
+    ws["A3"].comment = Comment("未授权学生资料", "合成上传者")
+    wb.defined_names["HiddenScope"] = DefinedName(
+        "HiddenScope", attr_text=f"{ws.title}!$A$3"
+    )
+    output = BytesIO()
+    wb.save(output)
+    batch = client.post(
+        "/api/imports/basic/preview",
+        headers=h,
+        data={"source_department": "合成"},
+        files={"file": ("synthetic.xlsx", output.getvalue())},
+    ).json()
+    assert client.get(f"/api/imports/{batch['id']}/download").status_code == 403
 
 def test_original_checks_current_student_scope_after_correction(client):  # noqa: F811
     from test_students import workbook
