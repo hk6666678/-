@@ -46,7 +46,7 @@ def register_papers(
                 "failure_code",
             )
         }
-        safe["semantic_features"] = "未提取（任务13）"
+        safe["semantic_features"] = "智能特征独立保存；请查看智能特征与历史依据"
         safe["features"] = (
             {
                 k: result[k]
@@ -214,6 +214,43 @@ def register_papers(
             )
             audit(db, actor["id"], "paper.retry", str(version_id))
             return {"status": "queued"}
+
+    @app.post("/api/papers/{version_id}/semantic")
+    def semantic_extract(version_id: int, request: Request) -> dict[str, object]:
+        from aqp.paper_semantics import extract
+
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            row = record(db, version_id)
+            access(db, actor["id"], row, ("maintain", "view", "identity", "download"))
+            read_version_blob(root, row)
+            if row["status"] != "succeeded":
+                raise HTTPException(409, "请先完成本地解析")
+            # Keep authorization stable through dispatch, then recheck before delivery.
+            result = extract(path, row, actor["id"])
+            access(db, actor["id"], row, ("view", "identity", "download"))
+            return result
+
+    @app.get("/api/papers/{version_id}/semantic")
+    def semantic_history(version_id: int, request: Request) -> dict[str, object]:
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            row = record(db, version_id)
+            access(db, actor["id"], row, ("view", "identity", "download"))
+            read_version_blob(root, row)
+            items = [
+                {
+                    **json.loads(r["result"]),
+                    "id": r["id"],
+                    "created_at": r["created_at"],
+                }
+                for r in db.execute(
+                    "SELECT * FROM paper_semantic_runs WHERE version_id=? ORDER BY id DESC",
+                    (version_id,),
+                )
+            ]
+            audit(db, actor["id"], "paper.semantic.history", str(version_id))
+            return {"items": items}
 
     @app.get("/api/papers/{version_id}/evidence")
     def evidence(version_id: int, request: Request) -> dict[str, object]:
