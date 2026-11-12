@@ -40,3 +40,47 @@ def sample_workbook(template: bytes, category: str, invalid: bool = False) -> by
     output = BytesIO()
     book.save(output)
     return output.getvalue()
+
+
+def write_package(templates, output):
+    """Keep small inputs and independent expectations beside the scale evidence."""
+    import json
+
+    output.mkdir(parents=True, exist_ok=False)
+    for category in ["basic", "courses", "topic", "midterm"]:
+        template = (templates / f"template-{category}.xlsx").read_bytes()
+        (output / f"synthetic-{category}.xlsx").write_bytes(
+            sample_workbook(template, category)
+        )
+        (output / f"errors-{category}.xlsx").write_bytes(
+            sample_workbook(template, category, invalid=True)
+        )
+    (output / "expected.json").write_text(
+        json.dumps(
+            {
+                "synthetic": True,
+                "students": 1,
+                "courses": 8,
+                "topic": 1,
+                "midterm": 1,
+                "passed": 4,
+                "failed": 2,
+                "unknown": 2,
+                "pass_rate": 66.67,
+                "explanation": "4 / (4 + 2) * 100 = 66.67; unknown excluded",
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+
+if __name__ == "__main__":
+    import argparse
+    from pathlib import Path
+
+    parser = argparse.ArgumentParser(description="Export synthetic small trial files")
+    parser.add_argument("--templates", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    write_package(args.templates, args.output)

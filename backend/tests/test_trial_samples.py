@@ -151,3 +151,33 @@ def test_text_paper_round_trip(client, tmp_path):
     original = client.get(f"/api/papers/{ident}/download")
     assert original.status_code == 200
     assert original.content.startswith(b"%PDF")
+
+
+def test_scale_refuses_external_attachment_root(tmp_path):
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    output = tmp_path / "scale"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "backend/tests/trial_scale.py",
+            "--small",
+            "--output",
+            str(output),
+        ],
+        env={
+            **os.environ,
+            "PYTHONPATH": "backend",
+            "AQP_ATTACHMENTS": str(tmp_path / "foreign"),
+        },
+        capture_output=True,
+        text=True,
+        timeout=15,
+        cwd=Path(__file__).resolve().parents[2],
+    )
+    assert result.returncode != 0
+    assert "AQP_ATTACHMENTS" in result.stderr
+    assert not output.exists()

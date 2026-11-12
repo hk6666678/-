@@ -90,6 +90,8 @@ def workbook(template, category, count, students, offset=0):
 
 
 def run(output, small):
+    if os.environ.get("AQP_ATTACHMENTS"):
+        raise RuntimeError("Unset AQP_ATTACHMENTS before synthetic scale validation")
     output.mkdir(parents=True, exist_ok=False)
     database = output / "aqp.sqlite3"
     report = {
