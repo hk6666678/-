@@ -149,6 +149,7 @@ def register_comparisons(
             {
                 "target": True,
                 "version_id": target["id"],
+                "sha256": target["sha256"],
                 "label_version": target_labels[0]["version"] if target_labels else 0,
                 "features": feature_values(target),
             }
