@@ -53,6 +53,30 @@ def test_record_preview_confirm_conflict_history_and_void(client):  # noqa: F811
     detail = client.get(url).json()
     assert detail["version"] == 2 and len(detail["revisions"]) == 1
     assert detail["revisions"][0]["before"]["姓名"] == "合成学生"
+    identity = client.post(
+        url + "/preview",
+        headers=h,
+        json={
+            "expected_version": 2,
+            "data": {"姓名": "合成核实名"},
+            "reason": "合成身份核实清单",
+        },
+    )
+    assert identity.status_code == 409
+    verified = client.post(
+        url + "/preview",
+        headers=h,
+        json={
+            "expected_version": 2,
+            "data": {"姓名": "合成核实名"},
+            "reason": "合成身份核实清单",
+            "identity_confirmed": True,
+        },
+    )
+    assert verified.status_code == 200
+    # Preview never changes the effective identity without confirmation.
+    assert client.get(url).json()["current"]["姓名"] == "合成学生"
+
     void = {"expected_version": 2, "reason": "合成重复档案", "confirmed": True}
     assert client.post(url + "/void", headers=h, json=void).status_code == 403
     assert (
