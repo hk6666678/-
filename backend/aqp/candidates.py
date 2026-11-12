@@ -293,7 +293,12 @@ def register_candidates(
             != row["rules_snapshot"]
         )
         audit(db, actor, "candidate.result.read", str(ident))
-        return {"id": ident, "stale": stale, **json.loads(row["result"])}
+        return {
+            "id": ident,
+            "created_at": row["created_at"],
+            "stale": stale,
+            **json.loads(row["result"]),
+        }
 
     @app.get("/api/candidate-results/{ident}/export")
     def export(ident: int, request: Request) -> Response:

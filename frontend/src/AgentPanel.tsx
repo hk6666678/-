@@ -68,8 +68,8 @@ export function AgentPanel({ csrf }: { csrf: string }) {
     <section className="card">
       <h2>Agent 查询与解释</h2>
       <p>
-        只读查询学生档案、人数统计、培养统计和已有分析版本。数字由系统工具计算；
-        写操作、任意SQL和文件访问不可用。
+        只读查询学生档案、人数统计、培养统计、论文特征、同类比较、候选依据和人工复核历史。数字由系统工具计算；
+        写操作、任意SQL和任意文件访问不可用；论文回答区分作者主张、专家评价与系统推荐，不输出优秀概率。
       </p>
       <p role="status">{status ? status.message : "模型状态读取中…"}</p>
       {status && !status.available && (

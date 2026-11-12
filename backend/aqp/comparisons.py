@@ -39,7 +39,7 @@ def register_comparisons(
     app: FastAPI,
     path: Path,
     current: Callable[[sqlite3.Connection, Request], tuple[sqlite3.Row, str]],
-) -> tuple[Callable[..., Any], Callable[..., Any]]:
+) -> tuple[Callable[..., Any], Callable[..., Any], Callable[..., Any]]:
     def paper(
         db: sqlite3.Connection, actor: int, ident: int, operations: tuple[str, ...]
     ) -> sqlite3.Row:
@@ -205,30 +205,35 @@ def register_comparisons(
             audit(db, actor["id"], "paper.compare", str(cur.lastrowid))
             return {"id": cur.lastrowid, "stale": False, **result}
 
+    def comparison_result(
+        db: sqlite3.Connection, actor: int, ident: int
+    ) -> dict[str, Any]:
+        row = db.execute(
+            "SELECT * FROM paper_comparisons WHERE id=?", (ident,)
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, "比较不存在")
+        target = paper(db, actor, row["target_id"], ("view", "analyze"))
+        saved = json.loads(row["result"])
+        for member in saved["evidence_versions"]:
+            paper(db, actor, member["version_id"], ("view", "analyze"))
+        members, _ = snapshot(db, actor, target, row["year"])
+        newest = db.execute(
+            "SELECT MAX(id) FROM paper_versions WHERE student_id=?",
+            (target["student_id"],),
+        ).fetchone()[0]
+        stale = (
+            newest != target["id"]
+            or json.dumps(members, sort_keys=True) != row["snapshot"]
+        )
+        audit(db, actor, "paper.comparison.read", str(ident))
+        return {"id": ident, "stale": stale, "created_at": row["created_at"], **saved}
+
     @app.get("/api/paper-comparisons/{ident}")
     def comparison(ident: int, request: Request) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
-            row = db.execute(
-                "SELECT * FROM paper_comparisons WHERE id=?", (ident,)
-            ).fetchone()
-            if row is None:
-                raise HTTPException(404, "比较不存在")
-            target = paper(db, actor["id"], row["target_id"], ("view", "analyze"))
-            saved = json.loads(row["result"])
-            for member in saved["evidence_versions"]:
-                paper(db, actor["id"], member["version_id"], ("view", "analyze"))
-            members, _ = snapshot(db, actor["id"], target, row["year"])
-            newest = db.execute(
-                "SELECT MAX(id) FROM paper_versions WHERE student_id=?",
-                (target["student_id"],),
-            ).fetchone()[0]
-            stale = (
-                newest != target["id"]
-                or json.dumps(members, sort_keys=True) != row["snapshot"]
-            )
-            audit(db, actor["id"], "paper.comparison.read", str(ident))
-            return {"id": ident, "stale": stale, **saved}
+            return comparison_result(db, actor["id"], ident)
 
     @app.get("/api/paper-comparisons/{ident}/export")
     def export(ident: int, request: Request) -> Response:
@@ -262,4 +267,4 @@ def register_comparisons(
             audit(db, actor["id"], "comparisons.export", str(ident))
             return excel_report(data, f"paper-comparisons-{ident}")
 
-    return paper, snapshot
+    return paper, snapshot, comparison_result

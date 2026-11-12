@@ -22,7 +22,7 @@ def register_papers(
     app: FastAPI,
     path: Path,
     current: Callable[[sqlite3.Connection, Request], tuple[sqlite3.Row, str]],
-) -> None:
+) -> Callable[[sqlite3.Connection, int, int], dict[str, object]]:
     root = storage_root(path)
 
     def access(
@@ -231,26 +231,27 @@ def register_papers(
             access(db, actor["id"], row, ("view", "identity", "download"))
             return result
 
+    def semantic_history_for(
+        db: sqlite3.Connection, actor: int, version_id: int
+    ) -> dict[str, object]:
+        row = record(db, version_id)
+        access(db, actor, row, ("view", "identity", "download"))
+        read_version_blob(root, row)
+        items = [
+            {**json.loads(r["result"]), "id": r["id"], "created_at": r["created_at"]}
+            for r in db.execute(
+                "SELECT * FROM paper_semantic_runs WHERE version_id=? ORDER BY id DESC",
+                (version_id,),
+            )
+        ]
+        audit(db, actor, "paper.semantic.history", str(version_id))
+        return {"items": items}
+
     @app.get("/api/papers/{version_id}/semantic")
     def semantic_history(version_id: int, request: Request) -> dict[str, object]:
         with connection(path) as db:
             actor, _ = current(db, request)
-            row = record(db, version_id)
-            access(db, actor["id"], row, ("view", "identity", "download"))
-            read_version_blob(root, row)
-            items = [
-                {
-                    **json.loads(r["result"]),
-                    "id": r["id"],
-                    "created_at": r["created_at"],
-                }
-                for r in db.execute(
-                    "SELECT * FROM paper_semantic_runs WHERE version_id=? ORDER BY id DESC",
-                    (version_id,),
-                )
-            ]
-            audit(db, actor["id"], "paper.semantic.history", str(version_id))
-            return {"items": items}
+            return semantic_history_for(db, actor["id"], version_id)
 
     @app.get("/api/papers/{version_id}/evidence")
     def evidence(version_id: int, request: Request) -> dict[str, object]:
@@ -284,3 +285,4 @@ def register_papers(
                     "Content-Security-Policy": "sandbox; default-src 'none'",
                 },
             )
+    return semantic_history_for
