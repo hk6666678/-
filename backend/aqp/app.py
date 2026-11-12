@@ -163,7 +163,10 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     register_papers(app, path, current)
     from aqp.comparisons import register_comparisons
 
-    register_comparisons(app, path, current)
+    paper_access, comparison_snapshot = register_comparisons(app, path, current)
+    from aqp.candidates import register_candidates
+
+    register_candidates(app, path, current, paper_access, comparison_snapshot)
     from aqp.resolutions import register_resolutions
 
     register_resolutions(app, path, current)
@@ -174,5 +177,3 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     if frontend.is_dir():
         app.mount("/", StaticFiles(directory=frontend, html=True), name="frontend")
     return app
-
-
