@@ -468,3 +468,22 @@ nav button:focus-visible {
     flex-wrap: wrap;
   }
 }
+.nav-group-label {
+  color: #8faea7;
+  font-size: 11px;
+  letter-spacing: 1px;
+  padding: 15px 20px 4px;
+}
+.nav-group:first-child .nav-group-label {
+  padding-top: 2px;
+}
+@media (max-width: 550px) {
+  .nav-group {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+  }
+  .nav-group-label {
+    display: none;
+  }
+}

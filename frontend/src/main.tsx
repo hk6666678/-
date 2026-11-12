@@ -239,97 +239,54 @@ function App() {
         <div className="brand">
           AQP-PGS<small>研究生培养质量研究</small>
         </div>
-        <nav>
-          <button
-            className={page === "maintenance" ? "active" : ""}
-            aria-current={page === "maintenance" ? "page" : undefined}
-            onClick={() => setPage("maintenance")}
-          >
-            数据纠错与维护
-          </button>
-          {admin && (
-            <button
-              className={page === "audit" ? "active" : ""}
-              aria-current={page === "audit" ? "page" : undefined}
-              onClick={() => setPage("audit")}
-            >
-              审计查询
-            </button>
-          )}
-          <button
-            className={page === "milestones" ? "active" : ""}
-            aria-current={page === "milestones" ? "page" : undefined}
-            onClick={() => setPage("milestones")}
-          >
-            选题与中期导入
-          </button>
-          <button
-            className={page === "papers" ? "active" : ""}
-            aria-current={page === "papers" ? "page" : undefined}
-            onClick={() => setPage("papers")}
-          >
-            论文上传与解析
-          </button>
-          <button
-            className={page === "agent" ? "active" : ""}
-            aria-current={page === "agent" ? "page" : undefined}
-            onClick={() => setPage("agent")}
-          >
-            Agent 查询
-          </button>
-          <button
-            className={page === "analysis" ? "active" : ""}
-            aria-current={page === "analysis" ? "page" : undefined}
-            onClick={() => setPage("analysis")}
-          >
-            课程统计与通过规则
-          </button>
-          <button
-            className={page === "courses" ? "active" : ""}
-            aria-current={page === "courses" ? "page" : undefined}
-            onClick={() => setPage("courses")}
-          >
-            课程导入与待关联
-          </button>
-          <button
-            className={page === "students" ? "active" : ""}
-            aria-current={page === "students" ? "page" : undefined}
-            onClick={() => setPage("students")}
-          >
-            基础导入与学生档案
-          </button>
-          {admin && (
-            <button
-              className={page === "model" ? "active" : ""}
-              aria-current={page === "model" ? "page" : undefined}
-              onClick={() => setPage("model")}
-            >
-              获准模型连接
-            </button>
-          )}
-          <button
-            className={page === "access" ? "active" : ""}
-            aria-current={page === "access" ? "page" : undefined}
-            onClick={() => setPage("access")}
-          >
-            授权与脱敏验证
-          </button>
-          <button
-            className={page === "overview" ? "active" : ""}
-            aria-current={page === "overview" ? "page" : undefined}
-            onClick={() => setPage("overview")}
-          >
-            工作台概览
-          </button>
-          {admin && (
-            <button
-              className={page === "accounts" ? "active" : ""}
-              aria-current={page === "accounts" ? "page" : undefined}
-              onClick={() => setPage("accounts")}
-            >
-              个人账号管理
-            </button>
-          )}
+        <nav aria-label="主导航">
+          {[
+            { label: "工作台", items: [["overview", "工作台概览"]] },
+            {
+              label: "数据管理",
+              items: [
+                ["students", "基础导入与学生档案"],
+                ["courses", "课程导入与待关联"],
+                ["milestones", "选题与中期导入"],
+                ["maintenance", "数据纠错与维护"],
+              ],
+            },
+            {
+              label: "研究分析",
+              items: [
+                ["analysis", "课程统计与通过规则"],
+                ["papers", "论文上传与解析"],
+                ["agent", "Agent 查询"],
+              ],
+            },
+            {
+              label: "系统管理",
+              items: [
+                ["access", "授权与脱敏验证"],
+                ...(admin
+                  ? [
+                      ["accounts", "个人账号管理"],
+                      ["model", "获准模型连接"],
+                      ["audit", "审计查询"],
+                    ]
+                  : []),
+              ],
+            },
+          ].map((group) => (
+            <div className="nav-group" key={group.label}>
+              <div className="nav-group-label">{group.label}</div>
+              {group.items.map(([key, label]) => (
+                <button
+                  key={key}
+                  className={page === key ? "active" : ""}
+                  aria-current={page === key ? "page" : undefined}
+                  onClick={() => setPage(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          ))}
         </nav>
         <div className="aside-foot">
           学院试用版 · 0.1
@@ -340,9 +297,7 @@ function App() {
       <main className="content">
         <header>
           <div>
-            <span className="eyebrow">
-              工作平台 / {page === "accounts" ? "账号管理" : "概览"}
-            </span>
+            <span className="eyebrow">研究生培养质量研究 / 工作平台</span>
             <h1>
               {
                 {
