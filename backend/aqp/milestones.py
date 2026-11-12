@@ -18,6 +18,7 @@ from aqp.store import audit, connection
 
 BASIC_REQUIRED = ["学号", "姓名", "考核批次", "评分制度", "原始成绩"]
 BASIC_OPTIONAL = [
+    "完成状态",
     "选题标题",
     "实际日期",
     "计划日期",
@@ -29,6 +30,7 @@ BASIC_OPTIONAL = [
     "专业",
 ]
 SAFE_FIELDS = {
+    "完成状态",
     "考核批次",
     "评分制度",
     "原始成绩",
