@@ -43,3 +43,12 @@ origin https://github.com/hk6666678/-.git。此前核实远程integration为fc7c
 
 用户随后要求上传GitHub。读取本机已启用系统代理，使用仅本次命令的http.proxy连接后，已成功正常推送并在线核对：integration/aqp-trial为72eae44f4c472ce44884c5f55637432437271b17，implement/ticket-19为5918ebb5103aa2f440e83045dfcdc431a3201cda。此前仅本地保存状态已解除。此补记单独提交并再次同步集成分支；未修改全局代理，未恢复功能开发，09待修与19 WIP状态不变。
 
+
+## 2026-11-12 模型切换恢复检查点
+
+用户要求继续未完成开发。当前会话无 get_usage_limits 工具，官方额度无法可靠判断；不能沿用上一会话5%读数，也不能假设已恢复。已按项目规则保存本检查点。
+
+- 09跨专业分组修复完成并合入，implement/ticket-09@5aa0cb7 已推送核实。集成分支曾为5f9804d，合并前71 pytest、类型/静态/构建与15 Chrome通过。
+- 19导出与原件控制完成并合入，implement/ticket-19@aac50c6 已推送核实。集成分支dbe8d49，合并后77 pytest、mypy24、Ruff、TS/Vite build、完整16 Chrome通过；19分支还通过独立browser_exports脚本。两轴审查和验收见 .scratch/aqp-pgs/reviews/19-code-review.md。
+- 软件待办：17 Agent学生/培养查询、18 Agent论文解释、22全流程与规模验证。13真实模型效果、21恢复库完整业务浏览器链路、23真实数据/专家规则/获准模型验收仍待外部前提或后续任务。
+- 本轮测试服务均已结束，工作区干净。使用本机代理仅作为单次Git命令参数；远程仍为 https://github.com/hk6666678/-.git。
