@@ -1,4 +1,5 @@
 from pathlib import Path
+
 root = Path(r'D:/AQP-PGS-worktrees/ticket-07')
 def edit(rel, replacements):
     path = root / rel

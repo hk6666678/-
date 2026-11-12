@@ -2,6 +2,10 @@
 
 **Status:** ready-for-human
 
+**Implementation status:** complete
+
+**Real-model acceptance:** pending approved service and manual source checks
+
 **Specification:** [AQP-PGS 第一版开发规格](../spec.md)
 
 **What to build:** 通过获准模型提取研究问题、方法、创新主张和成果描述，并检查原文位置。
