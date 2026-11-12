@@ -157,7 +157,7 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
       </label>
       <label>
         专业
-        <input value={major} onChange={(e) => setMajor(e.target.value)} />
+        <input value={major} placeholder="分析留空表示当前授权专业；规则须具体专业" onChange={(e) => setMajor(e.target.value)} />
       </label>
       <label>
         {category === "courses"
@@ -298,7 +298,7 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
             {snapshot.stale ? "已过时，请生成新版本" : "当前有效"}
           </h3>
           <p>
-            分析范围：{snapshot.scope.college} / {snapshot.scope.major} /{" "}
+            分析范围：{snapshot.scope.college} / {snapshot.scope.major || "授权范围内专业"} /{" "}
             {snapshot.scope.course_code || "全部课程"} /{" "}
             {snapshot.scope.term || "全部学期"} · 年级{" "}
             {snapshot.scope.grade || "全部"} · 培养层次{" "}
