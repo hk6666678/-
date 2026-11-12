@@ -1,0 +1,2 @@
+CREATE TABLE pass_rules (id INTEGER PRIMARY KEY, college TEXT NOT NULL, major TEXT NOT NULL, course_code TEXT NOT NULL, grading TEXT NOT NULL, term TEXT NOT NULL, version INTEGER NOT NULL, config TEXT NOT NULL, actor_id INTEGER NOT NULL, created_at INTEGER NOT NULL);
+CREATE TABLE analysis_snapshots (id INTEGER PRIMARY KEY, category TEXT NOT NULL, scope TEXT NOT NULL, result TEXT NOT NULL, evidence TEXT NOT NULL, data_version TEXT NOT NULL, rule_version TEXT NOT NULL, actor_id INTEGER NOT NULL, created_at INTEGER NOT NULL);
