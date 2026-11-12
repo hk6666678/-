@@ -155,3 +155,53 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
         files={"file": ("synthetic.xlsx", stream.getvalue())},
     )
     assert spoof.status_code == 409
+
+
+def test_change_cannot_remove_out_of_scope_existing_participant(client, tmp_path):  # noqa: F811
+    import json
+    from io import BytesIO
+
+    from aqp.store import connection
+    from openpyxl import load_workbook
+
+    headers = login_admin(client)
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        actor = db.execute("SELECT id FROM users").fetchone()[0]
+        db.execute(
+            "INSERT INTO grants VALUES (?,?,?,?,?)",
+            (actor, "research_papers", "maintain", "Allowed", "Math"),
+        )
+        db.execute(
+            "INSERT INTO research_outputs(business_key,payload) VALUES (?,?)",
+            (
+                "shared",
+                json.dumps(
+                    {
+                        "title": "Shared",
+                        "participants": [
+                            {
+                                "student_number": "hidden",
+                                "name": "Hidden",
+                                "order": 1,
+                                "role": "author",
+                                "college": "Hidden",
+                                "major": "Math",
+                            }
+                        ],
+                    }
+                ),
+            ),
+        )
+    wb = load_workbook(BytesIO(client.get("/api/research-outputs/template").content))
+    wb.active.append(
+        ["shared", "Shared", "allowed", "Allowed", 1, "author", "Allowed", "Math"]
+    )
+    stream = BytesIO()
+    wb.save(stream)
+    result = client.post(
+        "/api/research-outputs/preview",
+        headers=headers,
+        data={"source_department": "Synthetic"},
+        files={"file": ("synthetic.xlsx", stream.getvalue())},
+    )
+    assert result.status_code == 403

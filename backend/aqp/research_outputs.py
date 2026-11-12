@@ -228,6 +228,8 @@ def register_research_outputs(
                 old = db.execute(
                     "SELECT * FROM research_outputs WHERE business_key=?", (key,)
                 ).fetchone()
+                if old:
+                    maintain(db, actor["id"], json.loads(old["payload"]))
                 items.append(
                     {
                         "business_key": key,
@@ -284,6 +286,8 @@ def register_research_outputs(
                     "SELECT * FROM research_outputs WHERE business_key=?",
                     (item["business_key"],),
                 ).fetchone()
+                if old:
+                    maintain(db, actor["id"], json.loads(old["payload"]))
                 if (old["version"] if old else 0) != item["expected_version"]:
                     raise HTTPException(409, "成果已变化，请重新预览")
                 if item["status"] == "duplicate":
