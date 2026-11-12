@@ -6,6 +6,7 @@ import sqlite3
 import time
 from collections import Counter, defaultdict
 from collections.abc import Callable
+from datetime import date
 from pathlib import Path
 from typing import Any, Literal
 
@@ -14,12 +15,17 @@ from pydantic import BaseModel, Field
 
 from aqp.authorization import allowed
 from aqp.courses import visible
+from aqp.milestones import masked, reconcile_milestones
 from aqp.store import audit, connection
 
 
 class Scope(BaseModel):
     college: str = Field(min_length=1)
     major: str = Field(min_length=1)
+    category: Literal["courses", "topic", "midterm"] = "courses"
+    grade: str = ""
+    level: str = ""
+    group_by: Literal["", "grade", "major", "level"] = ""
     course_code: str = ""
     term: str = ""
 
@@ -33,8 +39,15 @@ class PassRule(Scope):
     reason: str = Field(min_length=1, max_length=2000)
 
 
+class TrainingRequirement(Scope):
+    required_credits: float = Field(gt=0, allow_inf_nan=False)
+    repeat_policy: Literal["max_passed_credits"]
+    confirmed: bool = False
+    reason: str = Field(min_length=1, max_length=2000)
+
+
 def require(db: sqlite3.Connection, actor: int, scope: Scope, op: str) -> None:
-    if not allowed(db, actor, "courses", op, scope.college, scope.major):
+    if not allowed(db, actor, scope.category, op, scope.college, scope.major):
         raise HTTPException(403, "此范围操作未授权")
 
 
@@ -48,14 +61,28 @@ def sources(
     db: sqlite3.Connection, scope: Scope
 ) -> tuple[list[dict[str, Any]], str, list[dict[str, Any]], str]:
     rows = []
+    table = "course_records" if scope.category == "courses" else "milestone_records"
+    condition = (
+        "c.state='linked'"
+        if scope.category == "courses"
+        else "c.category=? AND c.student_id IS NOT NULL"
+    )
     for r in db.execute(
-        "SELECT c.*,s.version AS student_version,s.payload AS student_payload,s.active AS student_active FROM course_records c JOIN students s ON s.id=c.student_id WHERE c.state='linked' ORDER BY c.id"
+        f"SELECT c.*,s.version AS student_version,s.payload AS student_payload,s.active AS student_active FROM {table} c JOIN students s ON s.id=c.student_id WHERE {condition} ORDER BY c.id",
+        () if scope.category == "courses" else (scope.category,),
     ):
         p = json.loads(r["payload"])
         student = json.loads(r["student_payload"])
         if p.get("所属学院") != scope.college or p.get("专业") != scope.major:
             continue
-        if scope.course_code and p.get("课程编号") != scope.course_code:
+        if scope.grade and student.get("入学年份") != scope.grade:
+            continue
+        if scope.level and student.get("培养层次") != scope.level:
+            continue
+        if (
+            scope.course_code
+            and p.get("课程编号", p.get("考核批次")) != scope.course_code
+        ):
             continue
         if scope.term and p.get("修读学期") != scope.term:
             continue
@@ -77,17 +104,28 @@ def sources(
                         (r["source_row_id"],),
                     ).fetchone()
                 ),
-                "dependency_token": f"courses:{r['id']}:{r['version']}:{r['active']}",
+                "dependency_token": f"{scope.category}:{r['id']}:{r['version']}:{r['active']}",
             }
         )
     rules = [
         dict(r)
         for r in db.execute(
-            "SELECT * FROM pass_rules WHERE college=? AND major=? ORDER BY id",
-            (scope.college, scope.major),
+            "SELECT * FROM pass_rules WHERE college=? AND major=? AND category=? ORDER BY id",
+            (scope.college, scope.major, scope.category),
         )
     ]
-    return rows, digest(rows), rules, digest(rules)
+    training = (
+        [
+            dict(r)
+            for r in db.execute(
+                "SELECT * FROM training_requirements WHERE college=? AND major=? ORDER BY id",
+                (scope.college, scope.major),
+            )
+        ]
+        if scope.category == "courses"
+        else []
+    )
+    return rows, digest(rows), rules, digest([rules, training])
 
 
 def outcome(p: dict[str, Any], rules: list[dict[str, Any]]) -> tuple[str, int | None]:
@@ -96,9 +134,9 @@ def outcome(p: dict[str, Any], rules: list[dict[str, Any]]) -> tuple[str, int | 
     matching = [
         r
         for r in rules
-        if r["course_code"] == p["课程编号"]
+        if r["course_code"] == p.get("课程编号", p.get("考核批次", ""))
         and r["grading"] == p["评分制度"]
-        and (not r["term"] or r["term"] == p["修读学期"])
+        and (not r["term"] or r["term"] == p.get("修读学期", ""))
     ]
     if not matching or p.get("原始成绩", "") == "":
         return "未知", None
@@ -113,10 +151,10 @@ def outcome(p: dict[str, Any], rules: list[dict[str, Any]]) -> tuple[str, int | 
 
 
 def calculate(
-    rows: list[dict[str, Any]], rules: list[dict[str, Any]]
+    rows: list[dict[str, Any]], rules: list[dict[str, Any]], scope: Scope
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     evidence = []
-    groups: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    groups: dict[tuple[str, str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
         if not row["active"] or not row["student_active"]:
             continue
@@ -124,7 +162,21 @@ def calculate(
         status, rule_id = outcome(p, rules)
         e = {**row, "status": status, "rule_id": rule_id}
         evidence.append(e)
-        groups[(p["课程编号"], p["评分制度"], p["修读学期"])].append(e)
+        groups[
+            (
+                p.get("课程编号", p.get("考核批次", "")),
+                p["评分制度"],
+                p.get("修读学期", ""),
+                str(
+                    row["student"].get(
+                        {"grade": "入学年份", "major": "专业", "level": "培养层次"}.get(
+                            scope.group_by, ""
+                        ),
+                        "",
+                    )
+                ),
+            )
+        ].append(e)
 
     def summary(items: list[dict[str, Any]]) -> dict[str, Any]:
         counts = Counter(e["status"] for e in items)
@@ -141,7 +193,7 @@ def calculate(
         }
 
     distribution = []
-    for (course, grading, term), items in groups.items():
+    for (course, grading, term, group_value), items in groups.items():
         scores = (
             [
                 float(e["payload"]["原始成绩"])
@@ -154,6 +206,7 @@ def calculate(
         distribution.append(
             {
                 "course_code": course,
+                "group_value": group_value,
                 "grading": grading,
                 "term": term,
                 **summary(items),
@@ -166,9 +219,85 @@ def calculate(
     return {
         **summary(evidence),
         "groups": distribution,
-        "calculation_version": "courses-v1",
+        "calculation_version": "courses-v1"
+        if scope.category == "courses"
+        else "milestones-v1",
+        "credit_progress": {
+            "value": None,
+            "missing_conditions": ["学分", "培养要求", "重复修读计入规则"],
+        },
+        "reminders": [reminder(e) for e in evidence],
         "methodology": "考核记录为单位；学生内部标识去重；通过率=通过/(通过+不通过)；未知不入分母；空成绩不计零；同课程学期评分制度内计算分布与均值；业务结果优先；否则采用最新确认的匹配规则",
     }, evidence
+
+
+def credit_progress(
+    evidence: list[dict[str, Any]], training: sqlite3.Row | None, scope: Scope
+) -> dict[str, Any]:
+    missing = []
+    if scope.course_code or scope.term:
+        missing.append("完整课程范围")
+    if training is None:
+        missing.extend(["培养要求", "重复修读计入规则"])
+    if not evidence or any(e["payload"].get("学分", "") == "" for e in evidence):
+        missing.append("学分")
+    if any(e["status"] == "未知" for e in evidence):
+        missing.append("通过状态")
+    if missing:
+        return {"value": None, "missing_conditions": missing, "students": []}
+    assert training is not None
+    config = json.loads(training["config"])
+    students: dict[int, dict[str, float]] = {}
+    for e in evidence:
+        credits = students.setdefault(e["student_id"], {})
+        p = e["payload"]
+        if e["status"] == "通过":
+            credits[p["课程编号"]] = max(
+                credits.get(p["课程编号"], 0), float(p["学分"])
+            )
+    return {
+        "value": "available",
+        "missing_conditions": [],
+        "requirement_id": training["id"],
+        "requirement": dict(training),
+        "required_credits": config["required_credits"],
+        "repeat_policy": config["repeat_policy"],
+        "students": [
+            {
+                "student_id": sid,
+                "earned_credits": sum(c.values()),
+                "progress_percent": round(
+                    sum(c.values()) / config["required_credits"] * 100, 2
+                ),
+            }
+            for sid, c in students.items()
+        ],
+    }
+
+
+def reminder(e: dict[str, Any]) -> dict[str, Any]:
+    p = e["payload"]
+    missing = []
+
+    def parsed(field: str) -> date | None:
+        try:
+            return date.fromisoformat(str(p.get(field, "")))
+        except ValueError:
+            missing.append(field)
+            return None
+
+    planned = parsed("计划日期")
+    actual = parsed("实际日期") if p.get("实际日期") else None
+    if actual is None and p.get("完成状态") != "未完成":
+        missing.append("实际日期或明确未完成状态")
+    overdue = None if missing or planned is None else (actual or date.today()) > planned
+    return {
+        "record_id": e["id"],
+        "overdue": overdue,
+        "missing_conditions": missing,
+        "as_of": date.today().isoformat(),
+        "dependency_token": e["dependency_token"],
+    }
 
 
 def register_analysis(app: FastAPI, path: Path, current: Callable[..., Any]) -> None:
@@ -202,19 +331,20 @@ def register_analysis(app: FastAPI, path: Path, current: Callable[..., Any]) -> 
                 raise HTTPException(422, "须业务确认并填写此评分制度的完整通过条件")
             version = (
                 db.execute(
-                    "SELECT COUNT(*) FROM pass_rules WHERE college=? AND major=? AND course_code=? AND grading=? AND term=?",
+                    "SELECT COUNT(*) FROM pass_rules WHERE college=? AND major=? AND course_code=? AND grading=? AND term=? AND category=?",
                     (
                         body.college,
                         body.major,
                         body.course_code,
                         body.grading,
                         body.term,
+                        body.category,
                     ),
                 ).fetchone()[0]
                 + 1
             )
             rid = db.execute(
-                "INSERT INTO pass_rules(college,major,course_code,grading,term,version,config,actor_id,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO pass_rules(college,major,course_code,grading,term,version,config,actor_id,created_at,category) VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (
                     body.college,
                     body.major,
@@ -225,20 +355,48 @@ def register_analysis(app: FastAPI, path: Path, current: Callable[..., Any]) -> 
                     body.model_dump_json(),
                     actor["id"],
                     int(time.time()),
+                    body.category,
                 ),
             ).lastrowid
             audit(db, actor["id"], "pass_rule.confirm", str(rid))
             return {"id": rid, "version": version}
 
     @app.get("/api/pass-rules")
-    def list_rules(request: Request, college: str, major: str) -> dict[str, Any]:
-        scope = Scope(college=college, major=major)
+    def list_rules(
+        request: Request,
+        college: str,
+        major: str,
+        category: Literal["courses", "topic", "midterm"] = "courses",
+    ) -> dict[str, Any]:
+        scope = Scope(college=college, major=major, category=category)
         with connection(path) as db:
             actor, _ = current(db, request)
             require(db, actor["id"], scope, "view")
             _, _, rules, version = sources(db, scope)
             audit(db, actor["id"], "pass_rule.list", scope.model_dump_json())
             return {"items": rules, "rule_version": version}
+
+    @app.post("/api/training-requirements")
+    def training(body: TrainingRequirement, request: Request) -> dict[str, Any]:
+        body.category = "courses"
+        with connection(path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            actor, _ = current(db, request)
+            require(db, actor["id"], body, "pass_rules")
+            if not body.confirmed or not body.reason.strip():
+                raise HTTPException(422, "须业务确认培养要求及重复修读计入规则")
+            rid = db.execute(
+                "INSERT INTO training_requirements(college,major,config,actor_id,created_at) VALUES (?,?,?,?,?)",
+                (
+                    body.college,
+                    body.major,
+                    body.model_dump_json(),
+                    actor["id"],
+                    int(time.time()),
+                ),
+            ).lastrowid
+            audit(db, actor["id"], "training_requirement.confirm", str(rid))
+            return {"id": rid}
 
     def load(
         db: sqlite3.Connection, actor: int, sid: int, export: bool = False
@@ -248,7 +406,7 @@ def register_analysis(app: FastAPI, path: Path, current: Callable[..., Any]) -> 
         ).fetchone()
         if not row:
             raise HTTPException(404, "分析不存在")
-        scope = Scope(**json.loads(row["scope"]))
+        scope = Scope(**{**json.loads(row["scope"]), "category": row["category"]})
         require(db, actor, scope, "view")
         require(db, actor, scope, "analyze")
         if export:
@@ -257,7 +415,8 @@ def register_analysis(app: FastAPI, path: Path, current: Callable[..., Any]) -> 
         evidence = json.loads(row["evidence"])
         for e in evidence:
             current_row = db.execute(
-                "SELECT payload FROM course_records WHERE id=?", (e["id"],)
+                f"SELECT payload FROM {'course_records' if scope.category == 'courses' else 'milestone_records'} WHERE id=?",
+                (e["id"],),
             ).fetchone()
             for p in [
                 e["payload"],
@@ -267,13 +426,17 @@ def register_analysis(app: FastAPI, path: Path, current: Callable[..., Any]) -> 
                     if not allowed(
                         db,
                         actor,
-                        "courses",
+                        scope.category,
                         op,
                         p.get("所属学院", ""),
                         p.get("专业", ""),
                     ):
                         raise HTTPException(403, "历史证据当前范围未授权")
-            e["payload"] = visible(db, actor, e["payload"])
+            e["payload"] = (
+                visible(db, actor, e["payload"])
+                if scope.category == "courses"
+                else masked(db, actor, e["payload"], scope.category)
+            )
             e.pop("student", None)
         return {
             "id": sid,
@@ -287,19 +450,30 @@ def register_analysis(app: FastAPI, path: Path, current: Callable[..., Any]) -> 
             "evidence": evidence,
         }
 
-    @app.post("/api/analyses/courses")
-    def analyze(body: Scope, request: Request) -> dict[str, Any]:
+    @app.post("/api/analyses/{category}")
+    def analyze(
+        body: Scope, request: Request, category: Literal["courses", "topic", "midterm"]
+    ) -> dict[str, Any]:
         with connection(path) as db:
             db.execute("BEGIN IMMEDIATE")
             actor, _ = current(db, request)
+            body.category = category
             require(db, actor["id"], body, "view")
             require(db, actor["id"], body, "analyze")
+            if category != "courses":
+                reconcile_milestones(db, actor["id"])
             rows, dv, rules, rv = sources(db, body)
-            result, evidence = calculate(rows, rules)
+            result, evidence = calculate(rows, rules, body)
+            if category == "courses":
+                training = db.execute(
+                    "SELECT * FROM training_requirements WHERE college=? AND major=? ORDER BY id DESC LIMIT 1",
+                    (body.college, body.major),
+                ).fetchone()
+                result["credit_progress"] = credit_progress(evidence, training, body)
             sid = db.execute(
                 "INSERT INTO analysis_snapshots(category,scope,result,evidence,data_version,rule_version,actor_id,created_at) VALUES (?,?,?,?,?,?,?,?)",
                 (
-                    "courses",
+                    body.category,
                     body.model_dump_json(),
                     json.dumps(result),
                     json.dumps(evidence),
