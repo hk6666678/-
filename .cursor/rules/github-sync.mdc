@@ -1,6 +1,6 @@
 ---
-description: 功能完成及额度交接时提交并同步到指定GitHub仓库
+description: 额度剩余5%时先交接再集中上传GitHub
 alwaysApply: true
 ---
 
-遵循项目 `docs/agents/github-sync.md`，在功能验证提交后和额度交接前同步对应分支，并核实远程提交。仓库或认证缺失时明确告知用户，不要求在聊天中发送秘密。
+遵循项目 `docs/agents/github-sync.md`。平时只本地提交；官方额度剩余5%及以下时先保存交接文档，再集中上传。用户单独明确要求上传时可立即同步。
