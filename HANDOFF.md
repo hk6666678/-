@@ -52,3 +52,7 @@ origin https://github.com/hk6666678/-.git。此前核实远程integration为fc7c
 - 19导出与原件控制完成并合入，implement/ticket-19@aac50c6 已推送核实。集成分支dbe8d49，合并后77 pytest、mypy24、Ruff、TS/Vite build、完整16 Chrome通过；19分支还通过独立browser_exports脚本。两轴审查和验收见 .scratch/aqp-pgs/reviews/19-code-review.md。
 - 软件待办：17 Agent学生/培养查询、18 Agent论文解释、22全流程与规模验证。13真实模型效果、21恢复库完整业务浏览器链路、23真实数据/专家规则/获准模型验收仍待外部前提或后续任务。
 - 本轮测试服务均已结束，工作区干净。使用本机代理仅作为单次Git命令参数；远程仍为 https://github.com/hk6666678/-.git。
+
+## 2026-11-12 任务17完成检查点
+
+官方额度工具在本会话仍不可用，额度状态无法可靠判断；未虚构读数。任务17已在 implement/ticket-17@32c8724 完成，分支已推送并核实；集成合并提交55a0c1e。合并后85 pytest、mypy25、Ruff、TS/Vite build、完整17项Chrome通过。Agent使用受控模型替身验证只读工具、脱敏、授权重查、未启用和提示注入边界；真实模型效果留待23。下一步18，随后22。
