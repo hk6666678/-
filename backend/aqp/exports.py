@@ -58,7 +58,9 @@ def excel_report(data: dict[str, Any], filename: str) -> Response:
 
 
 # Original uploads never inherit report export or uploader privileges.
-def register_original_downloads(app: FastAPI, path: Path, current: Callable[..., Any]) -> None:
+def register_original_downloads(
+    app: FastAPI, path: Path, current: Callable[..., Any]
+) -> None:
     import json
 
     from fastapi import HTTPException, Request
@@ -92,6 +94,12 @@ def register_original_downloads(app: FastAPI, path: Path, current: Callable[...,
             wb = load_workbook(BytesIO(original), read_only=True, data_only=False)
             try:
                 for ws in wb:
+                    if ws.title not in {r["sheet"] for r in rows} and any(
+                        v is not None
+                        for values in ws.iter_rows(values_only=True)
+                        for v in values
+                    ):
+                        deny()
                     for number, values in enumerate(
                         ws.iter_rows(min_row=3, values_only=True), 3
                     ):
