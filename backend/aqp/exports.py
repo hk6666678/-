@@ -36,12 +36,8 @@ def excel_report(data: dict[str, Any], filename: str) -> Response:
                     cell.data_type = "s"
 
     emit("generated_at", datetime.now(UTC).isoformat())
-    for k, v in data.items():
-        # Keep top-level metadata explicit and machine-readable.
-        if isinstance(v, (dict, list)):
-            emit(k, v)
-        else:
-            emit(k, v)
+    for key, value in data.items():
+        emit(key, value)
     ws.freeze_panes = "B2"
     ws.column_dimensions["A"].width = 65
     ws.column_dimensions["B"].width = 90

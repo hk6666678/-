@@ -100,6 +100,7 @@ def require(db: sqlite3.Connection, actor: int, scope: Scope, op: str) -> None:
         db.commit()
         raise HTTPException(403, "此范围操作未授权")
 
+
 def digest(value: Any) -> str:
     return hashlib.sha256(
         json.dumps(value, sort_keys=True, ensure_ascii=False).encode()
