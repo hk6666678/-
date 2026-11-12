@@ -33,3 +33,6 @@ origin核实为https://github.com/hk6666678/-.git；本轮仅本地保存，尚�
 
 2026-11-12 root再次读取get_usage_limits：短周期used95%，剩5%；周剩47%。所有writer已在干净本地提交停止，无测试服务遗留。现停止新增开发，按规则集中同步integration/aqp-trial、codex/full-02、codex/full-05及full-01来源分支。02/05未合并仍为WIP，进度/缺口/决策见上文。同步结果以本轮会话在线核对为准，失败不可声称已上传。
 
+
+集中同步已成功：在线ls-remote核对integration为9e7f7a5、full-01为794c250、full-02为252f2f9、full-05为a85bd83，与本地一致。此补记单独本地提交后同步集成分支；代码与其他分支不变。停止开发，等待额度恢复或用户另行安排。
+
