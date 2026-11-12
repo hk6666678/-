@@ -1,6 +1,6 @@
 # 19: 分析 Excel 导出与原始资料控制
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 **Specification:** [AQP-PGS 第一版开发规格](../spec.md)
 
