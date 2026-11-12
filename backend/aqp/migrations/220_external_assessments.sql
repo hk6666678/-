@@ -4,3 +4,7 @@ CREATE TABLE external_assessments (
  scores TEXT NOT NULL, comment TEXT NOT NULL, source TEXT NOT NULL, recorded_by INTEGER NOT NULL REFERENCES users(id),
  UNIQUE(category,paper_version_id,batch,anonymous_code)
 );
+CREATE TABLE external_assessment_templates (
+ version TEXT PRIMARY KEY, simulation INTEGER NOT NULL, items TEXT NOT NULL
+);
+INSERT INTO external_assessment_templates VALUES ('simulation-v1',1,'{"quality":100}');

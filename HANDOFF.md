@@ -75,3 +75,11 @@ origin https://github.com/hk6666678/-.git。此前核实远程integration为fc7c
 
 
 2026-11-12：用户确认先完成模拟试用版交付，真实输入暂未具备。软件与合成验收已完成，交付入口docs/trial-demo.md；21恢复浏览器补验后resolved，13真实模型效果和23真实业务验收保留待验。93 pytest、mypy25、Ruff、构建通过；已有17 Chrome通过。仅本地提交，额度<=5%先交接再集中上传，或用户单独要求上传。
+
+## Full-platform 05 checkpoint — 2026-11-12
+
+Worktree: D:/AQP-PGS-worktrees/full-05; branch codex/full-05; base c6faaa7. Local only; no push.
+Implemented independent blind_reviews/defenses table and category grants; list/create API, exact duplicate idempotence and conflict rejection; versioned simulation-v1 template persisted in migration220. All covered students checked using existing authorization helper; identity and original comment/source require independent grants. No real data modified or external model calls.
+Validated: public API tests cover unauthenticated access, empty list, write, duplicate, conflict, raw comment vs identity separation, revocation. pytest external_assessments + authorization: 5 passed. Module mypy and Ruff passed. Only synthetic API acceptance; real business validation pending.
+Incomplete: Excel standard template/preview/confirm and pending association/change confirmation; custom scoring template version publishing; mentor/multi-college explicit regressions; UI ExternalAssessments.tsx and navigation/AccessPanel labels, browser checks. Thus module is WIP and not ready for full acceptance. No application servers or background processes started in this worktree. Next: finish import public API slice, then UI with browser validation.
+Quota parent last reported short 11%, weekly48%; early checkpoint requested. No claim of real-time monitoring.

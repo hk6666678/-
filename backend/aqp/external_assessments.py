@@ -1,9 +1,12 @@
 """Independent blind-review and defense records; no candidate-label coupling."""
 
 import json
-from typing import Literal
+import sqlite3
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any, Literal
 
-from fastapi import HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from aqp.store import audit, connection
@@ -20,8 +23,20 @@ class AssessmentInput(BaseModel):
     source: str = Field(min_length=1, max_length=1000)
 
 
-def register_external_assessments(app, path, current):
-    def permitted(db, actor, row, operation):
+def register_external_assessments(
+    app: FastAPI, path: Path, current: Callable[..., Any]
+) -> None:
+    def template(db: sqlite3.Connection, version: str) -> dict[str, Any]:
+        row = db.execute(
+            "SELECT * FROM external_assessment_templates WHERE version=?", (version,)
+        ).fetchone()
+        return {
+            "version": row["version"],
+            "simulation": bool(row["simulation"]),
+            "items": json.loads(row["items"]),
+        }
+
+    def permitted(db: sqlite3.Connection, actor: int, row: Any, operation: str) -> bool:
         from aqp.attachments import authorize_students
 
         paper = db.execute(
@@ -41,7 +56,7 @@ def register_external_assessments(app, path, current):
             return False
 
     @app.get("/api/external-assessments")
-    def listing(request: Request):
+    def listing(request: Request) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
             items = []
@@ -59,12 +74,12 @@ def register_external_assessments(app, path, current):
                         "batch",
                         "anonymous_code",
                         "template_version",
-                        "source",
                     )
                 }
                 item["scores"] = json.loads(row["scores"])
                 if permitted(db, actor["id"], row, "download"):
                     item["comment"] = row["comment"]
+                    item["source"] = row["source"]
                 if permitted(db, actor["id"], row, "identity"):
                     item.update(student_no=row["student_number"], name=row["name"])
                 items.append(item)
@@ -72,15 +87,11 @@ def register_external_assessments(app, path, current):
             return {
                 "items": items,
                 "count": len(items),
-                "template": {
-                    "version": "simulation-v1",
-                    "simulation": True,
-                    "items": {"quality": 100},
-                },
+                "template": template(db, "simulation-v1"),
             }
 
     @app.post("/api/external-assessments")
-    def create(body: AssessmentInput, request: Request):
+    def create(body: AssessmentInput, request: Request) -> dict[str, Any]:
         with connection(path) as db:
             db.execute("BEGIN IMMEDIATE")
             actor, _ = current(db, request)
