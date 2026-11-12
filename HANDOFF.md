@@ -72,3 +72,6 @@ origin https://github.com/hk6666678/-.git。此前核实远程integration为fc7c
 用户最新规则：平时只本地commit，绝不push；额度达到5%停止线时先保存HANDOFF再按项目规则集中同步。此次未上传。官方额度最后读取剩短周期66%、周56%，非实时保证。
 
 最终本地复验：`python -m pytest -q` 93 passed in 77.80s；`python -m mypy` 25文件通过；`python -m ruff check .`通过；`npm --prefix frontend run build`通过。小规模CLI与发行包CLI实际运行成功。
+
+
+2026-11-12：用户确认先完成模拟试用版交付，真实输入暂未具备。软件与合成验收已完成，交付入口docs/trial-demo.md；21恢复浏览器补验后resolved，13真实模型效果和23真实业务验收保留待验。93 pytest、mypy25、Ruff、构建通过；已有17 Chrome通过。仅本地提交，额度<=5%先交接再集中上传，或用户单独要求上传。

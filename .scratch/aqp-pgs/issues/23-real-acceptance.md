@@ -1,6 +1,6 @@
 # 23: 真实数据与智能功能业务验收
 
-**Status:** ready-for-agent
+**Status:** needs-info
 
 **Specification:** [AQP-PGS 第一版开发规格](../spec.md)
 
