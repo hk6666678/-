@@ -217,7 +217,7 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
             target="_blank"
             rel="noreferrer"
           >
-            导出分析与证据（须导出权限）
+            下载分析 Excel（须导出权限）
           </a>
           <table>
             <thead>
@@ -301,6 +301,7 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
                   {e.source.source_department}
                 </p>
                 <pre>{JSON.stringify(e.payload, null, 2)}</pre>
+                <a href={`/api/imports/${e.source.batch_id}/download`}>下载原始 Excel（全文件范围及身份授权）</a>
                 <a
                   href={`/api/records/courses/${e.id}`}
                   target="_blank"

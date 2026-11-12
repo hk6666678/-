@@ -8,9 +8,11 @@ from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from aqp.attachments import authorize_students
+from aqp.exports import excel_report
 from aqp.store import audit, connection
 
 FEATURES = ("page_count", "character_count", "section_count", "reference_count")
@@ -227,5 +229,37 @@ def register_comparisons(
             )
             audit(db, actor["id"], "paper.comparison.read", str(ident))
             return {"id": ident, "stale": stale, **saved}
+
+    @app.get("/api/paper-comparisons/{ident}/export")
+    def export(ident: int, request: Request) -> Response:
+        data = comparison(ident, request)
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            target = paper(
+                db,
+                actor["id"],
+                data["target_version_id"],
+                ("view", "analyze", "export"),
+            )
+            for member in data["evidence_versions"]:
+                paper(
+                    db, actor["id"], member["version_id"], ("view", "analyze", "export")
+                )
+            row = db.execute(
+                "SELECT * FROM paper_comparisons WHERE id=?", (ident,)
+            ).fetchone()
+            data["created_at"] = row["created_at"]
+            data["scope"] = {
+                "level": target["level"],
+                "discipline": target["discipline"],
+                "year": data.get("year", ""),
+            }
+            data["data_version"] = data["evidence_versions"]
+            data["rule_version"] = data.get("rules", "paper-comparison-v1")
+            data["methodology"] = (
+                "同层次同学科，排除自身；缺失不计零，待评不计普通；仅辅助人工复核。"
+            )
+            audit(db, actor["id"], "comparisons.export", str(ident))
+            return excel_report(data, f"paper-comparisons-{ident}")
 
     return paper, snapshot

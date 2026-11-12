@@ -8,9 +8,11 @@ from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from aqp.authorization import allowed
+from aqp.exports import excel_report
 from aqp.store import audit, connection
 
 
@@ -289,3 +291,32 @@ def register_candidates(
             )
             audit(db, actor["id"], "candidate.result.read", str(ident))
             return {"id": ident, "stale": stale, **json.loads(row["result"])}
+
+    @app.get("/api/candidate-results/{ident}/export")
+    def export(ident: int, request: Request) -> Response:
+        data = result_history(ident, request)
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            target = paper(
+                db, actor["id"], data["paper_version_id"], ("view", "analyze", "export")
+            )
+            for member in data["evidence_versions"]:
+                paper(
+                    db, actor["id"], member["version_id"], ("view", "analyze", "export")
+                )
+            row = db.execute(
+                "SELECT * FROM candidate_results WHERE id=?", (ident,)
+            ).fetchone()
+            data["created_at"] = row["created_at"]
+            data["scope"] = {
+                "level": target["level"],
+                "discipline": target["discipline"],
+                "year": data.get("year", ""),
+            }
+            data["data_version"] = data["evidence_versions"]
+            data["rule_version"] = data.get("rules", "paper-comparison-v1")
+            data["methodology"] = (
+                "同层次同学科，排除自身；缺失不计零，待评不计普通；仅辅助人工复核。"
+            )
+            audit(db, actor["id"], "candidates.export", str(ident))
+            return excel_report(data, f"candidate-results-{ident}")
