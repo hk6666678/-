@@ -66,6 +66,7 @@ def sources(
                 "active": r["active"],
                 "student_id": r["student_id"],
                 "student_version": r["student_version"],
+                "student_dependency_token": f"basic:{r['student_id']}:{r['student_version']}:{r['student_active']}",
                 "student_active": r["student_active"],
                 "student": student,
                 "payload": p,
@@ -162,13 +163,19 @@ def calculate(
                 ),
             }
         )
-    return {**summary(evidence), "groups": distribution}, evidence
+    return {
+        **summary(evidence),
+        "groups": distribution,
+        "calculation_version": "courses-v1",
+        "methodology": "考核记录为单位；学生内部标识去重；通过率=通过/(通过+不通过)；未知不入分母；空成绩不计零；同课程学期评分制度内计算分布与均值；业务结果优先；否则采用最新确认的匹配规则",
+    }, evidence
 
 
 def register_analysis(app: FastAPI, path: Path, current: Callable[..., Any]) -> None:
     @app.post("/api/pass-rules")
     def save_rule(body: PassRule, request: Request) -> dict[str, Any]:
         with connection(path) as db:
+            db.execute("BEGIN IMMEDIATE")
             actor, _ = current(db, request)
             require(db, actor["id"], body, "pass_rules")
             choices = (
@@ -230,6 +237,7 @@ def register_analysis(app: FastAPI, path: Path, current: Callable[..., Any]) -> 
             actor, _ = current(db, request)
             require(db, actor["id"], scope, "view")
             _, _, rules, version = sources(db, scope)
+            audit(db, actor["id"], "pass_rule.list", scope.model_dump_json())
             return {"items": rules, "rule_version": version}
 
     def load(
@@ -318,6 +326,7 @@ def register_analysis(app: FastAPI, path: Path, current: Callable[..., Any]) -> 
                 except HTTPException as exc:
                     if exc.status_code != 403:
                         raise
+            audit(db, actor["id"], "analysis.list", "courses")
             return {"items": items}
 
     @app.get("/api/analyses/{sid}")

@@ -241,7 +241,10 @@ function App() {
           {admin && <button onClick={() => setPage("audit")}>审计查询</button>}
           <button onClick={() => setPage("milestones")}>选题与中期导入</button>
           <button onClick={() => setPage("papers")}>论文上传与解析</button>
-          <button onClick={() => setPage("analysis")}>课程统计与通过规则</button><button onClick={() => setPage("courses")}>课程导入与待关联</button>
+          <button onClick={() => setPage("analysis")}>
+            课程统计与通过规则
+          </button>
+          <button onClick={() => setPage("courses")}>课程导入与待关联</button>
           <button onClick={() => setPage("students")}>
             基础导入与学生档案
           </button>
@@ -311,8 +314,13 @@ function App() {
         ) : page === "milestones" ? (
           <MilestonePanel csrf={session.csrf_token} fetcher={request} />
         ) : page === "papers" ? (
-          <><PaperPanel csrf={session.csrf_token} /><ComparisonPanel csrf={session.csrf_token} /></>
-        ) : page === "analysis" ? (<AnalysisPanel csrf={session.csrf_token} />) : page === "courses" ? (
+          <>
+            <PaperPanel csrf={session.csrf_token} />
+            <ComparisonPanel csrf={session.csrf_token} />
+          </>
+        ) : page === "analysis" ? (
+          <AnalysisPanel csrf={session.csrf_token} />
+        ) : page === "courses" ? (
           <CoursePanel csrf={session.csrf_token} />
         ) : page === "students" ? (
           <StudentPanel csrf={session.csrf_token} fetcher={request} />
@@ -493,4 +501,3 @@ function App() {
   );
 }
 createRoot(document.getElementById("root")!).render(<App />);
-

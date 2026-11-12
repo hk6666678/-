@@ -159,3 +159,144 @@ def test_eight_assessments_distribution_evidence_and_changes(client):  # noqa: F
     ).json()
     assert new["id"] != old["id"]
     assert new["result"]["assessment_count"] == 7
+
+
+def test_confirmed_scoped_rules_do_not_mix_grades_or_replace_business_result(client):  # noqa: F811
+    from io import BytesIO
+
+    from openpyxl import Workbook
+    from test_students import workbook
+
+    h = login_admin(client)
+    u = client.get("/api/me").json()["user"]
+    grants = [
+        {"category": c, "operation": op, "college": "示例学院", "major": "计算机"}
+        for c in ["basic", "courses"]
+        for op in ["maintain", "view", "analyze", "pass_rules"]
+    ]
+    client.put(
+        f"/api/users/{u['id']}/grants",
+        headers=h,
+        json={
+            "expected_version": u["version"],
+            "request_id": str(uuid4()),
+            "grants": grants,
+        },
+    )
+    b = client.post(
+        "/api/imports/basic/preview",
+        headers=h,
+        data={"source_department": "合成"},
+        files={"file": ("basic.xlsx", workbook())},
+    ).json()
+    client.post(f"/api/imports/{b['id']}/confirm", headers=h)
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["AQP-PGS", "courses", "1"])
+    ws.append(
+        [
+            "学号",
+            "姓名",
+            "课程编号",
+            "课程名称",
+            "修读学期",
+            "考核次数",
+            "评分制度",
+            "原始成绩",
+            "业务通过结果",
+        ]
+    )
+    for i, (grading, score, status) in enumerate(
+        [
+            ("百分制", 65, ""),
+            ("百分制", 90, "不通过"),
+            ("百分制", "", ""),
+            ("五级制", "优秀", ""),
+        ]
+    ):
+        ws.append(
+            [
+                "001",
+                "合成学生",
+                "SYN",
+                "合成课程",
+                "2025秋",
+                i + 1,
+                grading,
+                score,
+                status,
+            ]
+        )
+    stream = BytesIO()
+    wb.save(stream)
+    b = client.post(
+        "/api/imports/courses/preview",
+        headers=h,
+        data={"source_department": "合成", "college": "示例学院", "major": "计算机"},
+        files={"file": ("courses.xlsx", stream.getvalue())},
+    ).json()
+    client.post(f"/api/imports/courses/{b['id']}/confirm", headers=h)
+    scope = {"college": "示例学院", "major": "计算机", "course_code": "SYN"}
+    original = client.post("/api/analyses/courses", headers=h, json=scope).json()
+    assert original["result"]["unknown"] == 3
+    rule = {
+        **scope,
+        "grading": "百分制",
+        "threshold": 70,
+        "confirmed": False,
+        "reason": "合成确认",
+    }
+    assert client.post("/api/pass-rules", headers=h, json=rule).status_code == 422
+    assert (
+        client.post(
+            "/api/pass-rules", headers=h, json={**rule, "confirmed": True}
+        ).json()["version"]
+        == 1
+    )
+    grade = {
+        **scope,
+        "grading": "五级制",
+        "passing_values": ["优秀", "良好"],
+        "confirmed": True,
+        "reason": "合成等级规则",
+    }
+    assert client.post("/api/pass-rules", headers=h, json=grade).status_code == 200
+    current = client.post("/api/analyses/courses", headers=h, json=scope).json()
+    assert current["result"]["passed"] == 1
+    assert current["result"]["failed"] == 2
+    assert current["result"]["unknown"] == 1
+    assert [g["mean"] for g in current["result"]["groups"]] == [77.5, None]
+    assert current["evidence"][1]["rule_id"] is None
+    assert client.get(f"/api/analyses/{original['id']}").json()["stale"] is True
+    assert (
+        client.post(
+            "/api/pass-rules",
+            headers=h,
+            json={**rule, "threshold": 60, "confirmed": True},
+        ).json()["version"]
+        == 2
+    )
+    latest = client.post("/api/analyses/courses", headers=h, json=scope).json()
+    assert latest["result"]["passed"] == 2
+    student = client.get("/api/records/basic").json()["items"][0]
+    proposal = client.post(
+        f"/api/records/basic/{student['id']}/preview",
+        headers=h,
+        json={
+            "expected_version": student["version"],
+            "data": {"入学年份": "2024"},
+            "reason": "合成更正入学年份",
+        },
+    ).json()
+    assert (
+        client.post(
+            f"/api/records/basic/{student['id']}/confirm",
+            headers=h,
+            json={
+                "proposal_id": proposal["proposal_id"],
+                "expected_version": student["version"],
+            },
+        ).status_code
+        == 200
+    )
+    assert client.get(f"/api/analyses/{latest['id']}").json()["stale"] is True
