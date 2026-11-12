@@ -17,7 +17,15 @@ type Group = {
 type Snapshot = {
   id: number;
   category: string;
-  scope: { college: string; major: string; course_code: string; term: string };
+  scope: {
+    college: string;
+    major: string;
+    course_code: string;
+    term: string;
+    grade: string;
+    level: string;
+    group_by: string;
+  };
   stale: boolean;
   created_at: number;
   data_version: string;
@@ -262,7 +270,7 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
               />
             </label>
             <p>
-              重复修读计入规则：每门课程只计一次，通过考核中取最大学分。仅业务确认此规则适用时保存。
+              适用于本学院、专业所有年级与培养层次。重复修读计入规则：每门课程只计一次，通过考核中取最大学分。仅业务确认此规则适用时保存。
             </p>
             <button
               onClick={async () => {
@@ -292,7 +300,10 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
           <p>
             分析范围：{snapshot.scope.college} / {snapshot.scope.major} /{" "}
             {snapshot.scope.course_code || "全部课程"} /{" "}
-            {snapshot.scope.term || "全部学期"} ·{" "}
+            {snapshot.scope.term || "全部学期"} · 年级{" "}
+            {snapshot.scope.grade || "全部"} · 培养层次{" "}
+            {snapshot.scope.level || "全部"} · 分组{" "}
+            {snapshot.scope.group_by || "无"} ·{" "}
             {new Date(snapshot.created_at * 1000).toLocaleString()} · 考核记录{" "}
             {snapshot.result.assessment_count} · 去重学生{" "}
             {snapshot.result.student_count} · 已知状态{" "}

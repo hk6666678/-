@@ -27,3 +27,7 @@
 ## Answer
 
 已复用统一分析快照、规则版本和当前授权证据边界实现选题／中期分布，支持年级、专业、培养层次筛选及分组；前端可生成、读取历史并下钻。日期依据不足逐项提示；课程仅在确认培养要求及重修计入规则、学分与通过状态齐备且课程范围完整时计算学分进度。不推断 GPA、排名或风险概率。契约见 docs/analysis-contract.md。使用已确认公开 API／浏览器边界执行 TDD，合成数据验证；真实业务规则和数据仍待业务提供与验收。
+
+## Validation
+
+已合并 integration/aqp-trial 的 185a306。完整 pytest 67 passed；mypy 22 modules 通过；Ruff 全 backend 通过；TypeScript/Vite build 通过；Chrome 8049 完整 Playwright 15 passed（27.3s），最后范围说明文字调整后相关08/09浏览器用例复验2 passed。证据截图 frontend/test-results/milestone-analysis.png（合成数据）。
