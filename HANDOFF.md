@@ -28,3 +28,8 @@ origin核实为https://github.com/hk6666678/-.git；本轮仅本地保存，尚�
 ## 最后只读审查与修复
 
 02双轴均发现同一P1：替换同DOI成果只检查新参与者，可删除无权旧参与者。252f2f9在preview和confirm都重新校验旧payload全体维护权限；公开API测试先200失败再403通过，科研专项4 passed，模块ruff/mypy通过。仅修现有缺陷，未增加功能，未合integration。最后quota6%仍高于5%，安全结束本轮，无push；不为压到5而消耗。
+
+## 官方5%停止线与集中同步
+
+2026-11-12 root再次读取get_usage_limits：短周期used95%，剩5%；周剩47%。所有writer已在干净本地提交停止，无测试服务遗留。现停止新增开发，按规则集中同步integration/aqp-trial、codex/full-02、codex/full-05及full-01来源分支。02/05未合并仍为WIP，进度/缺口/决策见上文。同步结果以本轮会话在线核对为准，失败不可声称已上传。
+
