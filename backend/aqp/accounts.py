@@ -7,6 +7,7 @@ from pwdlib import PasswordHash
 
 PASSWORDS = PasswordHash.recommended()
 ROLES = {
+    "mentor",
     "platform_admin",
     "college_data_admin",
     "college_analyst",

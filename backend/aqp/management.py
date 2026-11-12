@@ -13,13 +13,13 @@ from aqp.store import audit, connection
 class UserCreate(BaseModel):
     username: str = Field(min_length=3, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
     password: str = Field(min_length=12, max_length=128)
-    roles: list[str] = Field(min_length=1, max_length=5)
+    roles: list[str] = Field(min_length=1, max_length=6)
     request_id: str = Field(min_length=16, max_length=64)
 
 
 class UserUpdate(BaseModel):
     active: bool
-    roles: list[str] = Field(min_length=1, max_length=5)
+    roles: list[str] = Field(min_length=1, max_length=6)
     expected_version: int = Field(ge=1)
     request_id: str = Field(min_length=16, max_length=64)
 

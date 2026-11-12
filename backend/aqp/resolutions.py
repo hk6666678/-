@@ -15,7 +15,7 @@ from openpyxl import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 from pydantic import BaseModel, Field
 
-from aqp.authorization import allowed, compatible_scope
+from aqp.authorization import allowed, compatible_scope, student_allowed
 from aqp.courses import OPTIONAL, REQUIRED, classify, key, visible
 from aqp.milestones import classify_milestone
 from aqp.milestones import masked as milestone_masked
@@ -61,7 +61,12 @@ def register_resolutions(
         payload: dict[str, object],
         op: str = "maintain",
     ) -> bool:
-        return allowed(
+        student = db.execute(
+            "SELECT id FROM students WHERE student_number=?", (payload.get("学号", ""),)
+        ).fetchone()
+        return student_allowed(
+            db, actor, student["id"] if student else None
+        ) and allowed(
             db,
             actor,
             category,
@@ -77,6 +82,7 @@ def register_resolutions(
         ).fetchone()
         if (
             r
+            and student_allowed(db, actor, None)
             and r["uploaded_by"] == actor
             and compatible_scope(
                 db, actor, r["category"], json.loads(r["normalized_json"])

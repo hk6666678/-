@@ -20,12 +20,14 @@ test("personal account lifecycle through the browser", async ({
     .getByRole("group", { name: "账号角色" })
     .getByLabel("学院数据管理员")
     .check();
+  await page.getByRole("group", { name: "账号角色" }).getByLabel("导师", { exact: true }).check();
   await page.getByRole("button", { name: "创建账号" }).click();
   const row = page
     .getByRole("row")
     .filter({ has: page.getByText("synthetic-member", { exact: true }) });
   await expect(row).toBeVisible();
   await expect(row.getByLabel("synthetic-member 学院数据管理员")).toBeChecked();
+  await expect(row.getByLabel("synthetic-member 导师", { exact: true })).toBeChecked();
   await page.screenshot({ path: "test-results/accounts.png", fullPage: true });
   const memberContext = await browser.newContext();
   const member = await memberContext.newPage();

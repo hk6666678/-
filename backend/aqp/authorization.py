@@ -49,6 +49,30 @@ def grants_for(db: sqlite3.Connection, user_id: int) -> list[dict[str, str]]:
     ]
 
 
+def student_allowed(
+    db: sqlite3.Connection, user_id: int, student_id: int | None
+) -> bool:
+    """Intersect mentor accounts (including combined roles) with explicit bindings.
+
+    Other roles retain their existing grant boundary. Callers must separately
+    check category/operation grants; this predicate never grants access itself.
+    """
+    user = db.execute("SELECT roles FROM users WHERE id=?", (user_id,)).fetchone()
+    if user is None:
+        return False
+    if "mentor" not in json.loads(user["roles"]):
+        return True
+    return (
+        student_id is not None
+        and db.execute(
+            "SELECT 1 FROM user_student_bindings b JOIN students s ON s.id=b.student_id "
+            "WHERE b.user_id=? AND b.student_id=? AND s.active=1",
+            (user_id, student_id),
+        ).fetchone()
+        is not None
+    )
+
+
 def allowed(
     db: sqlite3.Connection,
     user_id: int,
@@ -163,7 +187,9 @@ def register_authorization(
             ]
             rows: list[dict[str, object]] = []
             for research_id, name, number, college, major in samples:
-                if allowed(db, user["id"], "basic", "view", college, major):
+                if student_allowed(db, user["id"], None) and allowed(
+                    db, user["id"], "basic", "view", college, major
+                ):
                     row: dict[str, object] = {
                         "research_id": research_id,
                         "college": college,

@@ -12,7 +12,7 @@ from typing import Any, Literal, NamedTuple
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from aqp.authorization import allowed, grants_for
+from aqp.authorization import allowed, grants_for, student_allowed
 from aqp.courses import visible
 from aqp.milestones import milestone_details
 from aqp.model_connection import config_from, invoke_model
@@ -101,11 +101,12 @@ PLANNER_PROMPT = """你只能为研究生培养质量平台选择一个只读工
 def question_uses_unauthorized_identity(
     db: sqlite3.Connection, actor: int, question: str
 ) -> bool:
-    for row in db.execute("SELECT payload FROM students WHERE active=1"):
+    for row in db.execute("SELECT id,payload FROM students WHERE active=1"):
         payload = json.loads(row["payload"])
         identifiers = {str(payload.get("学号", "")), str(payload.get("姓名", ""))}
-        if any(value and value in question for value in identifiers) and not basic_scope(
-            db, actor, "identity", payload
+        if any(value and value in question for value in identifiers) and (
+            not student_allowed(db, actor, row["id"])
+            or not basic_scope(db, actor, "identity", payload)
         ):
             return True
     return False
@@ -125,7 +126,7 @@ def question_uses_unauthorized_paper(
                 "SELECT college,major FROM students WHERE id=? AND active=1",
                 (student_id,),
             ).fetchone()
-            if student is None or not all(
+            if student is None or not student_allowed(db, actor, student_id) or not all(
                 allowed(
                     db, actor, "papers", op, student["college"], student["major"]
                 )
@@ -181,7 +182,7 @@ def student_profile(
     if row is None:
         raise HTTPException(404, "学生档案不存在")
     payload = json.loads(row["payload"])
-    if not basic_scope(db, actor, "view", payload):
+    if not student_allowed(db, actor, row["id"]) or not basic_scope(db, actor, "view", payload):
         deny_agent(db, actor, "Agent 当前无权查看该学生档案")
     courses: list[dict[str, Any]] = []
     for record in db.execute(
@@ -235,7 +236,7 @@ def student_counts(
             continue
         if plan.level and payload.get("培养层次") != plan.level:
             continue
-        if not basic_scope(db, actor, "view", payload):
+        if not student_allowed(db, actor, row["id"]) or not basic_scope(db, actor, "view", payload):
             continue
         total += 1
         levels[str(payload.get("培养层次", ""))] += 1

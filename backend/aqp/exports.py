@@ -62,7 +62,7 @@ def register_original_downloads(
     from fastapi import HTTPException, Request
     from openpyxl import load_workbook
 
-    from aqp.authorization import allowed
+    from aqp.authorization import allowed, student_allowed
     from aqp.store import audit, connection
 
     @app.get("/api/imports/{batch_id}/download")
@@ -123,6 +123,10 @@ def register_original_downloads(
                     "SELECT * FROM students WHERE id=? OR student_number=?",
                     (row["student_id"], p.get("学号", "")),
                 ).fetchone()
+                if not student_allowed(
+                    db, actor["id"], student["id"] if student else None
+                ):
+                    deny()
                 if student:
                     scopes.append((student["college"], student["major"]))
                 for college, major in scopes:

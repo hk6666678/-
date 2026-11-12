@@ -11,7 +11,7 @@ from typing import Any, cast
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from aqp.authorization import allowed
+from aqp.authorization import allowed, student_allowed
 from aqp.courses import OPTIONAL, REQUIRED, classify, visible
 from aqp.milestones import BASIC_OPTIONAL as M_OPTIONAL
 from aqp.milestones import BASIC_REQUIRED as M_REQUIRED
@@ -59,6 +59,11 @@ def register_records(
     def permit(
         db: sqlite3.Connection, aid: int, c: str, p: dict[str, Any], op: str
     ) -> bool:
+        student = db.execute(
+            "SELECT id FROM students WHERE student_number=?", (p.get("学号", ""),)
+        ).fetchone()
+        if not student_allowed(db, aid, student["id"] if student else None):
+            return False
         return allowed(db, aid, c, op, p.get("所属学院", ""), p.get("专业", ""))
 
     def mask(
