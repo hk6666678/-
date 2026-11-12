@@ -5,6 +5,7 @@ import { AccessPanel } from "./AccessPanel";
 import { AuditPanel } from "./AuditPanel";
 import { MilestonePanel } from "./MilestonePanel";
 import { PaperPanel } from "./PaperPanel";
+import { ComparisonPanel } from "./ComparisonPanel";
 import { CoursePanel } from "./CoursePanel";
 import { ResolutionPanel } from "./ResolutionPanel";
 import { StudentPanel } from "./StudentPanel";
@@ -307,7 +308,7 @@ function App() {
         ) : page === "milestones" ? (
           <MilestonePanel csrf={session.csrf_token} fetcher={request} />
         ) : page === "papers" ? (
-          <PaperPanel csrf={session.csrf_token} />
+          <><PaperPanel csrf={session.csrf_token} /><ComparisonPanel csrf={session.csrf_token} /></>
         ) : page === "courses" ? (
           <CoursePanel csrf={session.csrf_token} />
         ) : page === "students" ? (
