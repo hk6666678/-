@@ -134,6 +134,13 @@ test("course analysis preserves source evidence and immutable stale history", as
     await expect(
       page.locator("pre").filter({ hasText: "version" }).first(),
     ).toBeVisible();
+    // Simulate an immutable pre-09 snapshot without the optional progress field.
+    await page.route(`**/api/analyses/${oldId}`, async (route) => {
+      const response = await route.fetch();
+      const legacy = await response.json();
+      delete legacy.result.credit_progress;
+      await route.fulfill({ response, json: legacy });
+    });
     await page.getByRole("button", { name: "读取分析历史" }).click();
     await page
       .getByRole("button", { name: `分析 ${oldId} 过时`, exact: true })
@@ -144,6 +151,8 @@ test("course analysis preserves source evidence and immutable stale history", as
     await expect(page.getByText(/考核记录 8 · 去重学生 1/)).toContainText(
       "通过率 66.67%",
     );
+    await expect(page.getByText("学分进度不可计算，缺少：历史分析未记录学分计算条件")).toBeVisible();
+    await expect(page.getByText("学分进度已按确认规则计算", { exact: true })).toHaveCount(0);
     expect(
       (await page.request.get(`/api/analyses/${oldId}/export`)).status(),
     ).toBe(403);

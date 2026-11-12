@@ -30,4 +30,14 @@
 
 ## Validation
 
+### 2026-11-12 恢复后的审查
+
+已集成 aae6a81；a2b6a8b 修复旧08快照缺少学分进度对象时误称已计算的问题。69 pytest、mypy23、Ruff、构建、15项Chrome通过。独立Standards无可行动标准违规；Spec发现P2：`Scope.major`必填且来源先按单专业过滤，导致`group_by=major`无法比较多个获授权专业。按正式规格第6节重新打开本任务；后续允许授权范围内多专业分组，并补逐专业权限、通过规则及历史版本回归。当前测试通过不代表该需求已完成。详情见 `../reviews/09-resume-review.md`。
+
 已合并 integration/aqp-trial 的 185a306。完整 pytest 67 passed；mypy 22 modules 通过；Ruff 全 backend 通过；TypeScript/Vite build 通过；Chrome 8049 完整 Playwright 15 passed（27.3s），最后范围说明文字调整后相关08/09浏览器用例复验2 passed。证据截图 frontend/test-results/milestone-analysis.png（合成数据）。
+
+### 2026-11-12 跨专业修复验收
+
+`Scope.major` 允许为空，含义限定为当前账号在同一学院内同时具备 view 与 analyze 的专业集合；学院级授权表示全部专业。课程、选题、中期按记录实际专业过滤，通过规则按记录所属专业匹配，历史证据读取继续逐条重查授权，撤销任一已引用专业后整份历史拒绝。多专业课程进度仅在覆盖的每个专业均有确认培养要求时计算，并按学生所属专业使用对应要求；缺任一专业则明确阻断。`PassRule.major` 与培养要求保持具体专业必填，防止空专业规则版本。
+
+新增跨专业 API 回归覆盖两个授权专业与一个未授权专业、逐专业规则结果、课程进度缺条件阻断、多专业各自要求计算、历史撤权拒绝、空专业规则422。修复后完整 pytest 71 passed；mypy 23 modules、Ruff、TypeScript/Vite build通过；Chrome 8060课程与培养环节2项通过。前端仅更新空专业提示与快照范围显示。以上仍为合成数据验证，真实业务规则和数据验收不变。

@@ -33,7 +33,7 @@ type Snapshot = {
   result: Group & {
     known_count: number;
     groups: Group[];
-    credit_progress: {
+    credit_progress?: {
       value: string | null;
       missing_conditions: string[];
       students?: {
@@ -157,7 +157,7 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
       </label>
       <label>
         专业
-        <input value={major} onChange={(e) => setMajor(e.target.value)} />
+        <input value={major} placeholder="分析留空表示当前授权专业；规则须具体专业" onChange={(e) => setMajor(e.target.value)} />
       </label>
       <label>
         {category === "courses"
@@ -298,7 +298,7 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
             {snapshot.stale ? "已过时，请生成新版本" : "当前有效"}
           </h3>
           <p>
-            分析范围：{snapshot.scope.college} / {snapshot.scope.major} /{" "}
+            分析范围：{snapshot.scope.college} / {snapshot.scope.major || "授权范围内专业"} /{" "}
             {snapshot.scope.course_code || "全部课程"} /{" "}
             {snapshot.scope.term || "全部学期"} · 年级{" "}
             {snapshot.scope.grade || "全部"} · 培养层次{" "}
@@ -316,8 +316,8 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
           </p>
           <h3>学分进度与条件提醒</h3>
           <p>
-            {snapshot.result.credit_progress?.value === null
-              ? `学分进度不可计算，缺少：${snapshot.result.credit_progress.missing_conditions.join("、")}`
+            {snapshot.result.credit_progress?.value == null
+              ? `学分进度不可计算，缺少：${snapshot.result.credit_progress?.missing_conditions.join("、") || "历史分析未记录学分计算条件"}`
               : "学分进度已按确认规则计算"}
           </p>
           {snapshot.result.credit_progress?.students?.map((s) => (
