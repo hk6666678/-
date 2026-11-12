@@ -33,7 +33,7 @@ type Snapshot = {
   result: Group & {
     known_count: number;
     groups: Group[];
-    credit_progress: {
+    credit_progress?: {
       value: string | null;
       missing_conditions: string[];
       students?: {
@@ -316,8 +316,8 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
           </p>
           <h3>学分进度与条件提醒</h3>
           <p>
-            {snapshot.result.credit_progress?.value === null
-              ? `学分进度不可计算，缺少：${snapshot.result.credit_progress.missing_conditions.join("、")}`
+            {snapshot.result.credit_progress?.value == null
+              ? `学分进度不可计算，缺少：${snapshot.result.credit_progress?.missing_conditions.join("、") || "历史分析未记录学分计算条件"}`
               : "学分进度已按确认规则计算"}
           </p>
           {snapshot.result.credit_progress?.students?.map((s) => (
