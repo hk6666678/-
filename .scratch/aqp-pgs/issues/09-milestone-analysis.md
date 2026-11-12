@@ -1,6 +1,6 @@
 # 09: 培养环节分析与条件提醒
 
-**Status:** resolved
+**Status:** ready-for-agent
 
 **Specification:** [AQP-PGS 第一版开发规格](../spec.md)
 
@@ -12,7 +12,7 @@
 
 ## Acceptance criteria
 
-- [x] 复用通过规则与分析版本机制，展示选题／中期分布及年级、专业、培养层次筛选。
+- [ ] 复用通过规则与分析版本机制，展示选题／中期分布及年级、专业、培养层次筛选。（已集成基础功能；跨专业分组待修复。）
 - [x] 仅在学分、培养要求、重复修读计入规则齐全时计算进度；具备明确时间与状态依据时判断超期。
 - [x] 数据不足明确显示缺少条件，不推断 GPA、综合排名或风险概率；结果能下钻到来源记录。
 - [x] 在本任务涉及的页面、公开 API 和持久化行为间完成可演示闭环，权限与审计随该功能一起交付。
@@ -29,5 +29,9 @@
 已复用统一分析快照、规则版本和当前授权证据边界实现选题／中期分布，支持年级、专业、培养层次筛选及分组；前端可生成、读取历史并下钻。日期依据不足逐项提示；课程仅在确认培养要求及重修计入规则、学分与通过状态齐备且课程范围完整时计算学分进度。不推断 GPA、排名或风险概率。契约见 docs/analysis-contract.md。使用已确认公开 API／浏览器边界执行 TDD，合成数据验证；真实业务规则和数据仍待业务提供与验收。
 
 ## Validation
+
+### 2026-11-12 恢复后的审查
+
+已集成 aae6a81；a2b6a8b 修复旧08快照缺少学分进度对象时误称已计算的问题。69 pytest、mypy23、Ruff、构建、15项Chrome通过。独立Standards无可行动标准违规；Spec发现P2：`Scope.major`必填且来源先按单专业过滤，导致`group_by=major`无法比较多个获授权专业。按正式规格第6节重新打开本任务；后续允许授权范围内多专业分组，并补逐专业权限、通过规则及历史版本回归。当前测试通过不代表该需求已完成。详情见 `../reviews/09-resume-review.md`。
 
 已合并 integration/aqp-trial 的 185a306。完整 pytest 67 passed；mypy 22 modules 通过；Ruff 全 backend 通过；TypeScript/Vite build 通过；Chrome 8049 完整 Playwright 15 passed（27.3s），最后范围说明文字调整后相关08/09浏览器用例复验2 passed。证据截图 frontend/test-results/milestone-analysis.png（合成数据）。
