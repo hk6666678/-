@@ -160,10 +160,12 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     register_model_connection(app, path, current)
     from aqp.papers import register_papers
 
-    register_papers(app, path, current)
+    semantic_history = register_papers(app, path, current)
     from aqp.comparisons import register_comparisons
 
-    paper_access, comparison_snapshot = register_comparisons(app, path, current)
+    paper_access, comparison_snapshot, comparison_history = register_comparisons(
+        app, path, current
+    )
     from aqp.candidates import register_candidates
 
     candidate_access = register_candidates(
@@ -171,7 +173,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     )
     from aqp.reviews import register_reviews
 
-    register_reviews(app, path, current, paper_access, candidate_access)
+    review_history = register_reviews(app, path, current, paper_access, candidate_access)
     from aqp.resolutions import register_resolutions
 
     register_resolutions(app, path, current)
@@ -181,10 +183,18 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     from aqp.analysis import register_analysis
 
     analysis_loader = register_analysis(app, path, current)
-    from aqp.agent import register_agent
+    from aqp.agent import AgentLoaders, register_agent
     from aqp.exports import register_original_downloads
 
-    register_agent(app, path, current, analysis_loader)
+    agent_loaders = AgentLoaders(
+        analysis=analysis_loader,
+        paper=paper_access,
+        semantic=semantic_history,
+        comparison=comparison_history,
+        candidate=candidate_access,
+        review=review_history,
+    )
+    register_agent(app, path, current, agent_loaders)
     register_original_downloads(app, path, current)
     frontend = Path(__file__).resolve().parents[2] / "frontend" / "dist"
     if frontend.is_dir():

@@ -40,7 +40,7 @@ def register_reviews(
     current: Callable[..., Any],
     paper: Callable[..., Any],
     candidate: Callable[..., Any],
-) -> None:
+) -> Callable[[sqlite3.Connection, int, int], dict[str, Any]]:
     def view(row: sqlite3.Row, evidence: dict[str, Any]) -> dict[str, Any]:
         return {
             k: row[k]
@@ -62,25 +62,30 @@ def register_reviews(
             "current_confirmation": not evidence["stale"],
         }
 
+    def review_history(
+        db: sqlite3.Connection, actor: int, ident: int
+    ) -> dict[str, Any]:
+        evidence = candidate(db, actor, ident)
+        rows = db.execute(
+            "SELECT * FROM paper_reviews WHERE candidate_id=? ORDER BY version",
+            (ident,),
+        ).fetchall()
+        audit(db, actor, "review.read", str(ident))
+        items = [view(row, evidence) for row in rows]
+        for item in items[:-1]:
+            item["current_confirmation"] = False
+        return {
+            "candidate_id": ident,
+            "version": len(items),
+            "stale": evidence["stale"],
+            "items": items,
+        }
+
     @app.get("/api/candidate-results/{ident}/reviews")
     def history(ident: int, request: Request) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
-            evidence = candidate(db, actor["id"], ident)
-            rows = db.execute(
-                "SELECT * FROM paper_reviews WHERE candidate_id=? ORDER BY version",
-                (ident,),
-            ).fetchall()
-            audit(db, actor["id"], "review.read", str(ident))
-            items = [view(row, evidence) for row in rows]
-            for item in items[:-1]:
-                item["current_confirmation"] = False
-            return {
-                "candidate_id": ident,
-                "version": len(items),
-                "stale": evidence["stale"],
-                "items": items,
-            }
+            return review_history(db, actor["id"], ident)
 
     @app.post("/api/candidate-results/{ident}/reviews")
     def submit(ident: int, body: ReviewInput, request: Request) -> dict[str, Any]:
@@ -138,3 +143,4 @@ def register_reviews(
                 ).fetchone(),
                 evidence,
             )
+    return review_history

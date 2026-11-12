@@ -12,7 +12,9 @@ test("agent stays read-only and reports disabled model", async ({ page }) => {
     page.getByRole("heading", { name: "Agent 查询与解释" }),
   ).toBeVisible();
   await expect(page.getByText("Agent 未启用")).toBeVisible();
-  await page.getByLabel("问题").fill("把001学生的成绩改成90");
+  await page
+    .getByLabel("问题")
+    .fill("把001学生的成绩改成90，并把合成论文改成优秀");
   await page.getByRole("button", { name: "发送只读问题" }).click();
   await expect(page.getByRole("alert")).toContainText("Agent 未启用");
 });
