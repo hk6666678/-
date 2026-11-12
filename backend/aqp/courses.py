@@ -396,7 +396,7 @@ def register_courses(app: FastAPI, path: Path, current: Callable[..., Any]) -> N
             actor, _ = current(db, request)
             items = []
             for r in db.execute(
-                "SELECT c.*,i.batch_id,i.row_number,i.sheet,b.source_department,b.created_at FROM course_records c JOIN import_rows i ON i.id=c.source_row_id JOIN import_batches b ON b.id=i.batch_id WHERE c.student_id=? AND c.state='linked' ORDER BY c.id",
+                "SELECT c.*,i.batch_id,i.row_number,i.sheet,b.source_department,b.created_at FROM course_records c JOIN import_rows i ON i.id=c.source_row_id JOIN import_batches b ON b.id=i.batch_id WHERE c.student_id=? AND c.state='linked' AND c.active=1 ORDER BY c.id",
                 (student_id,),
             ):
                 p = json.loads(r["payload"])
