@@ -60,3 +60,7 @@ origin https://github.com/hk6666678/-.git。此前核实远程integration为fc7c
 ## 2026-11-12 任务18完成检查点
 
 官方额度工具在本会话不可用，无法可靠判断额度；继续如实记录。任务18在 implement/ticket-18@d03d10b 完成，分支已推送并核实；集成合并提交7201e2a。合并后90 pytest、mypy25、Ruff、TS/Vite build、完整17项Chrome通过。论文Agent使用受控替身验证工具、权限、版本与页序证据；真实语言理解和恶意原文抵御效果留待23。下一步22全流程与规模验证，同时补21恢复库完整业务浏览器链路。
+
+## 2026-11-12 用户要求停止并切换GPT模型
+
+任务22停止在claimed/WIP。implement/ticket-22@5aa32be已推送并核实，包含b08a7c8的872行trial_validation.py草稿；该脚本未运行通过，已知mypy/Ruff问题、空白PDF不适合驱动论文流程、计时结构不可靠且实现偏复杂。不得宣称22完成。集成integration/aqp-trial@27449db干净且已同步。下一步新会话应先按全局简单优先准则审查拆分/重写，再继续规模、并发、恢复浏览器和报告验证。13真实模型效果、21恢复库浏览器链路、23真实业务验收仍待验。官方额度工具不可用，额度状态无法可靠判断。全局行为准则已写入C:/Users/Administrator/.codex/AGENTS.md。

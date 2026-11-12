@@ -54,3 +54,4 @@
 当前集成 dbe8d49：09跨专业修复与19导出/原件控制均已合入。09分支5aa0cb7、19分支aac50c6均已推送并核实。合并后77 pytest、mypy24、Ruff、TS/Vite build、Chrome16通过。19另通过独立browser_exports脚本；两轴审查见.scratch/aqp-pgs/reviews/19-code-review.md。下一步17→18→22；13真实模型效果、21恢复库全链路、23真实业务验收仍待外部前提或22。
 当前集成55a0c1e：17 Agent学生与培养查询已合入。implement/ticket-17@32c8724已推送核实。合并后85 pytest、mypy25、Ruff、TS/Vite build、Chrome17通过。Agent软件边界使用受控替身验证，真实模型效果仍待23。下一步18；之后22。
 当前集成7201e2a：18 Agent论文解释与综合摘要已合入。implement/ticket-18@d03d10b已推送核实。合并后90 pytest、mypy25、Ruff、TS/Vite build、Chrome17通过。论文Agent仍为受控替身软件验证，真实模型效果待23。下一步22全流程与规模验证，并补21恢复库完整业务浏览器链路。
+任务22在用户要求切换模型时停止。集成27449db干净同步；implement/ticket-22@5aa32be为WIP已推送，trial_validation.py未通过且需按简单优先重审。下一会话从HANDOFF和工单22继续，不要恢复开发直至明确指示。
