@@ -10,3 +10,101 @@ def test_research_outputs_require_explicit_access(client):  # noqa: F811
         "personal_participations": 0,
         "distinct_outputs": 0,
     }
+
+
+def test_research_template_available_to_authenticated_user(client):  # noqa: F811
+    login_admin(client)
+    response = client.get("/api/research-outputs/template")
+    assert response.status_code == 200
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    ws = load_workbook(BytesIO(response.content)).active
+    assert next(iter(ws.values))[:3] == ("AQP-PGS", "research_papers", "1")
+
+
+def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F811
+    from io import BytesIO
+    from uuid import uuid4
+
+    from openpyxl import load_workbook
+
+    headers = login_admin(client)
+    user = client.get("/api/me").json()["user"]
+    response = client.put(
+        f"/api/users/{user['id']}/grants",
+        headers=headers,
+        json={
+            "expected_version": user["version"],
+            "request_id": str(uuid4()),
+            "grants": [
+                {
+                    "category": "research_papers",
+                    "operation": op,
+                    "college": "合成学院",
+                    "major": "合成专业",
+                }
+                for op in ["maintain", "view", "identity"]
+            ],
+        },
+    )
+    assert response.status_code == 200
+    wb = load_workbook(BytesIO(client.get("/api/research-outputs/template").content))
+    wb.active.append(
+        [
+            "10.1234/demo",
+            "合成科研论文",
+            "001",
+            "合成人员",
+            1,
+            "第一作者",
+            "合成学院",
+            "合成专业",
+        ]
+    )
+    stream = BytesIO()
+    wb.save(stream)
+
+    def preview():
+        response = client.post(
+            "/api/research-outputs/preview",
+            headers=headers,
+            data={"source_department": "合成科研处"},
+            files={"file": ("synthetic.xlsx", stream.getvalue())},
+        )
+        assert response.status_code == 200, response.text
+        return response.json()
+
+    batch = preview()
+    assert batch["items"][0]["status"] == "new"
+    assert (
+        client.post(
+            f"/api/research-outputs/previews/{batch['id']}/confirm",
+            headers=headers,
+            json={"accept_changes": False},
+        ).status_code
+        == 200
+    )
+    result = client.get("/api/research-outputs").json()
+    assert result["distinct_outputs"] == 1
+    assert result["items"][0]["participants"][0]["association"] == "pending"
+    assert preview()["items"][0]["status"] == "duplicate"
+    wb.active["B3"] = "合成科研论文更正"
+    stream = BytesIO()
+    wb.save(stream)
+    change = preview()
+    assert change["items"][0]["status"] == "change"
+    url = f"/api/research-outputs/previews/{change['id']}/confirm"
+    assert (
+        client.post(url, headers=headers, json={"accept_changes": False}).status_code
+        == 409
+    )
+    assert (
+        client.post(url, headers=headers, json={"accept_changes": True}).status_code
+        == 200
+    )
+    result = client.get("/api/research-outputs").json()
+    assert result["distinct_outputs"] == 1
+    assert result["items"][0]["version"] == 2
+    assert result["items"][0]["title"] == "合成科研论文更正"
