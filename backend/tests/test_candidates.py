@@ -237,3 +237,63 @@ def test_rule_rejects_executable_conditions(client):
         ).status_code
         == 422
     )
+
+
+def test_missing_pages_and_changed_comparison_never_recommend(client, tmp_path):
+    from aqp.paper_worker import run_once
+    from test_attachments import pdf
+
+    headers, ids = candidate_setup(client, tmp_path)
+    rule = client.post(
+        "/api/candidate-rules", headers=headers, json=synthetic_rule()
+    ).json()
+    client.post(
+        f"/api/candidate-rules/{rule['id']}/enable",
+        headers=headers,
+        json={"confirmed_by": "合成专家", "basis": "合成测试"},
+    )
+    response = client.post(
+        "/api/papers",
+        headers=headers,
+        data={
+            "student_id": 1,
+            "title": "缺失原页合成样本",
+            "expected_version": 1,
+            "covered_student_ids": "[1]",
+            "level": "硕士",
+            "discipline": "计算机",
+            "year": "2025",
+        },
+        files={"file": ("synthetic.pdf", pdf())},
+    )
+    assert response.status_code == 200, response.text
+    assert run_once(tmp_path / "accounts.sqlite3")
+    target = response.json()["id"]
+    comp = client.post(
+        f"/api/papers/{target}/comparisons", headers=headers, json={}
+    ).json()
+    result = client.post(
+        "/api/candidate-results", headers=headers, json={"comparison_id": comp["id"]}
+    ).json()
+    assert result["recommended"] is False
+    assert "pages" in result["rules"][0]["missing"]
+    assert result["rules"][0]["checks"][0]["status"] == "证据不足"
+    client.post(
+        f"/api/papers/{ids[1]}/labels",
+        headers=headers,
+        json={
+            "label": "普通",
+            "confirmed_by": "合成专家",
+            "basis": "合成更正",
+            "expected_version": 1,
+        },
+    )
+    assert client.get(f"/api/candidate-results/{result['id']}").json()["stale"] is True
+    assert (
+        client.post(
+            "/api/candidate-results",
+            headers=headers,
+            json={"comparison_id": comp["id"]},
+        ).status_code
+        == 409
+    )
