@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
 import { AccessPanel } from "./AccessPanel";
+import { AgentPanel } from "./AgentPanel";
 import { AuditPanel } from "./AuditPanel";
 import { MilestonePanel } from "./MilestonePanel";
 import { PaperPanel } from "./PaperPanel";
@@ -242,6 +243,7 @@ function App() {
           {admin && <button onClick={() => setPage("audit")}>审计查询</button>}
           <button onClick={() => setPage("milestones")}>选题与中期导入</button>
           <button onClick={() => setPage("papers")}>论文上传与解析</button>
+          <button onClick={() => setPage("agent")}>Agent 查询</button>
           <button onClick={() => setPage("analysis")}>
             课程统计与通过规则
           </button>
@@ -320,6 +322,8 @@ function App() {
             <ComparisonPanel csrf={session.csrf_token} />
             <CandidatePanel csrf={session.csrf_token} />
           </>
+        ) : page === "agent" ? (
+          <AgentPanel csrf={session.csrf_token} />
         ) : page === "analysis" ? (
           <AnalysisPanel csrf={session.csrf_token} />
         ) : page === "courses" ? (
