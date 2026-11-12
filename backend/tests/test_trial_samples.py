@@ -84,7 +84,15 @@ def test_four_category_small_package(client):
         assert response.json()["counts"].get("invalid", 0) > 0, response.text
         from trial_samples import error_workbook
 
-        for error in ["missing-column", "bad-format", "duplicate", "identity-conflict"]:
+        for error in [
+            "missing-column",
+            "bad-format",
+            "duplicate",
+            "identity-conflict",
+            "wrong-version",
+            "unparseable",
+            "changed-key",
+        ]:
             response = client.post(
                 preview_url,
                 headers=headers,
@@ -96,7 +104,7 @@ def test_four_category_small_package(client):
                     )
                 },
             )
-            if error == "missing-column":
+            if error in {"missing-column", "wrong-version", "unparseable"}:
                 assert response.status_code == 422, response.text
                 continue
             assert response.status_code == 200, (category, error, response.text)
@@ -107,6 +115,7 @@ def test_four_category_small_package(client):
                         "bad-format": "invalid",
                         "duplicate": "duplicate",
                         "identity-conflict": "conflict",
+                        "changed-key": "conflict",
                     }[error],
                     0,
                 )

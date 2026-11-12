@@ -64,3 +64,11 @@ origin https://github.com/hk6666678/-.git。此前核实远程integration为fc7c
 ## 2026-11-12 用户要求停止并切换GPT模型
 
 任务22停止在claimed/WIP。implement/ticket-22@5aa32be已推送并核实，包含b08a7c8的872行trial_validation.py草稿；该脚本未运行通过，已知mypy/Ruff问题、空白PDF不适合驱动论文流程、计时结构不可靠且实现偏复杂。不得宣称22完成。集成integration/aqp-trial@27449db干净且已同步。下一步新会话应先按全局简单优先准则审查拆分/重写，再继续规模、并发、恢复浏览器和报告验证。13真实模型效果、21恢复库浏览器链路、23真实业务验收仍待验。官方额度工具不可用，额度状态无法可靠判断。全局行为准则已写入C:/Users/Administrator/.codex/AGENTS.md。
+
+## 2026-11-12 第一版软件合成验收收尾
+
+集成分支integration/aqp-trial，基线a31dd9c；本次提交补齐错误输入和公开API验证，任务22软件合成验收完成，21恢复浏览器模拟验证已补齐。详见docs/trial-validation.md及规模/恢复报告。真实模型13和真实资料/专家规则/获准模型23仍待验，不能称真实业务验收完成。实际CLI生成data/check-small和data/check-samples，均仅保留本地。mypy25/Ruff/TS-Vite通过，最终pytest见任务22补记；此前Chrome17项通过。没有新增服务或同步进程。
+
+用户最新规则：平时只本地commit，绝不push；额度达到5%停止线时先保存HANDOFF再按项目规则集中同步。此次未上传。官方额度最后读取剩短周期66%、周56%，非实时保证。
+
+最终本地复验：`python -m pytest -q` 93 passed in 77.80s；`python -m mypy` 25文件通过；`python -m ruff check .`通过；`npm --prefix frontend run build`通过。小规模CLI与发行包CLI实际运行成功。
