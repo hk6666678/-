@@ -52,7 +52,7 @@ def register_candidates(
     current: Callable[..., Any],
     paper: Callable[..., Any],
     snapshot: Callable[..., Any],
-) -> None:
+) -> Callable[..., Any]:
     def scope(
         db: sqlite3.Connection, actor: int, config: dict[str, Any], op: str
     ) -> None:
@@ -276,16 +276,21 @@ def register_candidates(
     def result_history(ident: int, request: Request) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
-            row = db.execute(
-                "SELECT * FROM candidate_results WHERE id=?", (ident,)
-            ).fetchone()
-            if row is None:
-                raise HTTPException(404, "候选结果不存在")
-            target, _, stale = comparison(db, actor["id"], row["comparison_id"])
-            stale = (
-                stale
-                or json.dumps([r["id"] for r in active(db, target)])
-                != row["rules_snapshot"]
-            )
-            audit(db, actor["id"], "candidate.result.read", str(ident))
-            return {"id": ident, "stale": stale, **json.loads(row["result"])}
+            return load_result(db, actor["id"], ident)
+
+    def load_result(db: sqlite3.Connection, actor: int, ident: int) -> dict[str, Any]:
+        row = db.execute(
+            "SELECT * FROM candidate_results WHERE id=?", (ident,)
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, "候选结果不存在")
+        target, _, stale = comparison(db, actor, row["comparison_id"])
+        stale = (
+            stale
+            or json.dumps([r["id"] for r in active(db, target)])
+            != row["rules_snapshot"]
+        )
+        audit(db, actor, "candidate.result.read", str(ident))
+        return {"id": ident, "stale": stale, **json.loads(row["result"])}
+
+    return load_result
