@@ -1,6 +1,6 @@
 # 17: Agent 学生与培养查询
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 **Specification:** [AQP-PGS 第一版开发规格](../spec.md)
 
