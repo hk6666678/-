@@ -1,6 +1,6 @@
 # 02: 科研论文与共同参与成果导入
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 **Blocked by:** 01
 

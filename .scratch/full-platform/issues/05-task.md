@@ -1,6 +1,6 @@
 # 05: 盲审答辩与版本评分模板
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 **Blocked by:** 01
 
