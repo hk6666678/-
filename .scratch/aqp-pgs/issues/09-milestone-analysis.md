@@ -1,6 +1,6 @@
 # 09: 培养环节分析与条件提醒
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 **Specification:** [AQP-PGS 第一版开发规格](../spec.md)
 
