@@ -11,10 +11,12 @@ from pathlib import Path
 from typing import Any, Literal, NamedTuple, TypedDict
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from aqp.authorization import allowed
 from aqp.courses import visible
+from aqp.exports import excel_report
 from aqp.milestones import masked, reconcile_milestones
 from aqp.store import audit, connection
 
@@ -88,10 +90,14 @@ def effective_majors(
 
 
 def require(db: sqlite3.Connection, actor: int, scope: Scope, op: str) -> None:
-    if scope.major:
-        if not allowed(db, actor, scope.category, op, scope.college, scope.major):
-            raise HTTPException(403, "此范围操作未授权")
-    elif effective_majors(db, actor, scope, [op]) == set():
+    denied = bool(scope.major) and not allowed(
+        db, actor, scope.category, op, scope.college, scope.major
+    )
+    if not scope.major:
+        denied = effective_majors(db, actor, scope, [op]) == set()
+    if denied:
+        audit(db, actor, "analysis.access", "restricted", "denied")
+        db.commit()
         raise HTTPException(403, "此范围操作未授权")
 
 
@@ -509,6 +515,16 @@ def register_analysis(app: FastAPI, path: Path, current: Callable[..., Any]) -> 
                         p.get("专业", ""),
                     ):
                         raise HTTPException(403, "历史证据当前范围未授权")
+            student = db.execute(
+                "SELECT college,major FROM students WHERE id=?", (e["student_id"],)
+            ).fetchone()
+            if student is None or not all(
+                allowed(db, actor, scope.category, op, student["college"], student["major"])
+                for op in ["view", "analyze"] + (["export"] if export else [])
+            ):
+                audit(db, actor, "analysis.access", "restricted", "denied")
+                db.commit()
+                raise HTTPException(403, "历史证据当前学生范围未授权")
             e["payload"] = (
                 visible(db, actor, e["payload"])
                 if scope.category == "courses"
@@ -586,9 +602,9 @@ def register_analysis(app: FastAPI, path: Path, current: Callable[..., Any]) -> 
             return result
 
     @app.get("/api/analyses/{sid}/export")
-    def export(sid: int, request: Request) -> dict[str, Any]:
+    def export(sid: int, request: Request) -> Response:
         with connection(path) as db:
             actor, _ = current(db, request)
             result = load(db, actor["id"], sid, True)
             audit(db, actor["id"], "analysis.export", str(sid))
-            return result
+            return excel_report(result, f"analysis-{sid}")

@@ -181,6 +181,9 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     from aqp.analysis import register_analysis
 
     register_analysis(app, path, current)
+    from aqp.exports import register_original_downloads
+
+    register_original_downloads(app, path, current)
     frontend = Path(__file__).resolve().parents[2] / "frontend" / "dist"
     if frontend.is_dir():
         app.mount("/", StaticFiles(directory=frontend, html=True), name="frontend")
