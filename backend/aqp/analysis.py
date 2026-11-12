@@ -383,7 +383,9 @@ def reminder(e: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def register_analysis(app: FastAPI, path: Path, current: Callable[..., Any]) -> None:
+def register_analysis(
+    app: FastAPI, path: Path, current: Callable[..., Any]
+) -> Callable[..., Any]:
     @app.post("/api/pass-rules")
     def save_rule(body: PassRule, request: Request) -> dict[str, Any]:
         with connection(path) as db:
@@ -608,3 +610,4 @@ def register_analysis(app: FastAPI, path: Path, current: Callable[..., Any]) -> 
             result = load(db, actor["id"], sid, True)
             audit(db, actor["id"], "analysis.export", str(sid))
             return excel_report(result, f"analysis-{sid}")
+    return load

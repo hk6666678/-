@@ -180,9 +180,11 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     register_records(app, path, current)
     from aqp.analysis import register_analysis
 
-    register_analysis(app, path, current)
+    analysis_loader = register_analysis(app, path, current)
+    from aqp.agent import register_agent
     from aqp.exports import register_original_downloads
 
+    register_agent(app, path, current, analysis_loader)
     register_original_downloads(app, path, current)
     frontend = Path(__file__).resolve().parents[2] / "frontend" / "dist"
     if frontend.is_dir():
