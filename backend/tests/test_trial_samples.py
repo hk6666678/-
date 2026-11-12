@@ -82,6 +82,36 @@ def test_four_category_small_package(client):
         )
         assert response.status_code == 200, response.text
         assert response.json()["counts"].get("invalid", 0) > 0, response.text
+        from trial_samples import error_workbook
+
+        for error in ["missing-column", "bad-format", "duplicate", "identity-conflict"]:
+            response = client.post(
+                preview_url,
+                headers=headers,
+                data=data,
+                files={
+                    "file": (
+                        f"{error}.xlsx",
+                        error_workbook(template.content, category, error),
+                    )
+                },
+            )
+            if error == "missing-column":
+                assert response.status_code == 422, response.text
+                continue
+            assert response.status_code == 200, (category, error, response.text)
+            assert (
+                response.json()["counts"].get(
+                    {
+                        "missing-column": "invalid",
+                        "bad-format": "invalid",
+                        "duplicate": "duplicate",
+                        "identity-conflict": "conflict",
+                    }[error],
+                    0,
+                )
+                > 0
+            ), (category, error, response.text)
     students = client.get("/api/students").json()
     assert students["total"] == 1
     for category, count in [("courses", 8), ("topic", 1), ("midterm", 1)]:
@@ -168,6 +198,7 @@ def test_scale_refuses_external_attachment_root(tmp_path):
             "--output",
             str(output),
         ],
+        check=False,
         env={
             **os.environ,
             "PYTHONPATH": "backend",

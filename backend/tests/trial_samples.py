@@ -42,6 +42,30 @@ def sample_workbook(template: bytes, category: str, invalid: bool = False) -> by
     return output.getvalue()
 
 
+def error_workbook(template: bytes, category: str, error: str) -> bytes:
+    """One isolated error per synthetic workbook, using real template headers."""
+    book = load_workbook(BytesIO(sample_workbook(template, category)))
+    sheet = book.active
+    columns = [cell.value for cell in sheet[2]]
+    if error == "missing-column":
+        sheet.delete_cols(columns.index("学号") + 1)
+    elif error == "bad-format":
+        sheet.cell(
+            3,
+            columns.index("入学年份" if category == "basic" else "业务通过结果") + 1,
+            "not-valid",
+        )
+    elif error == "duplicate":
+        sheet.append([cell.value for cell in sheet[3]])
+    elif error == "identity-conflict":
+        sheet.cell(3, columns.index("姓名") + 1, "冲突姓名")
+    else:
+        raise ValueError(error)
+    output = BytesIO()
+    book.save(output)
+    return output.getvalue()
+
+
 def write_package(templates, output):
     """Keep small inputs and independent expectations beside the scale evidence."""
     import json
@@ -55,6 +79,10 @@ def write_package(templates, output):
         (output / f"errors-{category}.xlsx").write_bytes(
             sample_workbook(template, category, invalid=True)
         )
+        for error in ["missing-column", "bad-format", "duplicate", "identity-conflict"]:
+            (output / f"errors-{category}-{error}.xlsx").write_bytes(
+                error_workbook(template, category, error)
+            )
     (output / "expected.json").write_text(
         json.dumps(
             {
