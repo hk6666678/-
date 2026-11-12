@@ -1,0 +1,6 @@
+---
+description: 官方剩余额度低时保存进度和跨模型交接摘要
+alwaysApply: true
+---
+
+遵循项目 `docs/agents/quota-handoff.md`。在开发前、长任务期间和任务切换时检查官方额度；到 5% 及以下时先交接再停止，不依赖原始混合会话历史续接。

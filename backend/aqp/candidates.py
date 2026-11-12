@@ -54,7 +54,7 @@ def register_candidates(
     current: Callable[..., Any],
     paper: Callable[..., Any],
     snapshot: Callable[..., Any],
-) -> None:
+) -> Callable[..., Any]:
     def scope(
         db: sqlite3.Connection, actor: int, config: dict[str, Any], op: str
     ) -> None:
@@ -278,25 +278,11 @@ def register_candidates(
     def result_history(ident: int, request: Request) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
-            row = db.execute(
-                "SELECT * FROM candidate_results WHERE id=?", (ident,)
-            ).fetchone()
-            if row is None:
-                raise HTTPException(404, "候选结果不存在")
-            target, _, stale = comparison(db, actor["id"], row["comparison_id"])
-            stale = (
-                stale
-                or json.dumps([r["id"] for r in active(db, target)])
-                != row["rules_snapshot"]
-            )
-            audit(db, actor["id"], "candidate.result.read", str(ident))
-            return {"id": ident, "stale": stale, **json.loads(row["result"])}
-
-    @app.get("/api/candidate-results/{ident}/export")
+            @app.get("/api/candidate-results/{ident}/export")
     def export(ident: int, request: Request) -> Response:
-        data = result_history(ident, request)
         with connection(path) as db:
             actor, _ = current(db, request)
+            data = load_result(db, actor["id"], ident)
             target = paper(
                 db, actor["id"], data["paper_version_id"], ("view", "analyze", "export")
             )
@@ -320,3 +306,51 @@ def register_candidates(
             )
             audit(db, actor["id"], "candidates.export", str(ident))
             return excel_report(data, f"candidate-results-{ident}")
+
+    return load_result(db, actor["id"], ident)
+
+    def load_result(db: sqlite3.Connection, actor: int, ident: int) -> dict[str, Any]:
+        row = db.execute(
+            "SELECT * FROM candidate_results WHERE id=?", (ident,)
+        ).fetchone()
+        if row is None:
+            raise HTTPException(404, "候选结果不存在")
+        target, _, stale = comparison(db, actor, row["comparison_id"])
+        stale = (
+            stale
+            or json.dumps([r["id"] for r in active(db, target)])
+            != row["rules_snapshot"]
+        )
+        audit(db, actor, "candidate.result.read", str(ident))
+        return {"id": ident, "stale": stale, **json.loads(row["result"])}
+
+    @app.get("/api/candidate-results/{ident}/export")
+    def export(ident: int, request: Request) -> Response:
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            data = load_result(db, actor["id"], ident)
+            target = paper(
+                db, actor["id"], data["paper_version_id"], ("view", "analyze", "export")
+            )
+            for member in data["evidence_versions"]:
+                paper(
+                    db, actor["id"], member["version_id"], ("view", "analyze", "export")
+                )
+            row = db.execute(
+                "SELECT * FROM candidate_results WHERE id=?", (ident,)
+            ).fetchone()
+            data["created_at"] = row["created_at"]
+            data["scope"] = {
+                "level": target["level"],
+                "discipline": target["discipline"],
+                "year": data.get("year", ""),
+            }
+            data["data_version"] = data["evidence_versions"]
+            data["rule_version"] = data.get("rules", "paper-comparison-v1")
+            data["methodology"] = (
+                "同层次同学科，排除自身；缺失不计零，待评不计普通；仅辅助人工复核。"
+            )
+            audit(db, actor["id"], "candidates.export", str(ident))
+            return excel_report(data, f"candidate-results-{ident}")
+
+    return load_result
