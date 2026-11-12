@@ -37,6 +37,7 @@ const operations: Record<string, string> = {
   review: "人工复核",
 };
 export function AccessPanel({ admin, csrf, users, fetcher }: Props) {
+  const [bindings, setBindings] = useState("");
   const loadSequence = useRef(0);
   const [target, setTarget] = useState(""),
     [version, setVersion] = useState(0),
@@ -66,6 +67,11 @@ export function AccessPanel({ admin, csrf, users, fetcher }: Props) {
       if (sequence !== loadSequence.current) return;
       setVersion(data.version);
       setGrants(data.grants);
+      const bound = (await fetcher(`/api/users/${id}/student_bindings`)) as {
+        student_bindings: string[];
+      };
+      if (sequence !== loadSequence.current) return;
+      setBindings(bound.student_bindings.join("\n"));
     } catch (e) {
       if (sequence === loadSequence.current) setError((e as Error).message);
     } finally {
@@ -147,6 +153,49 @@ export function AccessPanel({ admin, csrf, users, fetcher }: Props) {
             </label>
             {version > 0 && (
               <>
+                <label>
+                  学生研究编号绑定（每行一个）
+                  <textarea
+                    value={bindings}
+                    disabled={busy}
+                    onChange={(e) => setBindings(e.target.value)}
+                  />
+                </label>
+                <p>
+                  仅保存显式绑定；导师角色及学生级访问隔离尚未启用。清空后保存可撤销全部绑定。
+                </p>
+                <button
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    setError("");
+                    setNotice("");
+                    try {
+                      const result = (await fetcher(
+                        `/api/users/${target}/student_bindings`,
+                        "PUT",
+                        {
+                          expected_version: version,
+                          request_id: crypto.randomUUID(),
+                          student_bindings: bindings
+                            .split("\n")
+                            .map((v) => v.trim())
+                            .filter(Boolean),
+                        },
+                        csrf,
+                      )) as { version: number; student_bindings: string[] };
+                      setVersion(result.version);
+                      setBindings(result.student_bindings.join("\n"));
+                      setNotice("学生绑定已保存");
+                    } catch (e) {
+                      setError((e as Error).message);
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  保存学生绑定
+                </button>
                 <form
                   className="account-form"
                   onSubmit={(e) => {
