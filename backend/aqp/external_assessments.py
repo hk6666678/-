@@ -13,7 +13,7 @@ from fastapi.responses import Response
 from openpyxl import Workbook, load_workbook
 from pydantic import BaseModel, Field
 
-from aqp.authorization import allowed
+from aqp.authorization import allowed, student_allowed
 from aqp.store import audit, connection
 
 
@@ -56,23 +56,34 @@ def register_external_assessments(
         }
 
     def permitted(db: sqlite3.Connection, actor: int, row: Any, operation: str) -> bool:
-        from aqp.attachments import authorize_students
-
         paper = db.execute(
             "SELECT covered_student_ids FROM paper_versions WHERE id=?",
             (row["paper_version_id"],),
         ).fetchone()
-        try:
-            authorize_students(
-                db,
-                actor,
-                row["category"],
-                json.loads(paper["covered_student_ids"]),
-                (operation,),
-            )
-            return True
-        except HTTPException:
+        if not paper:
             return False
+        ids = json.loads(paper["covered_student_ids"])
+        if not ids:
+            return False
+        for student_id in ids:
+            student = db.execute(
+                "SELECT college,major FROM students WHERE id=? AND active=1",
+                (student_id,),
+            ).fetchone()
+            if (
+                not student
+                or not student_allowed(db, actor, student_id)
+                or not allowed(
+                    db,
+                    actor,
+                    row["category"],
+                    operation,
+                    student["college"],
+                    student["major"],
+                )
+            ):
+                return False
+        return True
 
     @app.get("/api/external-assessments/template")
     def workbook_template(request: Request) -> Response:
@@ -227,6 +238,7 @@ def register_external_assessments(
             except Exception as exc:
                 raise HTTPException(422, "无法读取标准Excel模板") from exc
             rows, errors = [], []
+            seen: dict[tuple[Any, ...], dict[str, Any]] = {}
             for number, cells in enumerate(values[1:], 2):
                 if not any(v is not None for v in cells):
                     continue
@@ -236,6 +248,15 @@ def register_external_assessments(
                     )
                     raw["scores"] = json.loads(raw["scores"])
                     body = AssessmentInput.model_validate(raw)
+                    key = (
+                        body.category,
+                        body.paper_version_id,
+                        body.batch,
+                        body.anonymous_code,
+                    )
+                    if key in seen and seen[key] != body.model_dump():
+                        raise ValueError("批内相同业务键内容冲突")
+                    seen[key] = body.model_dump()
                     db.execute("SAVEPOINT preview_row")
                     try:
                         persist(db, actor, body)
@@ -244,6 +265,8 @@ def register_external_assessments(
                         db.execute("RELEASE preview_row")
                     rows.append(body.model_dump())
                 except (ValueError, TypeError, HTTPException) as exc:
+                    if isinstance(exc, HTTPException) and exc.status_code == 403:
+                        raise
                     message = (
                         exc.detail
                         if isinstance(exc, HTTPException)

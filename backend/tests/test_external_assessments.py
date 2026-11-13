@@ -25,7 +25,7 @@ def test_write_duplicate_conflict_and_current_permissions(client):
     headers = login_admin(client)
     setup_record(client, headers)
 
-    def grant(operations):
+    def grant(operations, categories=("blind_reviews",)):
         user = client.get("/api/me").json()["user"]
         grants = [
             {
@@ -38,11 +38,12 @@ def test_write_duplicate_conflict_and_current_permissions(client):
         ]
         grants += [
             {
-                "category": "blind_reviews",
+                "category": category,
                 "operation": op,
                 "college": "示例学院",
                 "major": "计算机",
             }
+            for category in categories
             for op in operations
         ]
         response = client.put(
@@ -56,7 +57,7 @@ def test_write_duplicate_conflict_and_current_permissions(client):
         )
         assert response.status_code == 200, response.text
 
-    grant(["maintain", "view"])
+    grant(["maintain", "view"], ("blind_reviews", "defenses"))
     paper = client.post(
         "/api/papers",
         headers=headers,
@@ -102,6 +103,8 @@ def test_write_duplicate_conflict_and_current_permissions(client):
 
     from openpyxl import Workbook
 
+    excel_pending = b""
+
     def preview_excel(code):
         book = Workbook()
         row = {**body, "anonymous_code": code, "template_version": "simulation-v1"}
@@ -119,6 +122,11 @@ def test_write_duplicate_conflict_and_current_permissions(client):
         book.active.append(
             [json.dumps(row[k]) if k == "scores" else row[k] for k in columns]
         )
+        if code == "R03":
+            second = {**row, "category": "defenses"}
+            book.active.append(
+                [json.dumps(second[k]) if k == "scores" else second[k] for k in columns]
+            )
         out = io.BytesIO()
         book.save(out)
         response = client.post(
@@ -128,6 +136,8 @@ def test_write_duplicate_conflict_and_current_permissions(client):
         )
         assert response.status_code == 200, response.text
         assert response.json()["errors"] == []
+        nonlocal excel_pending
+        excel_pending = out.getvalue()
         return response.json()["id"]
 
     batch_id = preview_excel("R02")
@@ -144,7 +154,22 @@ def test_write_duplicate_conflict_and_current_permissions(client):
         == 409
     )
     pending_id = preview_excel("R03")
+    grant(["maintain", "view"])
+    assert (
+        client.post(
+            f"/api/external-assessments/import/{pending_id}/confirm", headers=headers
+        ).status_code
+        == 403
+    )
+    assert client.get("/api/external-assessments").json()["count"] == 2
     grant(["view", "download"])
+    denied = client.post(
+        "/api/external-assessments/import/preview",
+        headers=headers,
+        files={"file": ("denied.xlsx", excel_pending)},
+    )
+    assert denied.status_code == 403
+
     assert (
         client.post(
             f"/api/external-assessments/import/{pending_id}/confirm", headers=headers
@@ -205,7 +230,7 @@ def test_excel_preview_errors_are_not_committed(client):
     )
     book.active.append(
         [
-            "blind_reviews",
+            "invalid-category",
             999,
             "B",
             "R",
