@@ -2,7 +2,15 @@
 
 根D:/AQP-PGS，integration/aqp-trial；科研成果合并HEAD 16fe56e182046cac9fab884cad1037132cdadb3f（源codex/full-02 2e6ea6d）。本文后续文档提交HEAD以git log -1核实。
 
-## 2026-11-13 08集成检查点（本节最新，仅本地未push）
+## 2026-11-13 09集成检查点（本节最新，仅本地未push）
+
+本会话主机无官方get_usage_limits工具，官方额度无法读取或保证；用户明确指示继续开发，全程合成数据、仅本地提交未push。
+
+09已完成并合入：源codex/full-09@84daec8（功能576800b+审查修复e701fdb）无冲突合入integration/aqp-trial@556344b。四个新只读Agent工具：output_statistics（四类成果逐学生当前授权过滤、参与者三键匹配、去重与人次分口径）、mentor_group_facts（复用06 group_facts）、evaluation_snapshot（最新模拟评分摘要）、correlation_analysis（纯Python Pearson/OLS，变量白名单课程通过比例/成果数/评分总分；n<3或常数列拒绝；必带样本量/排除数/变量定义/不宣称因果局限；摘要指令强制披露样本与局限并禁因果表述）。数值全部工具端计算；无获准模型默认明确禁用（503+界面文案）；问题文本三阶段身份/论文预检沿用；拒绝落审计。独立审查"修复后可"唯一阻塞（空major时evidence链接指向不同总体或403）已修：仅显式major时给链接且测试实际请求验证200；建议项采纳（变量口径披露、快照键防御、摘要指令补约束）。
+
+工单09 tracked且resolved。集成556344b全回归：pytest145 passed（134.90秒）、mypy31、Ruff、build、全Chrome23/23（42.9秒）。相关测试手算验证r=-1/斜率-2/截距3/R2=1、n<3拒绝、score_total路径、链接可达、缺权403。已知未测分支与口径差异记录于FULL09-CHECKPOINT.md。真实业务验收待验，无模型外发。10完整平台模拟验收未开始（最后一个任务）。保留全部工作树；将基于本节最终提交预建D:/AQP-PGS-worktrees/full-10与codex/full-10。
+
+## 2026-11-13 08集成检查点（历史）
 
 本会话主机无官方get_usage_limits工具，官方额度无法读取或保证；用户明确指示继续开发，全程合成数据、仅本地提交未push。
 
