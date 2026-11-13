@@ -173,12 +173,21 @@ def test_score_evidence_missing_stale_and_current_access(client, tmp_path):
     with connection(dbpath) as db:
         db.execute(
             "INSERT INTO patents_outputs(business_key,payload) VALUES(?,?)",
-            ("P1", json.dumps({"participants": [participant]})),
+            (
+                "P1",
+                json.dumps({"title": "Synthetic Patent", "participants": [participant]}),
+            ),
         )
         db.commit()
     score = client.post("/api/evaluation-snapshots", headers=headers, json=body).json()
     assert score["total"] == 25
-    assert score["inputs"][0]["evidence"][0]["record_id"] == 1
+    drilldown = score["inputs"][0]["evidence"][0]
+    assert drilldown["record_id"] == 1
+    assert drilldown["business_key"] == "P1"
+    assert drilldown["title"] == "Synthetic Patent"
+    # Direct inserts carry no version history: the department stays null
+    # instead of being fabricated.
+    assert drilldown["source_department"] is None
     assert (
         client.get(f"/api/evaluation-snapshots/{missing['id']}").json()["stale"] is True
     )

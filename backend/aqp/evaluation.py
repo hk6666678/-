@@ -144,6 +144,18 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                     item = {
                         "category": category,
                         "record_id": row["id"],
+                        "business_key": row["business_key"],
+                        "title": payload.get("title"),
+                        "source_department": (
+                            source[0]
+                            if (
+                                source := db.execute(
+                                    f"SELECT source_department FROM {table}_output_versions WHERE output_id=? ORDER BY version DESC LIMIT 1",
+                                    (row["id"],),
+                                ).fetchone()
+                            )
+                            else None
+                        ),
                         "version": row["version"],
                     }
                     if feature == "latest_citation_count":
@@ -186,6 +198,9 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                         {
                             "category": "courses",
                             "record_id": row["id"],
+                            "course_code": row["course_code"],
+                            "term": row["term"],
+                            "attempt": row["attempt"],
                             "version": row["version"],
                             "source_row_id": row["source_row_id"],
                             "status": status,
