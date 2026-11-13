@@ -1,5 +1,6 @@
 """Independent blind-review and defense records; no candidate-label coupling."""
 
+import io
 import json
 import sqlite3
 from collections.abc import Callable
@@ -7,6 +8,8 @@ from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import Response
+from openpyxl import Workbook
 from pydantic import BaseModel, Field
 
 from aqp.store import audit, connection
@@ -54,6 +57,28 @@ def register_external_assessments(
             return True
         except HTTPException:
             return False
+
+    @app.get("/api/external-assessments/template")
+    def workbook_template(request: Request) -> Response:
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            book = Workbook()
+            sheet = book.active
+            assert sheet is not None
+            sheet.title = "考核记录"
+            sheet.append(list(AssessmentInput.model_fields))
+            instructions = book.create_sheet("说明")
+            instructions.append(["模拟评分模板 simulation-v1；quality范围0至100；不代表正式业务标准"])
+            instructions.append(["category填写blind_reviews或defenses；paper_version_id填写已上传论文版本ID"])
+            instructions.append(['scores填写JSON，例如 {"quality":85}；batch、anonymous_code、source必填'])
+            output = io.BytesIO()
+            book.save(output)
+            audit(db, actor["id"], "external_assessment.template", "simulation-v1")
+            return Response(
+                output.getvalue(),
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={"Content-Disposition": 'attachment; filename="assessment-simulation-v1.xlsx"'},
+            )
 
     @app.get("/api/external-assessments")
     def listing(request: Request) -> dict[str, Any]:

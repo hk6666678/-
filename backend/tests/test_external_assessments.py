@@ -109,3 +109,18 @@ def test_write_duplicate_conflict_and_current_permissions(client):
     assert "name" in item and "comment" not in item
     grant([])
     assert client.get("/api/external-assessments").json()["items"] == []
+
+
+def test_standard_workbook_template(client):
+    import io
+
+    from openpyxl import load_workbook
+    from test_accounts import login_admin
+
+    assert client.get("/api/external-assessments/template").status_code == 401
+    login_admin(client)
+    response = client.get("/api/external-assessments/template")
+    assert response.status_code == 200
+    book = load_workbook(io.BytesIO(response.content))
+    assert book.active.cell(1, 1).value == "category"
+    assert book["说明"].cell(1, 1).value == "模拟评分模板 simulation-v1；quality范围0至100；不代表正式业务标准"
