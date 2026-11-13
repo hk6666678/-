@@ -149,7 +149,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
   const [studentReport, setStudentReport] = useState<StudentReport>();
   const [groupReport, setGroupReport] = useState<GroupReport>();
   const [collegeReport, setCollegeReport] = useState<CollegeReport>();
-  const [students, setStudents] = useState<{ id: number; research_id: string }[]>([]);
+  const [students, setStudents] = useState<{ id: number; research_id: string; name?: string; student_number?: string }[]>([]);
   const [studentMajor, setStudentMajor] = useState("");
   const [groupMentor, setGroupMentor] = useState("");
   const [groupDate, setGroupDate] = useState(new Date().toISOString().slice(0, 10));
@@ -202,9 +202,11 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
   return (
     <section className="reports-panel" aria-label="三级报告">
       <p className="eyebrow">REPORTS / 学生 · 导师课题组 · 学院学科</p>
-      <p>
+      <p className="muted">仅呈现当前授权范围；缺失数据不填零。</p>
+      <details className="report-guidance"><summary>报告范围与导出细则</summary><p>
         三级报告按读取时当前权限现算：无授权段落仅标注不计数，缺数据标注缺失不填零，每项数值保留记录与版本依据。导出需要相应类别的独立导出授权。
       </p>
+      </details>
       {error && <p role="alert">{error}</p>}
       {notice && <p className="notice compact-notice" role="status">{notice}</p>}
 
@@ -247,7 +249,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
               <option value="">请选择已读取的授权学生</option>
               {students.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.research_id}
+                  {[s.name, s.student_number].filter(Boolean).join(" · ") || s.research_id}
                 </option>
               ))}
             </select>

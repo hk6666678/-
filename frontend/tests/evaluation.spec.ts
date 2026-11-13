@@ -181,6 +181,7 @@ test("simulation rule, scoring, history, charts and authorized export", async ({
   await page
     .getByRole("button", { name: "人才指标模拟评价", exact: true })
     .click();
+  await page.getByText("新建不可覆盖的规则草稿", { exact: true }).click();
   await page.getByLabel("规则名称", { exact: true }).fill("合成演示规则");
   await page.getByLabel("学院", { exact: true }).fill("合成学院");
   await page.getByLabel("专业", { exact: true }).fill("合成专业");

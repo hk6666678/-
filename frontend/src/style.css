@@ -614,3 +614,20 @@ td button { padding: 7px 11px; }
   .table-hint { display: block; color: #647873; font-size: 12px; margin-bottom: 7px; }
 }
 .reports-panel > .card > button + form { margin-top: 18px; }
+
+.mobile-nav-toggle { display: none; }
+.accounts-table { min-width: 700px; }
+.accounts-table td:first-child, .accounts-table td:nth-child(3), .accounts-table td:last-child { white-space: nowrap; }
+.accounts-table td:nth-child(2) { display: grid; grid-template-columns: repeat(2, minmax(140px, 1fr)); gap: 5px 14px; }
+.accounts-table .check { margin: 0; white-space: nowrap; }
+summary { cursor: pointer; font-weight: 600; color: #20584d; }
+details > p { margin-top: 14px; }
+.report-guidance { margin-bottom: 18px; }
+@media (max-width: 550px) {
+  .mobile-nav-toggle { display: block; text-align: left; padding: 10px 0; background: transparent; color: white; }
+  .workspace nav { display: none; }
+  .workspace nav.is-open { display: block; overflow-y: auto; max-height: 45dvh; }
+  .workspace nav .nav-group { display: block; }
+  .workspace nav button { width: 100%; }
+  .workspace nav .nav-group-label { display: block; }
+}

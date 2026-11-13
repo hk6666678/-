@@ -55,7 +55,15 @@ test("all navigation states and independent scroll", async ({ page }) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(
     375,
   );
-  await page.screenshot({ path: "test-results/navigation-mobile.png" });
+  const toggle = page.getByRole("button", { name: /展开导航/ });
+  await expect(toggle).toHaveAttribute("aria-expanded", "false");
+  await page.screenshot({ path: "../artifacts/ui-polish/navigation-mobile-closed.png" });
+  await toggle.click();
+  await expect(page.getByRole("button", { name: /收起导航/ })).toHaveAttribute("aria-expanded", "true");
+  await page.screenshot({ path: "../artifacts/ui-polish/navigation-mobile-open.png" });
+  await nav.getByRole("button", { name: "审计查询", exact: true }).click();
+  await expect(page.getByRole("button", { name: /审计查询 · 展开导航/ })).toHaveAttribute("aria-expanded", "false");
+  await expect(nav).toBeHidden();
 });
 
 test("mobile login error feedback", async ({ page }) => {

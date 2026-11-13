@@ -300,7 +300,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
         </table></div></div>
       </article>
       <article className="card">
-        <h3>新建不可覆盖的规则草稿</h3>
+        <details><summary>新建不可覆盖的规则草稿</summary>
         <p>
           选择已有规则后可另存下一版本；原版本保持不变。课程比例使用0—1，其他指标使用原始数量。
         </p>
@@ -426,6 +426,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
           </button>
           <button>保存模拟草稿</button>
         </form>
+        </details>
       </article>
       <article className="card">
         <h3>独立授权确认启用</h3>
