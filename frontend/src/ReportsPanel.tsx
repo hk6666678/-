@@ -202,12 +202,11 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
   return (
     <section className="reports-panel" aria-label="三级报告">
       <p className="eyebrow">REPORTS / 学生 · 导师课题组 · 学院学科</p>
-      <h2>三级报告</h2>
       <p>
         三级报告按读取时当前权限现算：无授权段落仅标注不计数，缺数据标注缺失不填零，每项数值保留记录与版本依据。导出需要相应类别的独立导出授权。
       </p>
       {error && <p role="alert">{error}</p>}
-      {notice && <p role="status">{notice}</p>}
+      {notice && <p className="notice compact-notice" role="status">{notice}</p>}
 
       <article className="card">
         <h3>学生发展报告</h3>
@@ -253,9 +252,10 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
               ))}
             </select>
           </label>
+          <div className="action-row">
           <button disabled={!students.length}>查看学生报告</button>
           {studentReport && (
-            <button
+            <button className="secondary"
               type="button"
               onClick={() =>
                 void perform(() =>
@@ -269,6 +269,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
               导出学生报告（需独立导出授权）
             </button>
           )}
+          </div>
         </form>
         {studentReport && (
           <div className="report-body">
@@ -395,9 +396,10 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
               onChange={(e) => setGroupDate(e.target.value)}
             />
           </label>
+          <div className="action-row">
           <button>查看课题组报告</button>
           {groupReport && (
-            <button
+            <button className="secondary"
               type="button"
               onClick={() =>
                 void perform(() => {
@@ -414,6 +416,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
               导出课题组报告（需独立导出授权）
             </button>
           )}
+          </div>
         </form>
         {groupReport && (
           <div className="report-body">
@@ -484,9 +487,10 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
               onChange={(e) => setMajor(e.target.value)}
             />
           </label>
+          <div className="action-row">
           <button>查看学院报告</button>
           {collegeReport && (
-            <button
+            <button className="secondary"
               type="button"
               onClick={() =>
                 void perform(() =>
@@ -500,6 +504,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
               导出学院报告（需独立导出授权）
             </button>
           )}
+          </div>
         </form>
         {collegeReport && (
           <div className="report-body">

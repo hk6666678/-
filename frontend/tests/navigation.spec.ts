@@ -6,6 +6,7 @@ test("all navigation states and independent scroll", async ({ page }) => {
     .getByLabel("密码", { exact: true })
     .fill("Synthetic-password-123!");
   await page.getByRole("button", { name: "登录平台" }).click();
+  await expect(page.getByRole("heading", { name: "欢迎回到工作台" })).toBeVisible();
   await page.screenshot({ path: "../artifacts/ui-polish/overview.png" });
   const nav = page.getByRole("navigation");
   await expect(nav).toBeVisible();
@@ -55,4 +56,14 @@ test("all navigation states and independent scroll", async ({ page }) => {
     375,
   );
   await page.screenshot({ path: "test-results/navigation-mobile.png" });
+});
+
+test("mobile login error feedback", async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/");
+  await page.getByLabel("用户名", { exact: true }).fill("synthetic-nonexistent-visual");
+  await page.getByLabel("密码", { exact: true }).fill("Incorrect-synthetic-password!");
+  await page.getByRole("button", { name: "登录平台" }).click();
+  await expect(page.locator(".error")).toBeVisible();
+  await page.screenshot({ path: "../artifacts/ui-polish/login-error-mobile.png" });
 });

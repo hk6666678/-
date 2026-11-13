@@ -596,3 +596,21 @@ td button { padding: 7px 11px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
+
+.action-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 16px; }
+.report-panel button + label, .reports-panel button + label { margin-top: 16px; }
+.compact-notice { display: table; padding: 8px 12px; margin: 12px 0 18px; }
+.evaluation-table { margin-top: 16px; }
+.evaluation-table table { min-width: 720px; }
+.evaluation-table td, .evaluation-table th { min-width: 70px; }
+.table-hint { display: none; }
+@media (max-width: 550px) {
+  header { flex-direction: row; align-items: flex-start; gap: 8px; }
+  header .eyebrow { font-size: 10px; }
+  header h1 { font-size: 21px; }
+  .user-menu { flex-direction: column; align-items: flex-end; gap: 6px; font-size: 11px; }
+  .user-menu span { max-width: 95px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .user-menu button { white-space: nowrap; padding: 7px 9px; }
+  .table-hint { display: block; color: #647873; font-size: 12px; margin-bottom: 7px; }
+}
+.reports-panel > .card > button + form { margin-top: 18px; }

@@ -28,7 +28,8 @@ test("personal account lifecycle through the browser", async ({
   await expect(row).toBeVisible();
   await expect(row.getByLabel("synthetic-member 学院数据管理员")).toBeChecked();
   await expect(row.getByLabel("synthetic-member 导师", { exact: true })).toBeChecked();
-  await page.screenshot({ path: "test-results/accounts.png", fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await page.screenshot({ path: "../artifacts/ui-polish/accounts.png" });
   const memberContext = await browser.newContext();
   const member = await memberContext.newPage();
   await member.goto(page.url());

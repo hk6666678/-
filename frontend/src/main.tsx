@@ -346,7 +346,7 @@ function App() {
             </h1>
           </div>
           <div className="user-menu">
-            <span>{session.user.username}</span>
+            <span title={session.user.username}>{session.user.username}</span>
             <button
               className="secondary"
               disabled={busy}
