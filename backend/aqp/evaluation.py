@@ -233,11 +233,12 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
             if not rule["enabled"]:
                 raise HTTPException(409, "规则尚未启用")
             values, digest = inputs(db, actor["id"], body.student_id, config)
+            max_weight = max(v["weight"] for v in values)
             total = (
                 None
                 if any(v["missing"] for v in values)
-                else sum(v["normalized"] * v["weight"] for v in values)
-                / sum(v["weight"] for v in values)
+                else sum(v["normalized"] * (v["weight"] / max_weight) for v in values)
+                / sum(v["weight"] / max_weight for v in values)
                 * 100
             )
             now = int(time.time())
@@ -258,7 +259,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                 (
                     body.student_id,
                     body.rule_id,
-                    json.dumps(result),
+                    json.dumps(result, allow_nan=False),
                     digest,
                     actor["id"],
                     now,

@@ -524,3 +524,9 @@ section[aria-label="导师与课题组"] .mentor-detail-action { padding:4px 0; 
 .mentor-fact-summary { margin:8px 0 16px; font-weight:600; }
 .mentor-missing { margin:20px 0; padding:12px 16px; background:#eaf0ed; border-left:3px solid #b8ccc4; }
 .mentor-missing p { margin:0; }
+
+.evaluation-panel input[type="checkbox"], .evaluation-panel input[type="radio"] { width: auto; display: inline-block; margin-right: 8px; }
+.evaluation-panel textarea { display: block; width: 100%; min-height: 90px; margin-top: 8px; padding: 12px; border: 1px solid var(--line, #cad7d5); border-radius: 6px; font: inherit; }
+.evaluation-panel table { width: 100%; }
+.evaluation-panel table input[type="number"] { min-width: 80px; }
+.evaluation-panel pre { max-width: 100%; overflow: auto; }

@@ -364,13 +364,13 @@ def test_course_and_citation_versions_and_mentor_binding(client, tmp_path):
             "metrics": [
                 {
                     "feature": "course_pass_ratio",
-                    "weight": 1,
+                    "weight": 1e308,
                     "minimum": 0,
                     "maximum": 1,
                 },
                 {
                     "feature": "latest_citation_count",
-                    "weight": 3,
+                    "weight": 1e308,
                     "minimum": 0,
                     "maximum": 10,
                 },
@@ -400,7 +400,7 @@ def test_course_and_citation_versions_and_mentor_binding(client, tmp_path):
         db.commit()
     result = client.post("/api/evaluation-snapshots", headers=headers, json=body).json()
     assert result["inputs"][0]["value"] == 0.5
-    assert abs(result["total"] - 57.5) < 0.00001
+    assert abs(result["total"] - 55) < 0.00001
     with connection(dbpath) as db:
         db.execute(
             "UPDATE users SET roles=? WHERE id=?",
