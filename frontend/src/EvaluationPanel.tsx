@@ -176,7 +176,7 @@ function Growth({ snapshots }: { snapshots: SnapshotItem[] }) {
           ))}
         </svg>
       )}
-      <table>
+      <div className="evaluation-table"><p className="table-hint">可左右滑动查看完整表格</p><div className="table-wrap"><table>
         <thead>
           <tr>
             <th>快照</th>
@@ -193,7 +193,7 @@ function Growth({ snapshots }: { snapshots: SnapshotItem[] }) {
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div></div>
     </div>
   );
 }
@@ -254,16 +254,15 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
   return (
     <section className="evaluation-panel">
       <p className="eyebrow">SIMULATION / 版本与证据</p>
-      <h2>人才指标模拟评价</h2>
       <p>
         当前只支持模拟演示，不构成正式人才识别。正式业务规则与业务验收尚未接入。权重和阈值由配置者明确提供，平台不预设官方权重。
       </p>
       {error && <p role="alert">{error}</p>}
-      {notice && <p role="status">{notice}</p>}
+      {notice && <p className="notice compact-notice" role="status">{notice}</p>}
       <article className="card">
         <h3>规则版本</h3>
         <button onClick={() => void perform(load)}>读取当前授权规则</button>
-        <table>
+        <div className="evaluation-table"><p className="table-hint">可左右滑动查看完整表格</p><div className="table-wrap"><table>
           <thead>
             <tr>
               <th>选择</th>
@@ -298,10 +297,10 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div></div>
       </article>
       <article className="card">
-        <h3>新建不可覆盖的规则草稿</h3>
+        <details><summary>新建不可覆盖的规则草稿</summary>
         <p>
           选择已有规则后可另存下一版本；原版本保持不变。课程比例使用0—1，其他指标使用原始数量。
         </p>
@@ -341,7 +340,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
             <input type="checkbox" name="revise" disabled={!rule} />
             基于选中规则创建下一版本
           </label>
-          <table>
+          <div className="evaluation-table"><p className="table-hint">可左右滑动查看完整表格</p><div className="table-wrap"><table>
             <thead>
               <tr>
                 <th>指标</th>
@@ -407,7 +406,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div></div>
           <button
             type="button"
             disabled={metrics.length >= 6}
@@ -427,6 +426,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
           </button>
           <button>保存模拟草稿</button>
         </form>
+        </details>
       </article>
       <article className="card">
         <h3>独立授权确认启用</h3>
@@ -616,7 +616,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
               />
             </div>
           </div>
-          <table>
+          <div className="evaluation-table"><p className="table-hint">可左右滑动查看完整表格</p><div className="table-wrap"><table>
             <thead>
               <tr>
                 <th>指标</th>
@@ -643,7 +643,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div></div>
           <details>
             <summary>数据版本摘要</summary>
             <code>{snapshot.data_digest}</code>

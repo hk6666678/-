@@ -149,7 +149,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
   const [studentReport, setStudentReport] = useState<StudentReport>();
   const [groupReport, setGroupReport] = useState<GroupReport>();
   const [collegeReport, setCollegeReport] = useState<CollegeReport>();
-  const [students, setStudents] = useState<{ id: number; research_id: string }[]>([]);
+  const [students, setStudents] = useState<{ id: number; research_id: string; name?: string; student_number?: string }[]>([]);
   const [studentMajor, setStudentMajor] = useState("");
   const [groupMentor, setGroupMentor] = useState("");
   const [groupDate, setGroupDate] = useState(new Date().toISOString().slice(0, 10));
@@ -202,12 +202,13 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
   return (
     <section className="reports-panel" aria-label="三级报告">
       <p className="eyebrow">REPORTS / 学生 · 导师课题组 · 学院学科</p>
-      <h2>三级报告</h2>
-      <p>
+      <p className="muted">仅呈现当前授权范围；缺失数据不填零。</p>
+      <details className="report-guidance"><summary>报告范围与导出细则</summary><p>
         三级报告按读取时当前权限现算：无授权段落仅标注不计数，缺数据标注缺失不填零，每项数值保留记录与版本依据。导出需要相应类别的独立导出授权。
       </p>
+      </details>
       {error && <p role="alert">{error}</p>}
-      {notice && <p role="status">{notice}</p>}
+      {notice && <p className="notice compact-notice" role="status">{notice}</p>}
 
       <article className="card">
         <h3>学生发展报告</h3>
@@ -248,14 +249,15 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
               <option value="">请选择已读取的授权学生</option>
               {students.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.research_id}
+                  {[s.name, s.student_number].filter(Boolean).join(" · ") || s.research_id}
                 </option>
               ))}
             </select>
           </label>
+          <div className="action-row">
           <button disabled={!students.length}>查看学生报告</button>
           {studentReport && (
-            <button
+            <button className="secondary"
               type="button"
               onClick={() =>
                 void perform(() =>
@@ -269,6 +271,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
               导出学生报告（需独立导出授权）
             </button>
           )}
+          </div>
         </form>
         {studentReport && (
           <div className="report-body">
@@ -395,9 +398,10 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
               onChange={(e) => setGroupDate(e.target.value)}
             />
           </label>
+          <div className="action-row">
           <button>查看课题组报告</button>
           {groupReport && (
-            <button
+            <button className="secondary"
               type="button"
               onClick={() =>
                 void perform(() => {
@@ -414,6 +418,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
               导出课题组报告（需独立导出授权）
             </button>
           )}
+          </div>
         </form>
         {groupReport && (
           <div className="report-body">
@@ -484,9 +489,10 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
               onChange={(e) => setMajor(e.target.value)}
             />
           </label>
+          <div className="action-row">
           <button>查看学院报告</button>
           {collegeReport && (
-            <button
+            <button className="secondary"
               type="button"
               onClick={() =>
                 void perform(() =>
@@ -500,6 +506,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
               导出学院报告（需独立导出授权）
             </button>
           )}
+          </div>
         </form>
         {collegeReport && (
           <div className="report-body">

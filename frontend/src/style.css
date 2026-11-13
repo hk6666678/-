@@ -1,7 +1,7 @@
 :root {
-  font-family: Inter, "Microsoft YaHei", sans-serif;
+  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
   color: #173535;
-  background: #f3f6f5;
+  background: #f4f3ef;
   font-synthesis: none;
 }
 * {
@@ -11,14 +11,16 @@ body {
   margin: 0;
 }
 button,
-input {
+input,
+select,
+textarea {
   font: inherit;
 }
 button {
   cursor: pointer;
   border: 0;
   border-radius: 7px;
-  padding: 12px 20px;
+  padding: 10px 16px;
   background: #12665c;
   color: white;
   font-weight: 600;
@@ -30,7 +32,9 @@ button:disabled {
   opacity: 0.55;
   cursor: wait;
 }
-input {
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
   display: block;
   width: 100%;
   border: 1px solid #cbd6d3;
@@ -40,7 +44,11 @@ input {
   margin-top: 8px;
   color: #173535;
 }
-input:focus {
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible {
   outline: 2px solid #58a99a;
   outline-offset: 2px;
 }
@@ -56,7 +64,7 @@ p {
   margin-top: 0;
 }
 h2 {
-  font-size: 24px;
+  font-size: 22px;
 }
 p {
   line-height: 1.8;
@@ -140,13 +148,13 @@ aside {
   width: 244px;
   background: #153f3d;
   color: white;
-  padding: 36px 22px;
+  padding: 28px 16px;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
 }
 .brand {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 700;
   letter-spacing: 1px;
   margin-bottom: 55px;
@@ -165,7 +173,7 @@ nav button {
   text-align: left;
   background: transparent;
   color: #c5d9d3;
-  margin: 6px 0;
+  margin: 3px 0;
 }
 nav button.active {
   background: #ffffff13;
@@ -180,7 +188,7 @@ nav button.active {
   line-height: 2;
 }
 .content {
-  padding: 40px 5%;
+  padding: 32px clamp(20px, 3vw, 48px);
   width: 100%;
   min-width: 0;
 }
@@ -242,7 +250,7 @@ header h1 {
 .card {
   background: white;
   border: 1px solid #e1e8e4;
-  padding: 28px;
+  padding: 24px;
   border-radius: 9px;
   margin-bottom: 24px;
 }
@@ -299,7 +307,7 @@ th {
 }
 td,
 th {
-  padding: 15px 12px;
+  padding: 13px 14px;
   border-bottom: 1px solid #edf1ee;
 }
 td small {
@@ -544,3 +552,82 @@ section[aria-label="导师与课题组"] .mentor-detail-action { padding:4px 0; 
 .report-subsection { margin: 10px 0; }
 .report-bars { display: block; max-width: 420px; }
 @media(max-width:650px) { .report-charts { grid-template-columns: 1fr; } }
+
+/* Shared working-surface details. Module-specific layouts remain independent. */
+:root { line-height: 1.5; font-size: 14px; }
+button { line-height: 1.4; transition: background-color 120ms ease, border-color 120ms ease; }
+input, select, textarea { line-height: 1.5; }
+textarea { resize: vertical; min-height: 96px; }
+input[type="checkbox"], input[type="radio"] { accent-color: #12665c; }
+input:disabled, select:disabled, textarea:disabled { background: #f1f2ef; color: #68766e; }
+h1, h2, h3 { letter-spacing: -.025em; line-height: 1.4; }
+h3 { font-size: 17px; }
+header { padding-bottom: 24px; border-bottom: 1px solid #dedfd7; margin-bottom: 24px; }
+header h1 { font-size: 27px; }
+.eyebrow { color: #65766c; letter-spacing: .1em; }
+.intro .eyebrow { color: #b8d2cc; }
+.workspace aside { background: #163e38; }
+.workspace nav { scrollbar-color: #69877e transparent; }
+nav button { font-size: 13px; padding: 10px 14px; }
+.nav-group-label { padding-left: 17px; color: #abc2b8; }
+.brand { padding: 0 12px; }
+.aside-foot { padding-left: 12px; }
+.card { border-color: #dedfd7; box-shadow: 0 2px 3px #18382b03; }
+.welcome { background: #e9eee7; border-color: #d2ddcf; padding: 28px; }
+.secondary:hover { background: #edf3ef; border-color: #94b5a6; filter: none; }
+.table-wrap { border: 1px solid #e0e5df; border-radius: 6px; }
+th { color: #435d50; background: #eff3ee; font-weight: 600; white-space: nowrap; }
+td { line-height: 1.6; }
+tbody tr:hover { background: #f5f8f3; }
+td small { font-size: 12px; color: #657b6c; }
+td button { padding: 7px 11px; }
+.error { border-left: 3px solid #b94d3b; }
+.notice { border-left: 3px solid #35785b; }
+.loading { color: #647873; }
+@media (max-width: 550px) {
+  header { gap: 14px; padding-bottom: 18px; }
+  header h1 { font-size: 23px; }
+  .brand { padding: 0; }
+  .welcome { padding: 20px; }
+  .card, fieldset { min-width: 0; }
+  .user-menu { gap: 10px; }
+  input, select, textarea { min-width: 0; max-width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
+
+.action-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 16px; }
+.report-panel button + label, .reports-panel button + label { margin-top: 16px; }
+.compact-notice { display: table; padding: 8px 12px; margin: 12px 0 18px; }
+.evaluation-table { margin-top: 16px; }
+.evaluation-table table { min-width: 720px; }
+.evaluation-table td, .evaluation-table th { min-width: 70px; }
+.table-hint { display: none; }
+@media (max-width: 550px) {
+  header { flex-direction: row; align-items: flex-start; gap: 8px; }
+  header .eyebrow { font-size: 10px; }
+  header h1 { font-size: 21px; }
+  .user-menu { flex-direction: column; align-items: flex-end; gap: 6px; font-size: 11px; }
+  .user-menu span { max-width: 95px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .user-menu button { white-space: nowrap; padding: 7px 9px; }
+  .table-hint { display: block; color: #647873; font-size: 12px; margin-bottom: 7px; }
+}
+.reports-panel > .card > button + form { margin-top: 18px; }
+
+.mobile-nav-toggle { display: none; }
+.accounts-table { min-width: 700px; }
+.accounts-table td:first-child, .accounts-table td:nth-child(3), .accounts-table td:last-child { white-space: nowrap; }
+.accounts-table td:nth-child(2) { display: grid; grid-template-columns: repeat(2, minmax(140px, 1fr)); gap: 5px 14px; }
+.accounts-table .check { margin: 0; white-space: nowrap; }
+summary { cursor: pointer; font-weight: 600; color: #20584d; }
+details > p { margin-top: 14px; }
+.report-guidance { margin-bottom: 18px; }
+@media (max-width: 550px) {
+  .mobile-nav-toggle { display: block; text-align: left; padding: 10px 0; background: transparent; color: white; }
+  .workspace nav { display: none; }
+  .workspace nav.is-open { display: block; overflow-y: auto; max-height: 45dvh; }
+  .workspace nav .nav-group { display: block; }
+  .workspace nav button { width: 100%; }
+  .workspace nav .nav-group-label { display: block; }
+}

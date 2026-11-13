@@ -5,7 +5,7 @@ import { MentorGroupPanel } from "./MentorGroupPanel";
 import { ResearchOutputs } from "./ResearchOutputs";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { RecordPanel } from "./RecordPanel";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
 import { AccessPanel } from "./AccessPanel";
@@ -89,7 +89,11 @@ function App() {
     [username, setUsername] = useState(""),
     [password, setPassword] = useState(""),
     [selected, setSelected] = useState<Role[]>(["college_analyst"]);
+  const [navOpen, setNavOpen] = useState(false);
+  const [navLabel, setNavLabel] = useState("工作台概览");
   const [page, setPage] = useState("overview");
+  const contentRef = useRef<HTMLElement>(null);
+  useEffect(() => { contentRef.current?.scrollTo(0, 0); }, [page]);
   useEffect(() => {
     const expired = () => {
       setSession(null);
@@ -253,7 +257,8 @@ function App() {
         <div className="brand">
           AQP-PGS<small>研究生培养质量研究</small>
         </div>
-        <nav aria-label="主导航">
+        <button className="mobile-nav-toggle" aria-expanded={navOpen} aria-controls="workspace-navigation" onClick={() => setNavOpen(!navOpen)}>{navLabel} · {navOpen ? "收起导航" : "展开导航"}</button>
+        <nav id="workspace-navigation" className={navOpen ? "is-open" : ""} aria-label="主导航">
           {[
             { label: "工作台", items: [["overview", "工作台概览"]] },
             {
@@ -300,7 +305,7 @@ function App() {
                   key={key}
                   className={page === key ? "active" : ""}
                   aria-current={page === key ? "page" : undefined}
-                  onClick={() => setPage(key)}
+                  onClick={() => { setPage(key); setNavLabel(label); setNavOpen(false); }}
                 >
                   {label}
                 </button>
@@ -314,7 +319,7 @@ function App() {
           数据驱动，依据可查
         </div>
       </aside>
-      <main className="content">
+      <main className="content" ref={contentRef}>
         <header>
           <div>
             <span className="eyebrow">研究生培养质量研究 / 工作平台</span>
@@ -344,7 +349,7 @@ function App() {
             </h1>
           </div>
           <div className="user-menu">
-            <span>{session.user.username}</span>
+            <span title={session.user.username}>{session.user.username}</span>
             <button
               className="secondary"
               disabled={busy}
@@ -503,7 +508,7 @@ function App() {
                 账号列表 <span className="muted">{users.length}</span>
               </h2>
               <div className="table-wrap">
-                <table>
+                <table className="accounts-table">
                   <thead>
                     <tr>
                       <th>用户名</th>
