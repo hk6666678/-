@@ -1,6 +1,26 @@
 # 集成检查点（2026-11-13）
 
-## 2026-11-13 接续GLM：任务10进行中（本节最新，仅本地）
+## 2026-11-13 评分跨入口权限修复集成检查点（最新，仅本地）
+
+- 交接时间：2026-11-13（Asia/Shanghai）；原因：阶段收口。
+- 根目录/集成分支：D:/AQP-PGS，integration/aqp-trial；修复合并HEAD 059ae37015c845171e2b542c38879aa9b6996602（git log核实），本文文档提交HEAD以git log -1核实。
+- 官方额度：本次单次读取短周期剩75%、周剩27%，非实时监控；仅本地未push。
+
+| 任务 | 工单状态 | 分支/源HEAD | 合并到 | 验证摘要 |
+|---|---|---|---|---|
+| 评分跨入口权限修复 | 实现完成，模拟验证通过 | codex/snapshot-access-fix@f5083fd9b8449565a9c23fc2ef4e160cd6475735 | integration@059ae37 | pytest145 / Chrome23 |
+| 10完整平台验收 | claimed(WIP) | codex/full-10@5bccf106774e477f7d48c04bb8660d6dc638b573 | 未合并 | 独立树阶段验证，最终审查/合并后复测待办 |
+
+- 修复闭环：reports与Agent统一复用evaluation安全快照loader，读取时复核当前来源权限与学生范围；导出复核实际指标来源export；stale报告不展示旧总分，Agent披露过期，相关分析排除stale评分并说明数量。独立review两项P1已修复；细节见.scratch/full-platform/snapshot-access-validation.md。
+- 集成回归对应059ae37：唯一一轮全pytest 145 passed（133.19秒，包含reports/Agent/evaluation专项）；mypy31文件通过；Ruff通过；TS/Vite build通过；全Chrome23/23通过（41.6秒，端口8059）。未追加删除断言或无关修复；不能称两轮全绿。
+- 进程与数据：本次pytest、build、Chrome runner及webServer均退出；已核实8059无监听，服务PID64244及runner57548不存在。本轮仅临时合成隔离测试，无真实数据、模型外发。
+- 未合并分支：git branch --no-merged HEAD仅codex/full-10，工作树D:/AQP-PGS-worktrees/full-10；不触碰其开发。全部历史工作树保留，列表以git worktree list为准。
+- 未知/用户原改动保留：两张assessment截图、.scratch/patents-void-history.png、.scratch/research-void-history.png、artifacts/，不加入本次提交。
+- 关键决策沿用：当前权限现算、独立导出授权、来源与版本追溯、模拟规则不作正式人才识别，保留GLM历史。
+- 下一步：任务10 writer基于新集成HEAD合入修复后完成大小样本最终复测；独立最终审查通过才合并，当前10仍claimed。真实学校数据、专家正式规则/权重、获准模型效果与真实业务验收仍待，不宣称全平台完成。
+
+
+## 2026-11-13 接续GLM：任务10进行中（历史，仅本地）
 
 已读取HANDOFF及docs/agents/handoff-template.md，保留GLM全部07–09成果和历史工作树，不reset或覆盖。根integration/aqp-trial基线c97e354（模板提交），已有24个本地提交未push。root实际复验145pytest（128.20秒）、mypy31、Ruff、build、全Chrome23/23（42.5秒）通过；这不代表对抗权限与最终规模验收已完成。
 
