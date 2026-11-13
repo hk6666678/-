@@ -40,3 +40,12 @@
 
 最终mypy28文件通过、Ruff全部通过；所启动进程均结束，无新增常驻服务。官方额度最新短周期剩57%、周40%（单次非实时）。将预建D:/AQP-PGS-worktrees/full-04与codex/full-04于本交接提交，不启动实现；原所有工作树保留，完整列表git worktree list。
 
+
+## 04集成检查点（2026-11-13）
+
+04源codex/full-04@f3f5d24合入integration/aqp-trial@3390ef259062b3332196abaad79e8fb4c9d8e7c3。引用日期快照、显式更正版本、Excel模板/预览/确认、身份/导师权限、整批撤权回滚、发表年份兼容和年度统计完成；工单04 tracked resolved，取代之前未开始状态。01-05已集成；06-10尚未开始。原工作树和交接历史保留。
+
+引用专项实际为backend/tests/browser_research_outputs.py（不存在browser_citations.py），已通过保存/更正/Excel确认、2025统计及宽窄布局断言。TS/Vite build通过。只用合成资料；真实业务/专家标准/真实模型效果仍待验，无模型外发。脚本按既有行为覆盖research-void-history.png合成截图，仍保留未跟踪；patents-void-history.png同样保留。仅本地未push。
+
+最终对应3390ef2集成检查：pytest127 passed（134.51秒）、mypy28文件、Ruff全部通过；TS/Vite构建通过、全Chrome20/20（34.6秒）及引用专项通过。所有启动的pytest/Chrome/webServer已结束，无新增常驻服务。官方额度短周期剩40%、周37%（单次非实时）。当前交接提交HEAD用git log -1核实；将基于本提交预建codex/full-06于D:/AQP-PGS-worktrees/full-06，不启动实现。
+
