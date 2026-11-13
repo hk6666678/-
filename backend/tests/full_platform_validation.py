@@ -2,9 +2,12 @@
 
 import argparse
 import json
+import os
+import platform
 import shutil
 import sqlite3
 import subprocess
+import time
 from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
@@ -35,7 +38,14 @@ def run(manifest, output):
     )
     source = json.loads(manifest.read_text(encoding="utf-8"))
     assert source["synthetic"] and source["server_stopped"]
+    started = time.perf_counter()
     report = {
+        "environment": {
+            "os": platform.platform(),
+            "python": platform.python_version(),
+            "cpu": platform.processor(),
+            "cpu_count": os.cpu_count(),
+        },
         "synthetic": True,
         "source_manifest": str(manifest),
         "source_commit": subprocess.check_output(
@@ -437,6 +447,64 @@ def run(manifest, output):
                     "report_after_unbind": 403,
                 }
             )
+            # Each operation is independently revoked on real HTTP requests.
+            report_path = f"/api/reports/students/{student['id']}"
+            try:
+                without_identity = [g for g in grants if g["operation"] != "identity"]
+                grant(
+                    client,
+                    headers,
+                    checked(client.get("/api/me"))["user"],
+                    without_identity,
+                )
+                redacted = checked(client.get(report_path))
+                assert (
+                    redacted["student"].get("name") is None
+                    and redacted["student"].get("student_number") is None
+                ), redacted
+                excel = client.get(report_path + "/export")
+                assert excel.status_code == 200
+                cells = str(
+                    {
+                        sheet.title: list(sheet.values)
+                        for sheet in load_workbook(BytesIO(excel.content))
+                    }
+                )
+                assert (
+                    student["student_number"] not in cells
+                    and student["name"] not in cells
+                )
+                grant(
+                    client,
+                    headers,
+                    checked(client.get("/api/me"))["user"],
+                    [g for g in grants if g["operation"] != "export"],
+                )
+                assert client.get(report_path).status_code == 200
+                assert client.get(report_path + "/export").status_code == 403
+                grant(
+                    client,
+                    headers,
+                    checked(client.get("/api/me"))["user"],
+                    [g for g in grants if g["operation"] != "download"],
+                )
+                assert (
+                    client.get(
+                        f"/api/papers/{source['paper_ids'][0]}/download"
+                    ).status_code
+                    == 403
+                )
+                assert client.get(report_path).status_code == 200
+                report["checks"].append(
+                    {
+                        "identity_revoked_api_and_excel_redacted": True,
+                        "export_revoked": 403,
+                        "download_revoked": 403,
+                        "view_preserved": 200,
+                    }
+                )
+            finally:
+                grant(client, headers, checked(client.get("/api/me"))["user"], grants)
             # Restrict the same session to A and then B; current authority must apply immediately.
             for college, expected in [
                 (COLLEGE, source["observed_counts"]["students"]),
@@ -478,6 +546,7 @@ def run(manifest, output):
             report["checks"].append({"revoke_snapshot": 403})
         report["status"] = "passed"
     finally:
+        report["elapsed_seconds"] = round(time.perf_counter() - started, 3)
         report["server_stopped"] = True
         manifest.with_name("full-platform-report.json").write_text(
             json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8"
