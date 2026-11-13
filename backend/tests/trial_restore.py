@@ -7,8 +7,6 @@ All inputs are synthetic. No model acceptance is implied.
 
 import argparse
 import hashlib
-from io import BytesIO
-from openpyxl import load_workbook
 import json
 import os
 import socket
@@ -17,12 +15,14 @@ import sys
 import threading
 import time
 from contextlib import contextmanager
+from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
 import httpx
 import uvicorn
 from aqp.app import create_app
+from openpyxl import load_workbook
 from playwright.sync_api import expect, sync_playwright
 from trial_scale import COLLEGE, MAJOR, PASSWORD, checked, grant, login
 
