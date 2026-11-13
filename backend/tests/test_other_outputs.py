@@ -518,3 +518,25 @@ def test_conferences_complete_lifecycle(client):  # noqa: F811
         files={"file": ("synthetic.xlsx", stream.getvalue())},
     )
     assert spoof.status_code == 409
+
+
+import pytest
+
+
+@pytest.mark.parametrize("category", ["patents", "conferences"])
+@pytest.mark.parametrize("value", ["20260101", "2026-W01-1", "2026-02-30"])
+def test_nonstandard_dates_rejected(client, category, value):  # noqa: F811
+    headers = login_admin(client)
+    wb = load_workbook(BytesIO(client.get(f"/api/{category}/template").content))
+    wb.active.append(
+        ["key", "title", "001", "name", 1, "role", "college", "major", "type", value]
+    )
+    stream = BytesIO()
+    wb.save(stream)
+    response = client.post(
+        f"/api/{category}/preview",
+        headers=headers,
+        data={"source_department": "synthetic"},
+        files={"file": ("synthetic.xlsx", stream.getvalue())},
+    )
+    assert response.status_code == 422

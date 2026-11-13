@@ -1,6 +1,7 @@
 """Published research outputs are independent of degree-paper samples."""
 
 import json
+import re
 import sqlite3
 from collections.abc import Callable
 from pathlib import Path
@@ -241,7 +242,10 @@ def register_research_outputs(
                 if category in ("patents", "conferences"):
                     from datetime import date
 
-                    date.fromisoformat(details[extra_labels[1]])
+                    date_value = details[extra_labels[1]]
+                    if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", date_value) is None:
+                        raise ValueError()
+                    date.fromisoformat(date_value)
                 if category == "awards" and (
                     not details["获奖年份"].isdigit()
                     or not 1900 <= int(details["获奖年份"]) <= 2100
