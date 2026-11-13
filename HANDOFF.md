@@ -49,3 +49,10 @@
 
 最终对应3390ef2集成检查：pytest127 passed（134.51秒）、mypy28文件、Ruff全部通过；TS/Vite构建通过、全Chrome20/20（34.6秒）及引用专项通过。所有启动的pytest/Chrome/webServer已结束，无新增常驻服务。官方额度短周期剩40%、周37%（单次非实时）。当前交接提交HEAD用git log -1核实；将基于本提交预建codex/full-06于D:/AQP-PGS-worktrees/full-06，不启动实现。
 
+
+## 06集成检查点（2026-11-13）
+
+06源codex/full-06@ff94d6e无冲突合入integration/aqp-trial@2b4b43df6564dab56398ef4472741636747017d1，合并树与源无差异。导师课题组目录、起止关系版本、Excel预览确认、当前授权事实下钻及missing完成；工单06 tracked resolved。01-06已集成；07-10尚未开始。历史交接和全部工作树保留。独立逻辑审查无确定问题，视觉三项调整已有专项验证；真实资料/正式专家规则/真实模型效果待验，无模型外发。
+
+集成2b4b43d本机完整检查：pytest130 passed（164.76秒）、mypy29文件、Ruff全部通过；TS/Vite build通过；全Chrome21/21（36.3秒，含mentor_groups目录/关系/事实/撤权）通过。所有启动测试和webServer进程结束，无新增常驻服务。05生成截图已还原，未知未跟踪patents-void-history.png与research-void-history.png保留不提交。最新官方额度剩短21%、周34%（单次非实时）；仅本地，未push。本文提交HEAD以git log -1核实；将基于本文最终提交预建D:/AQP-PGS-worktrees/full-07、codex/full-07，不启动实现。
+
