@@ -11,6 +11,7 @@ from aqp.accounts import PASSWORDS, require_admin
 from aqp.store import audit, connection
 
 Category = Literal[
+    "talent_evaluation",
     "basic",
     "courses",
     "topic",
@@ -26,6 +27,7 @@ Category = Literal[
 ]
 
 Operation = Literal[
+    "activate_evaluation",
     "maintain",
     "view",
     "analyze",

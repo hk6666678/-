@@ -17,6 +17,7 @@ type Props = {
   ) => Promise<unknown>;
 };
 const categories: Record<string, string> = {
+  talent_evaluation: "人才评价（模拟）",
   basic: "基础信息",
   courses: "课程成绩",
   topic: "选题",
@@ -27,6 +28,7 @@ const categories: Record<string, string> = {
   patents:"专利", awards:"获奖项目", conferences:"会议",
 };
 const operations: Record<string, string> = {
+  activate_evaluation: "人才评价规则启用",
   maintain: "维护",
   view: "查看",
   analyze: "分析",
