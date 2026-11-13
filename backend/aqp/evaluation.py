@@ -1,5 +1,6 @@
 """Immutable simulation rule drafts; activation is separately authorized."""
 
+import hashlib
 import json
 import time
 from collections.abc import Callable
@@ -9,7 +10,9 @@ from typing import Any, Literal
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
-from aqp.authorization import allowed
+from aqp.analysis import outcome
+from aqp.authorization import allowed, student_allowed
+from aqp.research_outputs import current_participant
 from aqp.store import audit, connection
 
 
@@ -58,6 +61,236 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
             config["major"],
         ):
             raise HTTPException(403, "人才评价授权不足")
+
+    @app.get("/api/evaluation-rules")
+    def listing(request: Request) -> dict[str, Any]:
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            items = []
+            for row in db.execute("SELECT * FROM evaluation_rules ORDER BY id DESC"):
+                config = json.loads(row["config"])
+                if allowed(
+                    db,
+                    actor["id"],
+                    "talent_evaluation",
+                    "view",
+                    config["college"],
+                    config["major"],
+                ):
+                    items.append({**dict(row), "config": config})
+            return {"items": items}
+
+    def inputs(
+        db: Any, actor: int, student_id: int, config: dict[str, Any]
+    ) -> tuple[list[dict[str, Any]], str]:
+        student = db.execute(
+            "SELECT * FROM students WHERE id=? AND active=1", (student_id,)
+        ).fetchone()
+        if student is None or not student_allowed(db, actor, student_id):
+            raise HTTPException(403, "学生当前范围不可访问")
+        if (
+            student["college"] != config["college"]
+            or student["major"] != config["major"]
+        ):
+            raise HTTPException(403, "学生不在规则范围")
+        for category in ["basic", "talent_evaluation"]:
+            for operation in ["view", "identity", "analyze"]:
+                if not allowed(
+                    db, actor, category, operation, student["college"], student["major"]
+                ):
+                    raise HTTPException(403, "评价当前授权不足")
+        result = []
+        for metric in config["metrics"]:
+            feature = metric["feature"]
+            category = {
+                "research_paper_count": "research_papers",
+                "patent_count": "patents",
+                "award_count": "awards",
+                "conference_count": "conferences",
+                "latest_citation_count": "research_papers",
+                "course_pass_ratio": "courses",
+            }[feature]
+            for operation in ["view", "identity", "analyze"]:
+                if not allowed(
+                    db, actor, category, operation, student["college"], student["major"]
+                ):
+                    raise HTTPException(403, "指标来源授权不足")
+            evidence = []
+            value = None
+            missing = "尚无可查证来源记录"
+            if category != "courses":
+                table = "research" if category == "research_papers" else category
+                for row in db.execute(
+                    f"SELECT * FROM {table}_outputs WHERE active=1 ORDER BY id"
+                ):
+                    payload = json.loads(row["payload"])
+                    matches = [
+                        p
+                        for p in payload["participants"]
+                        if p["student_number"] == student["student_number"]
+                    ]
+                    if not matches:
+                        continue
+                    for participant in matches:
+                        for operation in ["view", "identity", "analyze"]:
+                            if not current_participant(
+                                db, actor, category, operation, participant
+                            )[0]:
+                                raise HTTPException(403, "来源记录当前范围不可访问")
+                    item = {
+                        "category": category,
+                        "record_id": row["id"],
+                        "version": row["version"],
+                    }
+                    if feature == "latest_citation_count":
+                        citation = db.execute(
+                            "SELECT snapshot_date,version,count FROM research_citations WHERE output_id=? ORDER BY snapshot_date DESC,version DESC LIMIT 1",
+                            (row["id"],),
+                        ).fetchone()
+                        item["citation"] = dict(citation) if citation else None
+                    evidence.append(item)
+                if evidence:
+                    if feature == "latest_citation_count":
+                        if all(e["citation"] is not None for e in evidence):
+                            value = sum(e["citation"]["count"] for e in evidence)
+                        else:
+                            missing = "部分成果缺少引用快照"
+                    else:
+                        value = len(evidence)
+            else:
+                rules = [
+                    dict(r)
+                    for r in db.execute(
+                        "SELECT * FROM pass_rules WHERE college=? AND category='courses' ORDER BY id",
+                        (student["college"],),
+                    )
+                ]
+                statuses = []
+                for row in db.execute(
+                    "SELECT * FROM course_records WHERE student_id=? AND state='linked' AND active=1 ORDER BY id",
+                    (student_id,),
+                ):
+                    payload = json.loads(row["payload"])
+                    if (
+                        payload.get("学院") != student["college"]
+                        or payload.get("专业") != student["major"]
+                    ):
+                        raise HTTPException(403, "课程来源范围已变化")
+                    status, pass_rule = outcome(payload, rules)
+                    statuses.append(status)
+                    evidence.append(
+                        {
+                            "category": "courses",
+                            "record_id": row["id"],
+                            "version": row["version"],
+                            "source_row_id": row["source_row_id"],
+                            "status": status,
+                            "pass_rule_id": pass_rule,
+                        }
+                    )
+                if statuses and "未知" not in statuses:
+                    value = statuses.count("通过") / len(statuses)
+                else:
+                    missing = "课程记录缺失或存在通过状态未知"
+
+            normalized = (
+                None
+                if value is None
+                else min(
+                    1.0,
+                    max(
+                        0.0,
+                        (value - metric["minimum"])
+                        / (metric["maximum"] - metric["minimum"]),
+                    ),
+                )
+            )
+            result.append(
+                {
+                    "feature": feature,
+                    "value": value,
+                    "normalized": normalized,
+                    "weight": metric["weight"],
+                    "evidence": evidence,
+                    "missing": missing if value is None else None,
+                }
+            )
+        digest = hashlib.sha256(json.dumps(result, sort_keys=True).encode()).hexdigest()
+        return result, digest
+
+    @app.post("/api/evaluation-snapshots")
+    def score(body: ScoreInput, request: Request) -> dict[str, Any]:
+        with connection(path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            actor, _ = current(db, request)
+            rule = db.execute(
+                "SELECT * FROM evaluation_rules WHERE id=?", (body.rule_id,)
+            ).fetchone()
+            if rule is None:
+                raise HTTPException(404, "规则不存在")
+            config = json.loads(rule["config"])
+            authorize(db, actor["id"], config, "analyze")
+            if not rule["enabled"]:
+                raise HTTPException(409, "规则尚未启用")
+            values, digest = inputs(db, actor["id"], body.student_id, config)
+            total = (
+                None
+                if any(v["missing"] for v in values)
+                else sum(v["normalized"] * v["weight"] for v in values)
+                / sum(v["weight"] for v in values)
+                * 100
+            )
+            now = int(time.time())
+            result = {
+                "mode": config["mode"],
+                "notice": "模拟演示，不构成正式人才识别",
+                "student_id": body.student_id,
+                "rule_id": body.rule_id,
+                "rule_version": rule["version"],
+                "scope": {"college": config["college"], "major": config["major"]},
+                "as_of": now,
+                "inputs": values,
+                "total": total,
+                "data_digest": digest,
+            }
+            cursor = db.execute(
+                "INSERT INTO evaluation_snapshots(student_id,rule_id,result,data_digest,created_by,created_at) VALUES(?,?,?,?,?,?)",
+                (
+                    body.student_id,
+                    body.rule_id,
+                    json.dumps(result),
+                    digest,
+                    actor["id"],
+                    now,
+                ),
+            )
+            audit(
+                db, actor["id"], "evaluation.score", str(cursor.lastrowid), "simulation"
+            )
+            db.commit()
+            return {"id": cursor.lastrowid, **result, "stale": False}
+
+    @app.get("/api/evaluation-snapshots/{ident}")
+    def snapshot(ident: int, request: Request) -> dict[str, Any]:
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            saved = db.execute(
+                "SELECT * FROM evaluation_snapshots WHERE id=?", (ident,)
+            ).fetchone()
+            if saved is None:
+                raise HTTPException(404, "评分快照不存在")
+            rule = db.execute(
+                "SELECT * FROM evaluation_rules WHERE id=?", (saved["rule_id"],)
+            ).fetchone()
+            _, digest = inputs(
+                db, actor["id"], saved["student_id"], json.loads(rule["config"])
+            )
+            return {
+                "id": ident,
+                **json.loads(saved["result"]),
+                "stale": digest != saved["data_digest"],
+                "rule_currently_enabled": bool(rule["enabled"]),
+            }
 
     @app.post("/api/evaluation-rules")
     def draft(body: Draft, request: Request) -> dict[str, Any]:
@@ -150,3 +383,9 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                 "enabled": True,
                 "notice": "模拟演示，不构成正式人才识别",
             }
+
+
+class ScoreInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    student_id: int = Field(ge=1)
+    rule_id: int = Field(ge=1)
