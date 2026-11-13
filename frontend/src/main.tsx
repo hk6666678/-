@@ -269,6 +269,7 @@ function App() {
                 ["analysis", "课程统计与通过规则"],
                 ["papers", "论文上传与解析"],
                 ["research_outputs", "已发表科研论文"],
+                ["patents", "专利"], ["awards", "获奖项目"], ["conferences", "会议"],
                 ["agent", "Agent 查询"],
               ],
             },
@@ -322,6 +323,7 @@ function App() {
                   assessments: "盲审与答辩",
                   papers: "论文上传与解析",
                   research_outputs: "已发表科研论文",
+                  patents:"专利", awards:"获奖项目", conferences:"会议",
                   agent: "Agent 查询",
                   analysis: "课程统计与通过规则",
                   courses: "课程导入与待关联",
@@ -368,7 +370,7 @@ function App() {
           <AssessmentPanel csrf={session.csrf_token} />
         ) : page === "milestones" ? (
           <MilestonePanel csrf={session.csrf_token} fetcher={request} />
-        ) : page === "research_outputs" ? (<ResearchOutputs csrf={session.csrf_token} />) : page === "papers" ? (
+        ) : ["research_outputs","patents","awards","conferences"].includes(page) ? (<ResearchOutputs key={page} category={page} csrf={session.csrf_token} />) : page === "papers" ? (
           <>
             <PaperPanel csrf={session.csrf_token} />
             <ComparisonPanel csrf={session.csrf_token} />

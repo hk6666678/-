@@ -1,6 +1,7 @@
 """Published research outputs are independent of degree-paper samples."""
 
 import json
+import re
 import sqlite3
 from collections.abc import Callable
 from pathlib import Path
@@ -18,15 +19,25 @@ def register_research_outputs(
     app: FastAPI,
     path: Path,
     current: Callable[[sqlite3.Connection, Request], tuple[sqlite3.Row, str]],
+    category: str = "research_papers",
 ) -> None:
-    @app.get("/api/research-outputs")
+    endpoint = "research-outputs" if category == "research_papers" else category
+    key_label, title_label, extra_labels = {
+        "research_papers": ("业务编号/DOI", "论文标题", ()),
+        "patents": ("申请号", "专利名称", ("专利类型", "申请日期")),
+        "awards": ("业务编号", "获奖项目名称", ("获奖等级", "获奖年份")),
+        "conferences": ("业务编号", "会议名称", ("报告类型", "会议日期")),
+    }[category]
+    tables = "research" if category == "research_papers" else category
+
+    @app.get(f"/api/{endpoint}")
     def listing(request: Request, voided: bool = False) -> dict[str, Any]:
         with connection(path) as db:
             user, _ = current(db, request)
             items = []
             count = 0
             for row in db.execute(
-                "SELECT * FROM research_outputs WHERE active=?", (0 if voided else 1,)
+                f"SELECT * FROM {tables}_outputs WHERE active=?", (0 if voided else 1,)
             ):
                 payload = json.loads(row["payload"])
                 participants = []
@@ -42,7 +53,7 @@ def register_research_outputs(
                     if not allowed(
                         db,
                         user["id"],
-                        "research_papers",
+                        category,
                         "view",
                         participant["college"],
                         participant["major"],
@@ -52,7 +63,7 @@ def register_research_outputs(
                         not allowed(
                             db,
                             user["id"],
-                            "research_papers",
+                            category,
                             "view",
                             student["college"],
                             student["major"],
@@ -67,7 +78,7 @@ def register_research_outputs(
                     if not allowed(
                         db,
                         user["id"],
-                        "research_papers",
+                        category,
                         "identity",
                         participant["college"],
                         participant["major"],
@@ -83,6 +94,7 @@ def register_research_outputs(
                             "version": row["version"],
                             "business_key": row["business_key"],
                             "title": payload["title"],
+                            "details": payload.get("details", {}),
                             "participants": participants,
                         }
                     )
@@ -92,7 +104,7 @@ def register_research_outputs(
                 "distinct_outputs": 0 if voided else len(items),
             }
 
-    @app.get("/api/research-outputs/template")
+    @app.get(f"/api/{endpoint}/template")
     def template(request: Request) -> Response:
         from io import BytesIO
 
@@ -104,17 +116,18 @@ def register_research_outputs(
         wb = Workbook()
         ws = wb.active
         assert ws is not None
-        ws.append(["AQP-PGS", "research_papers", "1"])
+        ws.append(["AQP-PGS", category, "1"])
         ws.append(
             [
-                "业务编号/DOI",
-                "论文标题",
+                key_label,
+                title_label,
                 "学号",
                 "姓名",
                 "作者次序",
                 "参与角色",
                 "所属学院",
                 "专业",
+                *extra_labels,
             ]
         )
         stream = BytesIO()
@@ -122,9 +135,7 @@ def register_research_outputs(
         return Response(
             stream.getvalue(),
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={
-                "Content-Disposition": "attachment; filename=research_papers-v1.xlsx"
-            },
+            headers={"Content-Disposition": f"attachment; filename={category}-v1.xlsx"},
         )
 
     from fastapi import Body, File, Form, HTTPException, UploadFile
@@ -158,7 +169,7 @@ def register_research_outputs(
             ) or not allowed(
                 db,
                 actor,
-                "research_papers",
+                category,
                 "maintain",
                 participant["college"],
                 participant["major"],
@@ -167,14 +178,14 @@ def register_research_outputs(
             if student and not allowed(
                 db,
                 actor,
-                "research_papers",
+                category,
                 "maintain",
                 student["college"],
                 student["major"],
             ):
                 raise HTTPException(403, "缺少参与者当前学院维护范围")
 
-    @app.post("/api/research-outputs/preview")
+    @app.post(f"/api/{endpoint}/preview")
     async def preview(
         request: Request,
         file: Annotated[UploadFile, File()],
@@ -194,17 +205,18 @@ def register_research_outputs(
             if ws is None:
                 raise ValueError()
             rows = iter(ws.values)
-            if tuple(next(rows))[:3] != ("AQP-PGS", "research_papers", "1"):
+            if tuple(next(rows))[:3] != ("AQP-PGS", category, "1"):
                 raise ValueError()
             if tuple(next(rows)) != (
-                "业务编号/DOI",
-                "论文标题",
+                key_label,
+                title_label,
                 "学号",
                 "姓名",
                 "作者次序",
                 "参与角色",
                 "所属学院",
                 "专业",
+                *extra_labels,
             ):
                 raise ValueError()
             grouped: dict[str, Any] = {}
@@ -212,20 +224,54 @@ def register_research_outputs(
                 if all(value is None for value in row):
                     continue
                 key, title, number, name, order, role, college, major = [
-                    str(value or "").strip() for value in row
+                    str(value or "").strip() for value in row[:8]
                 ]
-                key = key.lower().removeprefix("https://doi.org/").removeprefix("doi:")
+                if category == "research_papers":
+                    key = (
+                        key.lower()
+                        .removeprefix("https://doi.org/")
+                        .removeprefix("doi:")
+                    )
+                details = dict(
+                    zip(
+                        extra_labels,
+                        (str(value or "").strip() for value in row[8:]),
+                        strict=True,
+                    )
+                )
+                if category in ("patents", "conferences"):
+                    from datetime import date
+
+                    date_value = details[extra_labels[1]]
+                    if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", date_value) is None:
+                        raise ValueError()
+                    date.fromisoformat(date_value)
+                if category == "awards" and (
+                    not details["获奖年份"].isdigit()
+                    or not 1900 <= int(details["获奖年份"]) <= 2100
+                ):
+                    raise ValueError()
+                if extra_labels and not all(details.values()):
+                    raise ValueError()
                 if (
                     not all([key, title, number, name, role, college, major])
                     or int(order) < 1
                 ):
                     raise ValueError()
-                output = grouped.setdefault(key, {"title": title, "participants": []})
-                if output["title"] != title or any(
-                    p["student_number"] == number or p["order"] == int(order)
-                    for p in output["participants"]
+                output = grouped.setdefault(
+                    key, {"title": title, "details": details, "participants": []}
+                )
+                if (
+                    output["title"] != title
+                    or output.get("details", {}) != details
+                    or any(
+                        p["student_number"] == number or p["order"] == int(order)
+                        for p in output["participants"]
+                    )
                 ):
                     raise ValueError()
+                if not extra_labels:
+                    output.pop("details", None)
                 output["participants"].append(
                     {
                         "student_number": number,
@@ -247,7 +293,7 @@ def register_research_outputs(
                 payload["participants"].sort(key=lambda p: p["order"])
                 maintain(db, actor["id"], payload)
                 old = db.execute(
-                    "SELECT * FROM research_outputs WHERE business_key=?", (key,)
+                    f"SELECT * FROM {tables}_outputs WHERE business_key=?", (key,)
                 ).fetchone()
                 if old:
                     maintain(
@@ -269,7 +315,7 @@ def register_research_outputs(
                 )
             identifier = str(uuid4())
             db.execute(
-                "INSERT INTO research_output_previews(id,actor_id,payload) VALUES (?,?,?)",
+                f"INSERT INTO {tables}_output_previews(id,actor_id,payload) VALUES (?,?,?)",
                 (
                     identifier,
                     actor["id"],
@@ -282,13 +328,13 @@ def register_research_outputs(
             audit(
                 db,
                 actor["id"],
-                "research_outputs.preview",
+                f"{tables}_outputs.preview",
                 identifier,
                 details={"outputs": len(items)},
             )
             return {"id": identifier, "items": items}
 
-    @app.post("/api/research-outputs/previews/{identifier}/confirm")
+    @app.post(f"/api/{endpoint}/previews/{{identifier}}/confirm")
     def confirm(
         identifier: str, request: Request, body: Annotated[dict[str, Any], Body()]
     ) -> dict[str, Any]:
@@ -296,7 +342,7 @@ def register_research_outputs(
             db.execute("BEGIN IMMEDIATE")
             actor, _ = current(db, request)
             batch = db.execute(
-                "SELECT * FROM research_output_previews WHERE id=? AND actor_id=?",
+                f"SELECT * FROM {tables}_output_previews WHERE id=? AND actor_id=?",
                 (identifier, actor["id"]),
             ).fetchone()
             if not batch:
@@ -308,7 +354,7 @@ def register_research_outputs(
                 return {"confirmed": True}
             for item in saved["items"]:
                 old = db.execute(
-                    "SELECT * FROM research_outputs WHERE business_key=?",
+                    f"SELECT * FROM {tables}_outputs WHERE business_key=?",
                     (item["business_key"],),
                 ).fetchone()
                 if old:
@@ -330,17 +376,17 @@ def register_research_outputs(
                 version = item["expected_version"] + 1
                 if old:
                     db.execute(
-                        "UPDATE research_outputs SET payload=?,version=? WHERE id=?",
+                        f"UPDATE {tables}_outputs SET payload=?,version=? WHERE id=?",
                         (payload, version, old["id"]),
                     )
                     output_id = old["id"]
                 else:
                     output_id = db.execute(
-                        "INSERT INTO research_outputs(business_key,payload) VALUES (?,?)",
+                        f"INSERT INTO {tables}_outputs(business_key,payload) VALUES (?,?)",
                         (item["business_key"], payload),
                     ).lastrowid
                 db.execute(
-                    "INSERT INTO research_output_versions VALUES (?,?,?,?,?)",
+                    f"INSERT INTO {tables}_output_versions VALUES (?,?,?,?,?)",
                     (
                         output_id,
                         version,
@@ -352,7 +398,7 @@ def register_research_outputs(
                 audit(
                     db,
                     actor["id"],
-                    "research_outputs.confirm",
+                    f"{tables}_outputs.confirm",
                     str(output_id),
                     details={
                         "version": version,
@@ -360,12 +406,12 @@ def register_research_outputs(
                     },
                 )
             db.execute(
-                "UPDATE research_output_previews SET confirmed=1 WHERE id=?",
+                f"UPDATE {tables}_output_previews SET confirmed=1 WHERE id=?",
                 (identifier,),
             )
             return {"confirmed": True}
 
-    @app.post("/api/research-outputs/{output_id}/void")
+    @app.post(f"/api/{endpoint}/{{output_id}}/void")
     def void(
         output_id: int, request: Request, body: Annotated[dict[str, Any], Body()]
     ) -> dict[str, Any]:
@@ -373,7 +419,7 @@ def register_research_outputs(
             db.execute("BEGIN IMMEDIATE")
             actor, _ = current(db, request)
             output = db.execute(
-                "SELECT * FROM research_outputs WHERE id=?", (output_id,)
+                f"SELECT * FROM {tables}_outputs WHERE id=?", (output_id,)
             ).fetchone()
             if not output:
                 raise HTTPException(404, "成果不存在")
@@ -383,7 +429,7 @@ def register_research_outputs(
                 if not allowed(
                     db,
                     actor["id"],
-                    "research_papers",
+                    category,
                     "void",
                     participant["college"],
                     participant["major"],
@@ -396,7 +442,7 @@ def register_research_outputs(
                 if student and not allowed(
                     db,
                     actor["id"],
-                    "research_papers",
+                    category,
                     "void",
                     student["college"],
                     student["major"],
@@ -414,38 +460,38 @@ def register_research_outputs(
             version = output["version"] + 1
             serialized = json.dumps(payload, ensure_ascii=False)
             source = db.execute(
-                "SELECT source_department FROM research_output_versions WHERE output_id=? ORDER BY version DESC LIMIT 1",
+                f"SELECT source_department FROM {tables}_output_versions WHERE output_id=? ORDER BY version DESC LIMIT 1",
                 (output_id,),
             ).fetchone()[0]
             db.execute(
-                "UPDATE research_outputs SET active=0,version=?,payload=? WHERE id=?",
+                f"UPDATE {tables}_outputs SET active=0,version=?,payload=? WHERE id=?",
                 (version, serialized, output_id),
             )
             db.execute(
-                "INSERT INTO research_output_versions VALUES (?,?,?,?,?)",
+                f"INSERT INTO {tables}_output_versions VALUES (?,?,?,?,?)",
                 (output_id, version, serialized, source, actor["id"]),
             )
             audit(
                 db,
                 actor["id"],
-                "research_outputs.void",
+                f"{tables}_outputs.void",
                 str(output_id),
                 details={"version": version, "reason": reason.strip()},
             )
             return {"voided": True, "version": version}
 
-    @app.get("/api/research-outputs/{output_id}/history")
+    @app.get(f"/api/{endpoint}/{{output_id}}/history")
     def history(output_id: int, request: Request) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
             output = db.execute(
-                "SELECT * FROM research_outputs WHERE id=?", (output_id,)
+                f"SELECT * FROM {tables}_outputs WHERE id=?", (output_id,)
             ).fetchone()
             if not output:
                 raise HTTPException(404, "成果不存在")
             versions = []
             for row in db.execute(
-                "SELECT version,payload,source_department FROM research_output_versions WHERE output_id=? ORDER BY version",
+                f"SELECT version,payload,source_department FROM {tables}_output_versions WHERE output_id=? ORDER BY version",
                 (output_id,),
             ):
                 payload = json.loads(row["payload"])
@@ -462,7 +508,7 @@ def register_research_outputs(
                         if not allowed(
                             db,
                             actor["id"],
-                            "research_papers",
+                            category,
                             operation,
                             participant["college"],
                             participant["major"],
@@ -471,7 +517,7 @@ def register_research_outputs(
                             and not allowed(
                                 db,
                                 actor["id"],
-                                "research_papers",
+                                category,
                                 operation,
                                 student["college"],
                                 student["major"],
