@@ -108,6 +108,29 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
     assert result["distinct_outputs"] == 1
     assert result["items"][0]["version"] == 2
     assert result["items"][0]["title"] == "合成科研论文更正"
+    output_id = result["items"][0]["id"]
+    void_url = f"/api/research-outputs/{output_id}/void"
+    assert (
+        client.post(
+            void_url,
+            headers=headers,
+            json={"expected_version": 1, "reason": "重复登记"},
+        ).status_code
+        == 409
+    )
+    assert (
+        client.post(
+            void_url,
+            headers=headers,
+            json={"expected_version": 2, "reason": "重复登记"},
+        ).status_code
+        == 200
+    )
+    assert client.get("/api/research-outputs").json()["distinct_outputs"] == 0
+    history = client.get(f"/api/research-outputs/{output_id}/history").json()["items"]
+    assert len(history) == 3
+    assert history[-1]["payload"]["void_reason"] == "重复登记"
+    assert history[0]["payload"]["title"] == "合成科研论文"
     # A newly linked student in another college immediately revokes visibility;
     # the submitted participant scope cannot override the live student archive.
     from test_students import workbook

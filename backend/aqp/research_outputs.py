@@ -336,6 +336,52 @@ def register_research_outputs(
             )
             return {"confirmed": True}
 
+    @app.post("/api/research-outputs/{output_id}/void")
+    def void(
+        output_id: int, request: Request, body: Annotated[dict[str, Any], Body()]
+    ) -> dict[str, Any]:
+        with connection(path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            actor, _ = current(db, request)
+            output = db.execute(
+                "SELECT * FROM research_outputs WHERE id=?", (output_id,)
+            ).fetchone()
+            if not output:
+                raise HTTPException(404, "成果不存在")
+            payload = json.loads(output["payload"])
+            maintain(db, actor["id"], payload)
+            if (
+                body.get("expected_version") != output["version"]
+                or not output["active"]
+            ):
+                raise HTTPException(409, "成果已变化，请刷新")
+            reason = body.get("reason")
+            if not isinstance(reason, str) or not reason.strip():
+                raise HTTPException(422, "请填写作废依据")
+            payload["void_reason"] = reason.strip()
+            version = output["version"] + 1
+            serialized = json.dumps(payload, ensure_ascii=False)
+            source = db.execute(
+                "SELECT source_department FROM research_output_versions WHERE output_id=? ORDER BY version DESC LIMIT 1",
+                (output_id,),
+            ).fetchone()[0]
+            db.execute(
+                "UPDATE research_outputs SET active=0,version=?,payload=? WHERE id=?",
+                (version, serialized, output_id),
+            )
+            db.execute(
+                "INSERT INTO research_output_versions VALUES (?,?,?,?,?)",
+                (output_id, version, serialized, source, actor["id"]),
+            )
+            audit(
+                db,
+                actor["id"],
+                "research_outputs.void",
+                str(output_id),
+                details={"version": version, "reason": reason.strip()},
+            )
+            return {"voided": True, "version": version}
+
     @app.get("/api/research-outputs/{output_id}/history")
     def history(output_id: int, request: Request) -> dict[str, Any]:
         with connection(path) as db:
