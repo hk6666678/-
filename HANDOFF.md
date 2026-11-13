@@ -19,51 +19,13 @@
 
 ## 集成回归收口
 
-5918ebb工作树干净；变更Ruff检查通过。另待适配旧frontend/tests/exports.spec.ts导航、完整复核原件页面入口；19双轴审查未做。代理push约21秒后Github443连接失败，未核实上传；无遗留测试、服务或同步进程。
-
-
-## GitHub同步恢复补记（2026-11-12）
-
-用户随后要求上传GitHub。读取本机已启用系统代理，使用仅本次命令的http.proxy连接后，已成功正常推送并在线核对：integration/aqp-trial为72eae44f4c472ce44884c5f55637432437271b17，implement/ticket-19为5918ebb5103aa2f440e83045dfcdc431a3201cda。此前仅本地保存状态已解除。此补记单独提交并再次同步集成分支；未修改全局代理，未恢复功能开发，09待修与19 WIP状态不变。
-
-
-## 2026-11-12 模型切换恢复检查点
-
-用户要求继续未完成开发。当前会话无 get_usage_limits 工具，官方额度无法可靠判断；不能沿用上一会话5%读数，也不能假设已恢复。已按项目规则保存本检查点。
-
-- 09跨专业分组修复完成并合入，implement/ticket-09@5aa0cb7 已推送核实。集成分支曾为5f9804d，合并前71 pytest、类型/静态/构建与15 Chrome通过。
-- 19导出与原件控制完成并合入，implement/ticket-19@aac50c6 已推送核实。集成分支dbe8d49，合并后77 pytest、mypy24、Ruff、TS/Vite build、完整16 Chrome通过；19分支还通过独立browser_exports脚本。两轴审查和验收见 .scratch/aqp-pgs/reviews/19-code-review.md。
-- 软件待办：17 Agent学生/培养查询、18 Agent论文解释、22全流程与规模验证。13真实模型效果、21恢复库完整业务浏览器链路、23真实数据/专家规则/获准模型验收仍待外部前提或后续任务。
-- 本轮测试服务均已结束，工作区干净。使用本机代理仅作为单次Git命令参数；远程仍为 https://github.com/hk6666678/-.git。
-
-## 2026-11-12 任务17完成检查点
-
-官方额度工具在本会话仍不可用，额度状态无法可靠判断；未虚构读数。任务17已在 implement/ticket-17@32c8724 完成，分支已推送并核实；集成合并提交55a0c1e。合并后85 pytest、mypy25、Ruff、TS/Vite build、完整17项Chrome通过。Agent使用受控模型替身验证只读工具、脱敏、授权重查、未启用和提示注入边界；真实模型效果留待23。下一步18，随后22。
-
-## 2026-11-12 任务18完成检查点
-
-官方额度工具在本会话不可用，无法可靠判断额度；继续如实记录。任务18在 implement/ticket-18@d03d10b 完成，分支已推送并核实；集成合并提交7201e2a。合并后90 pytest、mypy25、Ruff、TS/Vite build、完整17项Chrome通过。论文Agent使用受控替身验证工具、权限、版本与页序证据；真实语言理解和恶意原文抵御效果留待23。下一步22全流程与规模验证，同时补21恢复库完整业务浏览器链路。
-
-## 2026-11-12 用户要求停止并切换GPT模型
-
-任务22停止在claimed/WIP。implement/ticket-22@5aa32be已推送并核实，包含b08a7c8的872行trial_validation.py草稿；该脚本未运行通过，已知mypy/Ruff问题、空白PDF不适合驱动论文流程、计时结构不可靠且实现偏复杂。不得宣称22完成。集成integration/aqp-trial@27449db干净且已同步。下一步新会话应先按全局简单优先准则审查拆分/重写，再继续规模、并发、恢复浏览器和报告验证。13真实模型效果、21恢复库浏览器链路、23真实业务验收仍待验。官方额度工具不可用，额度状态无法可靠判断。全局行为准则已写入C:/Users/Administrator/.codex/AGENTS.md。
-
-## 2026-11-12 第一版软件合成验收收尾
-
-集成分支integration/aqp-trial，基线a31dd9c；本次提交补齐错误输入和公开API验证，任务22软件合成验收完成，21恢复浏览器模拟验证已补齐。详见docs/trial-validation.md及规模/恢复报告。真实模型13和真实资料/专家规则/获准模型23仍待验，不能称真实业务验收完成。实际CLI生成data/check-small和data/check-samples，均仅保留本地。mypy25/Ruff/TS-Vite通过，最终pytest见任务22补记；此前Chrome17项通过。没有新增服务或同步进程。
-
-用户最新规则：平时只本地commit，绝不push；额度达到5%停止线时先保存HANDOFF再按项目规则集中同步。此次未上传。官方额度最后读取剩短周期66%、周56%，非实时保证。
-
-最终本地复验：`python -m pytest -q` 93 passed in 77.80s；`python -m mypy` 25文件通过；`python -m ruff check .`通过；`npm --prefix frontend run build`通过。小规模CLI与发行包CLI实际运行成功。
-
-
-2026-11-12：用户确认先完成模拟试用版交付，真实输入暂未具备。软件与合成验收已完成，交付入口docs/trial-demo.md；21恢复浏览器补验后resolved，13真实模型效果和23真实业务验收保留待验。93 pytest、mypy25、Ruff、构建通过；已有17 Chrome通过。仅本地提交，额度<=5%先交接再集中上传，或用户单独要求上传。
-
-## Full-platform 05 checkpoint — 2026-11-12
-
-Worktree: D:/AQP-PGS-worktrees/full-05; branch codex/full-05; base c6faaa7. Local only; no push.
-Implemented independent blind_reviews/defenses table and category grants; list/create API, exact duplicate idempotence and conflict rejection; versioned simulation-v1 template persisted in migration220. All covered students checked using existing authorization helper; identity and original comment/source require independent grants. No real data modified or external model calls.
-Validated: public API tests cover unauthenticated access, empty list, write, duplicate, conflict, raw comment vs identity separation, revocation. pytest external_assessments + authorization: 5 passed. Module mypy and Ruff passed. Only synthetic API acceptance; real business validation pending.
-Incomplete: Excel standard template/preview/confirm and pending association/change confirmation; custom scoring template version publishing; mentor/multi-college explicit regressions; UI ExternalAssessments.tsx and navigation/AccessPanel labels, browser checks. Thus module is WIP and not ready for full acceptance. No application servers or background processes started in this worktree. Next: finish import public API slice, then UI with browser validation.
-Quota parent last reported short 11%, weekly48%; early checkpoint requested. No claim of real-time monitoring.
 在dd96390之后按协调授权修复students浏览器用例共享样例冲突：仅将下载样例有效行改为该用例专属合成学号/姓名，保留错误行和全部业务断言，不改生产去重。修前全套两次失败，修后全Chrome e2e 19/19 passed（29.7秒），因此此前全套限制已解除。最后官方短周期剩78%、周剩43%。最终提交HEAD用git log -1核实；本轮未push。科研专项生成的未跟踪截图.scratch/research-void-history.png保留供核验。
+
+## 05集成检查点（2026-11-13）
+
+05源codex/full-05@5d7d36d，已无冲突合入integration/aqp-trial@481ef95d7ebc8b396b1e824c9c9b985d4ef8ff0d。当前文档提交HEAD用git log -1核实。独立盲审/答辩、版本评分模板与Excel模板/预览/确认、范围/身份独立授权、来源审计和UI已完成；05工单tracked且resolved。两项事务P1及批内冲突P2已修复并经独立审查。05验证记录保留在.scratch/full-platform/full05-validation.md。
+
+03工作树D:/AQP-PGS-worktrees/full-03、codex/full-03@8388ce7为未合并WIP，等待独立审查与串行集成；根03工单仍ready-for-agent，不能视为已完成或ignored。04及后继任务未完成。保留全部历史工作树。未知未跟踪.scratch/research-void-history.png合成截图保留，不加入提交。真实学校业务/正式评分标准/专家/真实模型效果待验，无模型外发。
+
+验证对应合并481ef95：全pytest116 passed（99.23秒）、mypy28文件、Ruff全部通过；TS/Vite build通过；独立端口8056 Chrome20/20 passed（33.8秒）。测试仅合成资料，自动生成截图已还原到分支审查版本，无生产代码追加改动。所启动pytest和Chrome/webServer进程均已结束，无新增常驻服务。额度本轮开始官方短周期剩62%、周40%（单次读数非实时）；仅本地保存未push。本文恢复合并前根HANDOFF完整内容，避免05分支过时交接代替当前记录；分支原历史仍可由git show 5d7d36d:HANDOFF.md读取。
+
