@@ -90,6 +90,19 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
     assert result["distinct_outputs"] == 1
     assert result["items"][0]["participants"][0]["association"] == "pending"
     assert preview()["items"][0]["status"] == "duplicate"
+    wb.active["I3"] = "20x5"
+    stream = BytesIO()
+    wb.save(stream)
+    assert (
+        client.post(
+            "/api/research-outputs/preview",
+            headers=headers,
+            data={"source_department": "Synthetic"},
+            files={"file": ("invalid.xlsx", stream.getvalue())},
+        ).status_code
+        == 422
+    )
+    wb.active["I3"] = 2025
     wb.active["B3"] = "合成科研论文更正"
     stream = BytesIO()
     wb.save(stream)
@@ -107,8 +120,77 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
     result = client.get("/api/research-outputs").json()
     assert result["distinct_outputs"] == 1
     assert result["items"][0]["version"] == 2
+    assert client.get("/api/research-outputs/statistics").json()["years"] == [
+        {"year": "2025", "distinct_outputs": 1, "personal_participations": 1}
+    ]
     assert result["items"][0]["title"] == "合成科研论文更正"
     output_id = result["items"][0]["id"]
+    citation_template = client.get("/api/research-outputs/citations/template")
+    assert citation_template.status_code == 200
+    citation_wb = load_workbook(BytesIO(citation_template.content))
+    citation_wb.active.append(["10.1234/demo", "2024-01-01", 2, "Synthetic source"])
+    citation_stream = BytesIO()
+    citation_wb.save(citation_stream)
+    citation_preview = client.post(
+        "/api/research-outputs/citations/preview",
+        headers=headers,
+        files={"file": ("citations.xlsx", citation_stream.getvalue())},
+    )
+    assert citation_preview.status_code == 200, citation_preview.text
+    assert citation_preview.json()["errors"] == []
+    batch_id = citation_preview.json()["id"]
+    assert (
+        client.post(
+            f"/api/research-outputs/citations/previews/{batch_id}/confirm",
+            headers=headers,
+            json={"accept_changes": False},
+        ).status_code
+        == 200
+    )
+    citation_url = f"/api/research-outputs/{output_id}/citations"
+    snapshot = {"date": "2025-01-02", "count": 7, "source_department": "科研处"}
+    assert client.post(citation_url, headers=headers, json=snapshot).status_code == 200
+    assert (
+        client.post(citation_url, headers=headers, json=snapshot).json()["status"]
+        == "duplicate"
+    )
+    assert (
+        client.post(
+            citation_url, headers=headers, json={**snapshot, "count": -1}
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            citation_url, headers=headers, json={**snapshot, "count": 3}
+        ).status_code
+        == 409
+    )
+    for invalid in [
+        {**snapshot, "date": "20260101"},
+        {**snapshot, "date": "2026-02-30"},
+        {**snapshot, "count": True},
+        {**snapshot, "count": 1.5},
+    ]:
+        assert (
+            client.post(citation_url, headers=headers, json=invalid).status_code == 422
+        )
+    correction = {
+        **snapshot,
+        "count": 3,
+        "expected_version": 1,
+        "confirmed": True,
+        "reason": "来源更正",
+    }
+    assert (
+        client.post(citation_url, headers=headers, json=correction).status_code == 200
+    )
+    history = client.get(citation_url).json()["items"]
+    assert [(item["version"], item["count"]) for item in history] == [
+        (1, 2),
+        (1, 7),
+        (2, 3),
+    ]
     void_url = f"/api/research-outputs/{output_id}/void"
     assert (
         client.post(
@@ -315,6 +397,14 @@ def test_shared_research_mentor_and_scope_matrix(client, tmp_path):  # noqa: F81
         db.execute("INSERT INTO user_student_bindings VALUES (?,2)", (actor,))
     assert client.get("/api/research-outputs").json()["personal_participations"] == 2
     assert client.get("/api/research-outputs/1/history").status_code == 200
+    citation_url = "/api/research-outputs/1/citations"
+    snapshot = {
+        "date": "2025-01-01",
+        "count": 4,
+        "source_department": "Synthetic1 source",
+    }
+    assert client.post(citation_url, headers=headers, json=snapshot).status_code == 200
+    assert client.get(citation_url).json()["data_version"] == 1
     # Correcting the student's name must not make the old revision unmaintainable.
     from io import BytesIO
 
@@ -366,9 +456,14 @@ def test_shared_research_mentor_and_scope_matrix(client, tmp_path):  # noqa: F81
         not in client.get("/api/research-outputs").json()["items"][0]["participants"][1]
     )
     assert client.get("/api/research-outputs/1/history").status_code == 403
+    redacted = client.get(citation_url).json()["items"][0]
+    assert "source_department" not in redacted
+    assert "reason" not in redacted
     with connection(tmp_path / "accounts.sqlite3") as db:
         db.execute("DELETE FROM user_student_bindings WHERE user_id=?", (actor,))
     assert client.get("/api/research-outputs").json()["distinct_outputs"] == 0
+    assert client.get(citation_url).status_code == 404
+    assert client.post(citation_url, headers=headers, json=snapshot).status_code == 403
 
 
 def test_void_intersects_current_student_scope(client, tmp_path):  # noqa: F811
@@ -432,3 +527,75 @@ def test_void_intersects_current_student_scope(client, tmp_path):  # noqa: F811
         ).status_code
         == 200
     )
+
+
+def test_citation_batch_revoked_second_row_rolls_back(client, tmp_path):  # noqa: F811
+    import json
+    from io import BytesIO
+
+    from aqp.store import connection
+    from openpyxl import load_workbook
+
+    headers = login_admin(client)
+    actor = client.get("/api/me").json()["user"]["id"]
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        for index, college in [(1, "A"), (2, "B")]:
+            for op in ["maintain", "view"]:
+                db.execute(
+                    "INSERT INTO grants VALUES (?,?,?,?,?)",
+                    (actor, "research_papers", op, college, "Math"),
+                )
+            payload = json.dumps(
+                {
+                    "title": "Synthetic",
+                    "participants": [
+                        {
+                            "student_number": str(index),
+                            "name": "Synthetic",
+                            "college": college,
+                            "major": "Math",
+                            "order": 1,
+                            "role": "author",
+                        }
+                    ],
+                }
+            )
+            db.execute(
+                "INSERT INTO research_outputs(id,business_key,payload) VALUES (?,?,?)",
+                (index, str(index), payload),
+            )
+    wb = load_workbook(
+        BytesIO(client.get("/api/research-outputs/citations/template").content)
+    )
+    for index in [1, 2]:
+        wb.active.append([str(index), "2025-01-01", 3, "Synthetic source"])
+    stream = BytesIO()
+    wb.save(stream)
+    batch = client.post(
+        "/api/research-outputs/citations/preview",
+        headers=headers,
+        files={"file": ("c.xlsx", stream.getvalue())},
+    ).json()
+    assert batch["errors"] == []
+    assert client.get("/api/research-outputs/1/citations").json()["items"] == []
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        db.execute(
+            "DELETE FROM grants WHERE user_id=? AND category='research_papers' AND operation='maintain' AND college='B'",
+            (actor,),
+        )
+    response = client.post(
+        f"/api/research-outputs/citations/previews/{batch['id']}/confirm",
+        headers=headers,
+        json={"accept_changes": False},
+    )
+    assert response.status_code == 403
+    for index in [1, 2]:
+        assert (
+            client.get(f"/api/research-outputs/{index}/citations").json()["items"] == []
+        )
+    stats = client.get("/api/research-outputs/statistics").json()
+    assert stats["years"] == [
+        {"year": "年份缺失", "distinct_outputs": 2, "personal_participations": 2}
+    ]
+    assert stats["missing_citations"] == 2
+    assert client.get("/api/patents/citations/template").status_code == 404
