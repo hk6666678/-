@@ -8,12 +8,23 @@ from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from aqp.analysis import outcome
 from aqp.authorization import allowed, student_allowed
+from aqp.exports import excel_report
 from aqp.research_outputs import current_participant
 from aqp.store import audit, connection
+
+SOURCE_CATEGORY = {
+    "research_paper_count": "research_papers",
+    "patent_count": "patents",
+    "award_count": "awards",
+    "conference_count": "conferences",
+    "latest_citation_count": "research_papers",
+    "course_pass_ratio": "courses",
+}
 
 
 class Metric(BaseModel):
@@ -102,14 +113,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
         result = []
         for metric in config["metrics"]:
             feature = metric["feature"]
-            category = {
-                "research_paper_count": "research_papers",
-                "patent_count": "patents",
-                "award_count": "awards",
-                "conference_count": "conferences",
-                "latest_citation_count": "research_papers",
-                "course_pass_ratio": "courses",
-            }[feature]
+            category = SOURCE_CATEGORY[feature]
             for operation in ["view", "identity", "analyze"]:
                 if not allowed(
                     db, actor, category, operation, student["college"], student["major"]
@@ -218,6 +222,25 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
         digest = hashlib.sha256(json.dumps(result, sort_keys=True).encode()).hexdigest()
         return result, digest
 
+    def load_snapshot(db: Any, actor: int, ident: int) -> dict[str, Any]:
+        saved = db.execute(
+            "SELECT * FROM evaluation_snapshots WHERE id=?", (ident,)
+        ).fetchone()
+        if saved is None:
+            raise HTTPException(404, "评分快照不存在")
+        rule = db.execute(
+            "SELECT * FROM evaluation_rules WHERE id=?", (saved["rule_id"],)
+        ).fetchone()
+        _, digest = inputs(
+            db, actor, saved["student_id"], json.loads(rule["config"])
+        )
+        return {
+            "id": ident,
+            **json.loads(saved["result"]),
+            "stale": digest != saved["data_digest"],
+            "rule_currently_enabled": bool(rule["enabled"]),
+        }
+
     @app.post("/api/evaluation-snapshots")
     def score(body: ScoreInput, request: Request) -> dict[str, Any]:
         with connection(path) as db:
@@ -275,23 +298,80 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
     def snapshot(ident: int, request: Request) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
+            return load_snapshot(db, actor["id"], ident)
+
+    @app.get("/api/evaluation-snapshots")
+    def snapshot_listing(request: Request) -> dict[str, Any]:
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            items = []
+            # Re-check the student and rule scope now: history never bypasses
+            # deactivation or grant changes since the snapshot was saved.
+            for row in db.execute(
+                "SELECT s.id, s.student_id, st.research_id, s.result "
+                "FROM evaluation_snapshots s "
+                "JOIN students st ON st.id=s.student_id AND st.active=1 "
+                "ORDER BY s.id DESC"
+            ):
+                result = json.loads(row["result"])
+                scope = result["scope"]
+                if not student_allowed(db, actor["id"], row["student_id"]):
+                    continue
+                if not allowed(
+                    db,
+                    actor["id"],
+                    "talent_evaluation",
+                    "view",
+                    scope["college"],
+                    scope["major"],
+                ):
+                    continue
+                items.append(
+                    {
+                        "id": row["id"],
+                        "student_id": row["student_id"],
+                        "research_id": row["research_id"],
+                        "rule_id": result["rule_id"],
+                        "rule_version": result["rule_version"],
+                        "mode": result["mode"],
+                        "total": result["total"],
+                        "as_of": result["as_of"],
+                    }
+                )
+            return {"items": items}
+
+    @app.get("/api/evaluation-snapshots/{ident}/export")
+    def snapshot_export(ident: int, request: Request) -> Response:
+        with connection(path) as db:
+            actor, _ = current(db, request)
             saved = db.execute(
-                "SELECT * FROM evaluation_snapshots WHERE id=?", (ident,)
+                "SELECT rule_id FROM evaluation_snapshots WHERE id=?", (ident,)
             ).fetchone()
             if saved is None:
                 raise HTTPException(404, "评分快照不存在")
             rule = db.execute(
                 "SELECT * FROM evaluation_rules WHERE id=?", (saved["rule_id"],)
             ).fetchone()
-            _, digest = inputs(
-                db, actor["id"], saved["student_id"], json.loads(rule["config"])
-            )
-            return {
-                "id": ident,
-                **json.loads(saved["result"]),
-                "stale": digest != saved["data_digest"],
-                "rule_currently_enabled": bool(rule["enabled"]),
-            }
+            config = json.loads(rule["config"])
+            # Downloading the report needs the independent export grant on the
+            # evaluation scope and on every metric's source category.
+            for category in sorted(
+                {"basic", "talent_evaluation"}
+                | {SOURCE_CATEGORY[m["feature"]] for m in config["metrics"]}
+            ):
+                if not allowed(
+                    db,
+                    actor["id"],
+                    category,
+                    "export",
+                    config["college"],
+                    config["major"],
+                ):
+                    raise HTTPException(403, "评价或指标来源导出授权不足")
+            report = load_snapshot(db, actor["id"], ident)
+            audit(db, actor["id"], "evaluation.export", str(ident))
+            db.commit()
+            return excel_report(report, f"evaluation-snapshot-{ident}")
 
     @app.post("/api/evaluation-rules")
     def draft(body: Draft, request: Request) -> dict[str, Any]:

@@ -204,6 +204,145 @@ def test_score_evidence_missing_stale_and_current_access(client, tmp_path):
     assert client.get(f"/api/evaluation-snapshots/{score['id']}").status_code == 403
 
 
+def test_snapshot_listing_and_independent_export(client, tmp_path):
+    import json
+    from io import BytesIO
+    from uuid import uuid4
+
+    from aqp.store import connection
+    from openpyxl import load_workbook
+
+    headers = login_admin(client)
+    me = client.get("/api/me").json()["user"]
+
+    def update_grants(operations):
+        nonlocal me
+        assert (
+            client.put(
+                f"/api/users/{me['id']}/grants",
+                headers=headers,
+                json={
+                    "expected_version": me["version"],
+                    "request_id": str(uuid4()),
+                    "grants": [
+                        {
+                            "category": category,
+                            "operation": operation,
+                            "college": "synthetic",
+                            "major": "synthetic",
+                        }
+                        for category in ["basic", "talent_evaluation", "patents"]
+                        for operation in operations
+                    ],
+                },
+            ).status_code
+            == 200
+        )
+        me = client.get("/api/me").json()["user"]
+
+    update_grants(
+        ["view", "identity", "analyze", "maintain", "activate_evaluation"]
+    )
+    dbpath = tmp_path / "accounts.sqlite3"
+    participant = {
+        "student_number": "S1",
+        "name": "Synthetic",
+        "college": "synthetic",
+        "major": "synthetic",
+    }
+    with connection(dbpath) as db:
+        db.execute(
+            "INSERT INTO students(id,research_id,student_number,name,college,major,level,entry_year,payload) VALUES(1,'R1','S1','Synthetic','synthetic','synthetic','master',2025,'{}')"
+        )
+        db.execute(
+            "INSERT INTO patents_outputs(business_key,payload) VALUES(?,?)",
+            ("P1", json.dumps({"participants": [participant]})),
+        )
+        db.commit()
+    rule = client.post(
+        "/api/evaluation-rules",
+        headers=headers,
+        json={
+            "name": "simulation",
+            "college": "synthetic",
+            "major": "synthetic",
+            "mode": "simulation",
+            "expected_version": 0,
+            "metrics": [
+                {"feature": "patent_count", "weight": 1, "minimum": 0, "maximum": 4}
+            ],
+        },
+    ).json()
+    assert (
+        client.post(
+            f"/api/evaluation-rules/{rule['id']}/activate",
+            headers=headers,
+            json={
+                "expected_version": 1,
+                "confirmed_by": "expert",
+                "basis": "synthetic only",
+                "acknowledge_simulation": True,
+            },
+        ).status_code
+        == 200
+    )
+    score = client.post(
+        "/api/evaluation-snapshots",
+        headers=headers,
+        json={"student_id": 1, "rule_id": rule["id"]},
+    ).json()
+    assert score["total"] == 25
+    assert client.get("/api/evaluation-snapshots", headers=headers).json()[
+        "items"
+    ] == [
+        {
+            "id": score["id"],
+            "student_id": 1,
+            "research_id": "R1",
+            "rule_id": rule["id"],
+            "rule_version": 1,
+            "mode": "simulation",
+            "total": 25,
+            "as_of": score["as_of"],
+        }
+    ]
+    # Full analysis access never grants the report download by itself.
+    export = client.get(
+        f"/api/evaluation-snapshots/{score['id']}/export", headers=headers
+    )
+    assert export.status_code == 403
+    update_grants(
+        ["view", "identity", "analyze", "maintain", "activate_evaluation", "export"]
+    )
+    export = client.get(
+        f"/api/evaluation-snapshots/{score['id']}/export", headers=headers
+    )
+    assert export.status_code == 200
+    assert export.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    workbook = load_workbook(BytesIO(export.content))
+    cells = [
+        cell.value
+        for row in workbook.active.iter_rows()
+        for cell in row
+        if cell.value is not None
+    ]
+    workbook.close()
+    assert any("模拟演示" in str(cell) for cell in cells)
+    assert 25 in cells
+    update_grants([])
+    assert client.get("/api/evaluation-snapshots", headers=headers).json() == {
+        "items": []
+    }
+    assert (
+        client.get(
+            f"/api/evaluation-snapshots/{score['id']}/export", headers=headers
+        ).status_code
+        == 403
+    )
+
+
 def test_existing_260_database_upgrades_without_reset(client, tmp_path):
     from aqp.app import create_app
     from aqp.store import connection
