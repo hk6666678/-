@@ -1,3 +1,4 @@
+import { AssessmentPanel } from "./AssessmentPanel";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { RecordPanel } from "./RecordPanel";
 import React, { useEffect, useState } from "react";
@@ -15,7 +16,13 @@ import { ResolutionPanel } from "./ResolutionPanel";
 import { StudentPanel } from "./StudentPanel";
 import { ModelPanel } from "./ModelPanel";
 
-type Role = "mentor" | "platform_admin" | "college_data_admin" | "college_analyst" | "school_data_admin" | "school_analyst";
+type Role =
+  | "mentor"
+  | "platform_admin"
+  | "college_data_admin"
+  | "college_analyst"
+  | "school_data_admin"
+  | "school_analyst";
 type User = {
   id: number;
   username: string;
@@ -251,6 +258,7 @@ function App() {
                 ["students", "基础导入与学生档案"],
                 ["courses", "课程导入与待关联"],
                 ["milestones", "选题与中期导入"],
+                ["assessments", "盲审与答辩"],
                 ["maintenance", "数据纠错与维护"],
               ],
             },
@@ -309,6 +317,7 @@ function App() {
                   accounts: "个人账号管理",
                   audit: "审计查询",
                   milestones: "选题与中期导入",
+                  assessments: "盲审与答辩",
                   papers: "论文上传与解析",
                   agent: "Agent 查询",
                   analysis: "课程统计与通过规则",
@@ -352,6 +361,8 @@ function App() {
         {page === "maintenance" && <RecordPanel csrf={session.csrf_token} />}
         {page === "audit" && admin ? (
           <AuditPanel fetcher={request} />
+        ) : page === "assessments" ? (
+          <AssessmentPanel csrf={session.csrf_token} />
         ) : page === "milestones" ? (
           <MilestonePanel csrf={session.csrf_token} fetcher={request} />
         ) : page === "papers" ? (

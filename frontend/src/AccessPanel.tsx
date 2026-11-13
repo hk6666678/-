@@ -33,6 +33,7 @@ const operations: Record<string, string> = {
   void: "作废",
   pass_rules: "通过规则",
   labels: "样本标签",
+  activate_templates: "评分模板启用",
   candidate_rules: "候选规则启用",
   review: "人工复核",
 };

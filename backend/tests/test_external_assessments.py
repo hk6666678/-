@@ -236,3 +236,93 @@ def test_excel_preview_errors_are_not_committed(client):
         == 422
     )
     assert client.get("/api/external-assessments").json()["count"] == 0
+
+
+def test_template_maintenance_does_not_imply_activation(client):
+    from test_accounts import login_admin
+
+    headers = login_admin(client)
+    response = client.post(
+        "/api/external-assessments/templates",
+        headers=headers,
+        json={
+            "version": "demo-v2",
+            "category": "blind_reviews",
+            "college": "示例学院",
+            "major": "计算机",
+            "items": {"quality": 100},
+            "simulation": True,
+        },
+    )
+    assert response.status_code == 403
+
+    from uuid import uuid4
+
+    def grants(operations):
+        user = client.get("/api/me").json()["user"]
+        response = client.put(
+            f"/api/users/{user['id']}/grants",
+            headers=headers,
+            json={
+                "expected_version": user["version"],
+                "request_id": str(uuid4()),
+                "grants": [
+                    {
+                        "category": "blind_reviews",
+                        "operation": op,
+                        "college": "示例学院",
+                        "major": "计算机",
+                    }
+                    for op in operations
+                ],
+            },
+        )
+        assert response.status_code == 200, response.text
+
+    body = {
+        "version": "demo-v2",
+        "category": "blind_reviews",
+        "college": "示例学院",
+        "major": "计算机",
+        "items": {"quality": 100},
+        "simulation": True,
+    }
+    grants(["maintain"])
+    assert (
+        client.post(
+            "/api/external-assessments/templates", headers=headers, json=body
+        ).status_code
+        == 200
+    )
+    activation = {"confirmed_by": "模拟专家", "basis": "合成确认依据"}
+    assert (
+        client.post(
+            "/api/external-assessments/templates/demo-v2/activate",
+            headers=headers,
+            json=activation,
+        ).status_code
+        == 403
+    )
+    grants(["activate_templates"])
+    assert (
+        client.post(
+            "/api/external-assessments/templates/demo-v2/activate",
+            headers=headers,
+            json=activation,
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            "/api/external-assessments/templates/demo-v2/activate",
+            headers=headers,
+            json=activation,
+        ).status_code
+        == 409
+    )
+    template = next(
+        t
+        for t in client.get("/api/external-assessments/templates").json()["items"]
+        if t["version"] == "demo-v2"
+    )
+    assert template["confirmed_by"] == "模拟专家" and template["activated_at"]

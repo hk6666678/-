@@ -22,6 +22,7 @@ Operation = Literal[
     "pass_rules",
     "labels",
     "candidate_rules",
+    "activate_templates",
     "review",
 ]
 

@@ -13,6 +13,7 @@ from fastapi.responses import Response
 from openpyxl import Workbook, load_workbook
 from pydantic import BaseModel, Field
 
+from aqp.authorization import allowed
 from aqp.store import audit, connection
 
 
@@ -21,10 +22,24 @@ class AssessmentInput(BaseModel):
     paper_version_id: int
     batch: str = Field(min_length=1, max_length=100)
     anonymous_code: str = Field(min_length=1, max_length=100)
-    template_version: Literal["simulation-v1"] = "simulation-v1"
+    template_version: str = Field(default="simulation-v1", min_length=1, max_length=100)
     scores: dict[str, float]
     comment: str = Field(max_length=10000)
     source: str = Field(min_length=1, max_length=1000)
+
+
+class TemplateInput(BaseModel):
+    version: str = Field(min_length=1, max_length=100)
+    category: Literal["blind_reviews", "defenses"]
+    college: str = Field(min_length=1, max_length=100)
+    major: str = Field(min_length=1, max_length=100)
+    items: dict[str, float]
+    simulation: bool = True
+
+
+class TemplateActivation(BaseModel):
+    confirmed_by: str = Field(min_length=1, max_length=100)
+    basis: str = Field(min_length=1, max_length=1000)
 
 
 def register_external_assessments(
@@ -146,8 +161,23 @@ def register_external_assessments(
             db, actor["id"], {**dict(paper), "category": body.category}, "maintain"
         ):
             raise HTTPException(403, "无维护权限或学生未绑定")
-        if set(body.scores) != {"quality"} or not 0 <= body.scores["quality"] <= 100:
-            raise HTTPException(422, "模拟模板quality分数必须为0至100")
+        configuration = db.execute(
+            "SELECT * FROM external_assessment_templates WHERE version=?",
+            (body.template_version,),
+        ).fetchone()
+        if not configuration or configuration["state"] != "active":
+            raise HTTPException(422, "评分模板未启用")
+        if configuration["category"] is not None and (
+            configuration["category"] != body.category
+            or configuration["college"] != paper["college"]
+            or configuration["major"] != paper["major"]
+        ):
+            raise HTTPException(422, "评分模板范围不匹配")
+        limits = json.loads(configuration["items"])
+        if set(body.scores) != set(limits) or any(
+            not 0 <= score <= limits[key] for key, score in body.scores.items()
+        ):
+            raise HTTPException(422, "分项成绩与模板或评分范围不匹配")
         previous = db.execute(
             "SELECT * FROM external_assessments WHERE category=? AND paper_version_id=? AND batch=? AND anonymous_code=?",
             (body.category, body.paper_version_id, body.batch, body.anonymous_code),
@@ -254,3 +284,88 @@ def register_external_assessments(
             )
             audit(db, actor["id"], "external_assessment.confirm", batch_id)
             return {"id": batch_id, "results": results}
+
+    @app.get("/api/external-assessments/templates")
+    def templates(request: Request) -> dict[str, Any]:
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            rows = []
+            for row in db.execute(
+                "SELECT * FROM external_assessment_templates ORDER BY version"
+            ):
+                if row["category"] is None or any(
+                    allowed(
+                        db,
+                        actor["id"],
+                        row["category"],
+                        op,
+                        row["college"],
+                        row["major"],
+                    )
+                    for op in ("maintain", "view", "activate_templates")
+                ):
+                    rows.append({**dict(row), "items": json.loads(row["items"])})
+            return {"items": rows}
+
+    @app.post("/api/external-assessments/templates")
+    def create_template(body: TemplateInput, request: Request) -> dict[str, Any]:
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            if not allowed(
+                db, actor["id"], body.category, "maintain", body.college, body.major
+            ):
+                raise HTTPException(403, "需要范围内维护权限")
+            if not body.items or any(not 0 < v <= 10000 for v in body.items.values()):
+                raise HTTPException(422, "分项上限必须大于0且不超过10000")
+            if db.execute(
+                "SELECT 1 FROM external_assessment_templates WHERE version=?",
+                (body.version,),
+            ).fetchone():
+                raise HTTPException(409, "模板版本已存在，请创建新版本")
+            db.execute(
+                "INSERT INTO external_assessment_templates(version,simulation,items,category,college,major,created_by) VALUES (?,?,?,?,?,?,?)",
+                (
+                    body.version,
+                    body.simulation,
+                    json.dumps(body.items),
+                    body.category,
+                    body.college,
+                    body.major,
+                    actor["id"],
+                ),
+            )
+            audit(db, actor["id"], "external_assessment.template.create", body.version)
+            return {"version": body.version, "state": "draft"}
+
+    @app.post("/api/external-assessments/templates/{version}/activate")
+    def activate_template(
+        version: str, body: TemplateActivation, request: Request
+    ) -> dict[str, Any]:
+        with connection(path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            actor, _ = current(db, request)
+            row = db.execute(
+                "SELECT * FROM external_assessment_templates WHERE version=?",
+                (version,),
+            ).fetchone()
+            if (
+                not row
+                or not row["category"]
+                or not allowed(
+                    db,
+                    actor["id"],
+                    row["category"],
+                    "activate_templates",
+                    row["college"],
+                    row["major"],
+                )
+            ):
+                raise HTTPException(403, "需要独立评分模板启用权限")
+            if row["state"] != "draft":
+                raise HTTPException(409, "模板已启用，修改需创建新版本")
+            db.execute(
+                "UPDATE external_assessment_templates SET state='active',confirmed_by=?,basis=?,activated_by=?,activated_at=CURRENT_TIMESTAMP WHERE version=?",
+                (body.confirmed_by, body.basis, actor["id"], version),
+            )
+            audit(db, actor["id"], "external_assessment.template.activate", version)
+            return {"version": version, "state": "active"}
