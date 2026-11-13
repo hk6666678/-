@@ -84,7 +84,7 @@ root已读取get_usage_limits短used95剩5%，周剩32%，现停止所有开发�
 
 工作树：唯一未合分支codex/full-07（D:/AQP-PGS-worktrees/full-07），源码clean；artifacts/有合成截图未跟踪，保留本地。full01–06及所有ticket旧树保留，git worktree list核实；根两张早期合成截图未跟踪且保留。未reset/delete/物理删除业务数据。
 
-同步：现在已满足5%触发条件，先保存本交接再集中push integration及相关full02–07来源分支，核远程SHA；结果补记和本会话为准，失败不假称上传。原始学生数据/业务库/论文原件未提交到Git。
+同步：已先保存交接，再集中push并在线逐分支核对成功：integration e7ae0b5、full01 794c250、full02 2e6ea6d、full03 a7967f7、full04 f3f5d24、full05 5d7d36d、full06 ff94d6e、full07 7f4f1b0。本同步补记单独提交后再同步集成分支，最终HEAD以git log及在线核对为准。原始学生数据/业务库/论文原件未提交到Git。现保持停止，等待额度恢复或用户安排。
 
 ## 2026-11-13 剩7%安全预存（历史）
 
