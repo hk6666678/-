@@ -55,7 +55,12 @@ test("simulation rule draft and independently confirmed activation", async ({
   await expect(
     page.getByRole("cell", { name: "模拟已启用", exact: true }),
   ).toBeVisible();
-  await page.locator(".content").evaluate(el=>el.scrollTo(0,0));
+  await expect(page.getByLabel("学生研究编号", { exact: true })).toBeVisible();
+  await expect(
+    page.getByLabel("学生研究编号", { exact: true }),
+  ).toHaveJSProperty("tagName", "SELECT");
+  await expect(page.getByLabel("学生内部编号", { exact: true })).toHaveCount(0);
+  await page.locator(".content").evaluate((el) => el.scrollTo(0, 0));
   await page.screenshot({
     path: "../artifacts/full07-simulation.png",
     fullPage: true,

@@ -40,6 +40,11 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
     [snapshot, setSnapshot] = useState<Snapshot>(),
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
+  const [students, setStudents] = useState<
+    { id: number; research_id: string }[]
+  >([]);
+  const [studentTotal, setStudentTotal] = useState<number>();
+  const [studentMajor, setStudentMajor] = useState("");
   const [metrics, setMetrics] = useState([
     { feature: "patent_count", weight: 1, minimum: 0, maximum: 10 },
   ]);
@@ -295,6 +300,35 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
       </article>
       <article className="card">
         <h3>按真实数据版本评分</h3>
+        <label>
+          学生列表专业筛选
+          <input
+            value={studentMajor}
+            onChange={(e) => setStudentMajor(e.target.value)}
+          />
+        </label>
+        <button
+          type="button"
+          onClick={() =>
+            void perform(async () => {
+              setStudents([]);
+              setStudentTotal(undefined);
+              const data = await call(
+                `/api/students?limit=200&offset=0&major=${encodeURIComponent(studentMajor)}`,
+              );
+              setStudents(data.items);
+              setStudentTotal(data.total);
+            })
+          }
+        >
+          读取当前授权学生
+        </button>
+        <p>
+          {studentTotal === undefined
+            ? "尚未读取学生列表"
+            : `当前授权和专业筛选下共${studentTotal}人，仅显示前${students.length}人；超过200人请按专业缩小范围`}
+          。列表沿用档案脱敏边界，评分时重新核验当前身份和数据权限。
+        </p>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -311,8 +345,15 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
           }}
         >
           <label>
-            学生内部编号
-            <input name="student_id" type="number" min="1" required />
+            学生研究编号
+            <select aria-label="学生研究编号" name="student_id" required defaultValue="">
+              <option value="">请选择已读取的授权学生</option>
+              {students.map((student) => (
+                <option key={student.id} value={student.id}>
+                  {student.research_id}
+                </option>
+              ))}
+            </select>
           </label>
           <button disabled={!rule || !rule.enabled}>保存新评分快照</button>
         </form>
