@@ -131,6 +131,17 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
     assert len(history) == 3
     assert history[-1]["payload"]["void_reason"] == "重复登记"
     assert history[0]["payload"]["title"] == "合成科研论文"
+    archived = client.get("/api/research-outputs?voided=true").json()
+    assert len(archived["items"]) == 1
+    assert archived["distinct_outputs"] == 0
+    retry = client.post(
+        "/api/research-outputs/preview",
+        headers=headers,
+        data={"source_department": "合成科研处"},
+        files={"file": ("synthetic.xlsx", stream.getvalue())},
+    )
+    assert retry.status_code == 409
+    assert "作废历史" in retry.json()["detail"]
     # A newly linked student in another college immediately revokes visibility;
     # the submitted participant scope cannot override the live student archive.
     from test_students import workbook

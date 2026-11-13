@@ -25,7 +25,9 @@ def register_research_outputs(
             user, _ = current(db, request)
             items = []
             count = 0
-            for row in db.execute("SELECT * FROM research_outputs WHERE active=?", (0 if voided else 1,)):
+            for row in db.execute(
+                "SELECT * FROM research_outputs WHERE active=?", (0 if voided else 1,)
+            ):
                 payload = json.loads(row["payload"])
                 participants = []
                 for participant in payload["participants"]:
@@ -230,6 +232,8 @@ def register_research_outputs(
                 ).fetchone()
                 if old:
                     maintain(db, actor["id"], json.loads(old["payload"]))
+                    if not old["active"]:
+                        raise HTTPException(409, "业务编号已有作废历史，不可重新导入")
                 items.append(
                     {
                         "business_key": key,
@@ -288,6 +292,8 @@ def register_research_outputs(
                 ).fetchone()
                 if old:
                     maintain(db, actor["id"], json.loads(old["payload"]))
+                    if not old["active"]:
+                        raise HTTPException(409, "业务编号已有作废历史，不可重新导入")
                 if (old["version"] if old else 0) != item["expected_version"]:
                     raise HTTPException(409, "成果已变化，请重新预览")
                 if item["status"] == "duplicate":
