@@ -389,6 +389,19 @@ def register_research_outputs(
                     participant["major"],
                 ):
                     raise HTTPException(403, "缺少全部参与者作废权限")
+                student = db.execute(
+                    "SELECT college,major FROM students WHERE student_number=? AND active=1",
+                    (participant["student_number"],),
+                ).fetchone()
+                if student and not allowed(
+                    db,
+                    actor["id"],
+                    "research_papers",
+                    "void",
+                    student["college"],
+                    student["major"],
+                ):
+                    raise HTTPException(403, "缺少参与者当前学院作废权限")
             if (
                 body.get("expected_version") != output["version"]
                 or not output["active"]

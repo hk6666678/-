@@ -369,3 +369,66 @@ def test_shared_research_mentor_and_scope_matrix(client, tmp_path):  # noqa: F81
     with connection(tmp_path / "accounts.sqlite3") as db:
         db.execute("DELETE FROM user_student_bindings WHERE user_id=?", (actor,))
     assert client.get("/api/research-outputs").json()["distinct_outputs"] == 0
+
+
+def test_void_intersects_current_student_scope(client, tmp_path):  # noqa: F811
+    import json
+
+    from aqp.store import connection
+
+    headers = login_admin(client)
+    actor = client.get("/api/me").json()["user"]["id"]
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        db.execute(
+            "INSERT INTO students(research_id,student_number,name,college,major,level,entry_year,payload) VALUES ('r','1','Synthetic','Current','Math','master',2025,'{}')"
+        )
+        payload = json.dumps(
+            {
+                "title": "Synthetic",
+                "participants": [
+                    {
+                        "student_number": "1",
+                        "name": "Synthetic",
+                        "college": "Old",
+                        "major": "Math",
+                        "order": 1,
+                        "role": "author",
+                    }
+                ],
+            }
+        )
+        db.execute(
+            "INSERT INTO research_outputs(id,business_key,payload) VALUES (1,'key',?)",
+            (payload,),
+        )
+        db.execute(
+            "INSERT INTO research_output_versions VALUES (1,1,?,'Synthetic',?)",
+            (payload, actor),
+        )
+        for college, operation in [
+            ("Old", "maintain"),
+            ("Current", "maintain"),
+            ("Old", "void"),
+        ]:
+            db.execute(
+                "INSERT INTO grants VALUES (?,?,?,?,?)",
+                (actor, "research_papers", operation, college, "Math"),
+            )
+    body = {"expected_version": 1, "reason": "Synthetic correction"}
+    assert (
+        client.post(
+            "/api/research-outputs/1/void", headers=headers, json=body
+        ).status_code
+        == 403
+    )
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        db.execute(
+            "INSERT INTO grants VALUES (?,?,?,?,?)",
+            (actor, "research_papers", "void", "Current", "Math"),
+        )
+    assert (
+        client.post(
+            "/api/research-outputs/1/void", headers=headers, json=body
+        ).status_code
+        == 200
+    )
