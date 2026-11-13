@@ -158,6 +158,10 @@ def create_app(db_path: Path | None = None) -> FastAPI:
 
     register_courses(app, path, current)
 
+    from aqp.mentor_groups import register_mentor_groups
+
+    register_mentor_groups(app, path, current)
+
     from aqp.model_connection import register_model_connection
 
     register_model_connection(app, path, current)

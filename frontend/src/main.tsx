@@ -1,4 +1,5 @@
 import { AssessmentPanel } from "./AssessmentPanel";
+import { MentorGroupPanel } from "./MentorGroupPanel";
 import { ResearchOutputs } from "./ResearchOutputs";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { RecordPanel } from "./RecordPanel";
@@ -269,6 +270,7 @@ function App() {
                 ["analysis", "课程统计与通过规则"],
                 ["papers", "论文上传与解析"],
                 ["research_outputs", "已发表科研论文"],
+                ["mentor_groups", "导师与课题组"],
                 ["patents", "专利"], ["awards", "获奖项目"], ["conferences", "会议"],
                 ["agent", "Agent 查询"],
               ],
@@ -323,6 +325,7 @@ function App() {
                   assessments: "盲审与答辩",
                   papers: "论文上传与解析",
                   research_outputs: "已发表科研论文",
+                  mentor_groups: "导师与课题组",
                   patents:"专利", awards:"获奖项目", conferences:"会议",
                   agent: "Agent 查询",
                   analysis: "课程统计与通过规则",
@@ -370,7 +373,7 @@ function App() {
           <AssessmentPanel csrf={session.csrf_token} />
         ) : page === "milestones" ? (
           <MilestonePanel csrf={session.csrf_token} fetcher={request} />
-        ) : ["research_outputs","patents","awards","conferences"].includes(page) ? (<ResearchOutputs key={page} category={page} csrf={session.csrf_token} />) : page === "papers" ? (
+        ) : page === "mentor_groups" ? (<MentorGroupPanel csrf={session.csrf_token} />) : ["research_outputs","patents","awards","conferences"].includes(page) ? (<ResearchOutputs key={page} category={page} csrf={session.csrf_token} />) : page === "papers" ? (
           <>
             <PaperPanel csrf={session.csrf_token} />
             <ComparisonPanel csrf={session.csrf_token} />
