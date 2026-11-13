@@ -1,4 +1,14 @@
-## 2026-11-13 任务10根最终集成检查点（最新，仅本地）
+## 2026-11-13 界面精修交接（最新，仅本地）
+
+用户指定distinctive-ai-design并授权直接实现，保留深色侧栏与浅色内容。源码分支codex/ui-polish@8171e22已合入integration/aqp-trial@bafc66e；本交接文档最终HEAD用git log -1读取。业务API及权限未改，完整版01–10模拟验收完成状态不变，真实输入/专家/模型/正式部署仍待验。
+
+统一字体/控件/表格/反馈，手机折叠导航可见当前位置，账号角色两列/短状态不折行，重复标题与长说明减法整理，规则草稿降为折叠辅助；保留全部业务字段与警示。长页切菜单归顶先红后绿，评价表375px真实横滚而非裁切。两轮独立截图评审及最终有限整改完成，主代理已查看最终截图；不是无障碍或性能认证。
+
+最终bafc66e构建通过、完整Chrome24/24通过39.9秒（原23加手机登录错误反馈），所有测试服务已结束。未改后端，本轮未重复145项后端。详见.scratch/ui-polish/brief.md、verification.md。截图本地D:/AQP-PGS-worktrees/ui-polish/artifacts/ui-polish/，工作树保留。
+
+平时仅本地提交，未push。根既有未知两张.scratch/*void-history.png及artifacts保留；仅还原本轮测试自动覆盖的两张已跟踪assessment截图，不回滚用户源码。
+
+## 2026-11-13 任务10根最终集成检查点（历史，仅本地）
 
 - 交接时间：2026-11-13 Asia/Shanghai；阶段收口。根D:/AQP-PGS，integration/aqp-trial；源codex/full-10@6e723e0235205eb84180ba71a7fb557facf412bd，无冲突合并1479b0eb2975300413293b926aae78b3feb01534；文档最终HEAD以git log -1核实。
 - 官方额度本次单次读数短周期剩66%、周剩26%，非实时监控；仅本地未push。
