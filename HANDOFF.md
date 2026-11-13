@@ -29,3 +29,14 @@
 
 验证对应合并481ef95：全pytest116 passed（99.23秒）、mypy28文件、Ruff全部通过；TS/Vite build通过；独立端口8056 Chrome20/20 passed（33.8秒）。测试仅合成资料，自动生成截图已还原到分支审查版本，无生产代码追加改动。所启动pytest和Chrome/webServer进程均已结束，无新增常驻服务。额度本轮开始官方短周期剩62%、周40%（单次读数非实时）；仅本地保存未push。本文恢复合并前根HANDOFF完整内容，避免05分支过时交接代替当前记录；分支原历史仍可由git show 5d7d36d:HANDOFF.md读取。
 
+
+## 03集成检查点（2026-11-13）
+
+03已完成，取代上节03 WIP状态；codex/full-03@a7967f7无冲突合并为integration/aqp-trial@d4a850e9865b875429ebf404b98a224c649a6e69，保留05功能和所有历史。专利/获奖项目/会议独立模板、授权、公开API、导航与来源/版本/作废闭环已实现，日期严格YYYY-MM-DD及年份边界已修复审查问题。工单03为tracked且resolved。真实输入、正式规则和业务验收待验。04日期引用及06等后继未开始；01/02/03/05已集成。
+
+浏览器验证：原全套20/20通过（36.9秒，端口8056）；browser_other_outputs.py分别patents、awards、conferences三次完整导入/统计/作废历史通过（端口8053）。这是20加3次专项，不能称playwright自动23项。TS/Vite build通过。自动覆盖的05截图已还原；本轮新合成截图.scratch/patents-void-history.png保留未跟踪（脚本各类别共用此路径，最终为会议），未知research-void-history.png仍保留。无真实资料或模型外发；仅本地，未push。
+
+后端全回归对应d4a850e：pytest126 passed（108.68秒）、mypy与Ruff结果以下追加；当前文档提交HEAD以git log -1核实。全部测试/浏览器服务结束后交还根；下步04工作树仅预建不启动实现。
+
+最终mypy28文件通过、Ruff全部通过；所启动进程均结束，无新增常驻服务。官方额度最新短周期剩57%、周40%（单次非实时）。将预建D:/AQP-PGS-worktrees/full-04与codex/full-04于本交接提交，不启动实现；原所有工作树保留，完整列表git worktree list。
+
