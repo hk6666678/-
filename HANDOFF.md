@@ -56,3 +56,19 @@
 
 集成2b4b43d本机完整检查：pytest130 passed（164.76秒）、mypy29文件、Ruff全部通过；TS/Vite build通过；全Chrome21/21（36.3秒，含mentor_groups目录/关系/事实/撤权）通过。所有启动测试和webServer进程结束，无新增常驻服务。05生成截图已还原，未知未跟踪patents-void-history.png与research-void-history.png保留不提交。最新官方额度剩短21%、周34%（单次非实时）；仅本地，未push。本文提交HEAD以git log -1核实；将基于本文最终提交预建D:/AQP-PGS-worktrees/full-07、codex/full-07，不启动实现。
 
+## 2026-11-13 本轮预防检查点（11%，尚未上传）
+
+最近root官方读数短used89剩11%，周剩33%。仍在处理07现有改动，非实时保证。本节为最新状态，下面保留历史。
+
+集成integration/aqp-trial@0f4694c，完整版01–06已完成。02科研成果、03专利奖项会议、04引用日期快照及统计、05盲审答辩、06导师课题组关系事实均已合入；最终06集成130pytest、mypy29、Ruff、build、Chrome21通过。05导入中鉴权commit导致半批入库/preview500已修；02旧参与者维护越权及作废权限交集已修。真实业务输入、专家规则与获准模型效果仍待验。
+
+唯一未合分支codex/full-07，D:/AQP-PGS-worktrees/full-07，当前f0edcf3（后续提交以git log核实）。已有模拟规则草稿/独立启用、白名单指标、证据快照、当前授权重查/stale及初步UI。261为独立快照增量迁移；极大有限权重缩放避免NaN，JSON禁止NaN。局部API、类型静态和build通过，Chrome仅覆盖模拟草稿启用，不能当完整评分流程验收。07由full07_evaluation独占，正在修学生选择/textarea/checkbox；artifacts截图留本地。
+
+07缺口：正式规则配置及业务确认、完整雷达与成长曲线、导出、复杂指标及历史权限矩阵、完整评分UI浏览器、全回归及两轴复审。不得合并WIP或标完成。08三级报告、09Agent扩展及研究分析、10完整集成验收未开始。
+
+共同成果/导师绑定/历史与当前范围权限交集、身份及原件独立授权继续有效。导师业务关系不自动授账号权。缺毕业延期数据标missing；引用按可选发表年份统计，旧模板兼容。模拟不当真实评价。外网抓取、训练、因果反事实、PDFWord排版与正式部署仍后续阶段。
+
+历史全量测试服务已结束；07局部验证由代理收取并停止，最终另核实。根两张未跟踪合成截图保留不清理：.scratch/patents-void-history.png、research-void-history.png。全部旧worktree保留，git worktree list核实HEAD。
+
+本轮只本地提交，尚未push。<=10保存检查点且停止新功能，<=5先安全停止writer、更新会话及本文件最终进度/缺口/验证/进程，再集中上传integration及full-07并核远程。未经5%或用户明确要求不得提前push。
+
