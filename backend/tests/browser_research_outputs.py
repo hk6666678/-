@@ -36,7 +36,7 @@ def main():
                             "college": "合成学院",
                             "major": "合成专业",
                         }
-                        for op in ["maintain", "view", "identity"]
+                        for op in ["maintain", "view", "identity", "void"]
                     ],
                 },
             ).status_code

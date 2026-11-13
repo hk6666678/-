@@ -45,7 +45,7 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
                     "college": "合成学院",
                     "major": "合成专业",
                 }
-                for op in ["maintain", "view", "identity"]
+                for op in ["maintain", "view", "identity", "void"]
             ],
         },
     )
@@ -315,6 +315,47 @@ def test_shared_research_mentor_and_scope_matrix(client, tmp_path):  # noqa: F81
         db.execute("INSERT INTO user_student_bindings VALUES (?,2)", (actor,))
     assert client.get("/api/research-outputs").json()["personal_participations"] == 2
     assert client.get("/api/research-outputs/1/history").status_code == 200
+    # Correcting the student's name must not make the old revision unmaintainable.
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        db.execute("UPDATE students SET name='Corrected' WHERE id=1")
+    wb = load_workbook(BytesIO(client.get("/api/research-outputs/template").content))
+    for index, college, name in [(1, "A", "Corrected"), (2, "B", "Synthetic2")]:
+        wb.active.append(
+            [
+                "shared",
+                "Synthetic shared",
+                str(index),
+                name,
+                index,
+                "author",
+                college,
+                "Math",
+            ]
+        )
+    stream = BytesIO()
+    wb.save(stream)
+    corrected = client.post(
+        "/api/research-outputs/preview",
+        headers=headers,
+        data={"source_department": "Synthetic"},
+        files={"file": ("synthetic.xlsx", stream.getvalue())},
+    )
+    assert corrected.status_code == 200
+    assert corrected.json()["items"][0]["status"] == "change"
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        db.execute("UPDATE students SET name='Synthetic1' WHERE id=1")
+    assert (
+        client.post(
+            "/api/research-outputs/1/void",
+            headers=headers,
+            json={"expected_version": 1, "reason": "Synthetic"},
+        ).status_code
+        == 403
+    )
     with connection(tmp_path / "accounts.sqlite3") as db:
         db.execute(
             "DELETE FROM grants WHERE user_id=? AND category='research_papers' AND operation='identity' AND college='B'",

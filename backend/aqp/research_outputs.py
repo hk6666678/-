@@ -131,16 +131,26 @@ def register_research_outputs(
 
     from aqp.store import audit
 
-    def maintain(db: sqlite3.Connection, actor: int, payload: dict[str, Any]) -> None:
+    def maintain(
+        db: sqlite3.Connection,
+        actor: int,
+        payload: dict[str, Any],
+        *,
+        historical: bool = False,
+    ) -> None:
         for participant in payload["participants"]:
             student = db.execute(
                 "SELECT id,college,major,name FROM students WHERE student_number=? AND active=1",
                 (participant["student_number"],),
             ).fetchone()
-            if student and (
-                student["college"] != participant["college"]
-                or student["major"] != participant["major"]
-                or student["name"] != participant["name"]
+            if (
+                student
+                and not historical
+                and (
+                    student["college"] != participant["college"]
+                    or student["major"] != participant["major"]
+                    or student["name"] != participant["name"]
+                )
             ):
                 raise HTTPException(409, "学生身份或当前学院专业冲突，请纠正后预览")
             if not student_allowed(
@@ -154,6 +164,15 @@ def register_research_outputs(
                 participant["major"],
             ):
                 raise HTTPException(403, "缺少全部参与者维护范围")
+            if student and not allowed(
+                db,
+                actor,
+                "research_papers",
+                "maintain",
+                student["college"],
+                student["major"],
+            ):
+                raise HTTPException(403, "缺少参与者当前学院维护范围")
 
     @app.post("/api/research-outputs/preview")
     async def preview(
@@ -231,7 +250,9 @@ def register_research_outputs(
                     "SELECT * FROM research_outputs WHERE business_key=?", (key,)
                 ).fetchone()
                 if old:
-                    maintain(db, actor["id"], json.loads(old["payload"]))
+                    maintain(
+                        db, actor["id"], json.loads(old["payload"]), historical=True
+                    )
                     if not old["active"]:
                         raise HTTPException(409, "业务编号已有作废历史，不可重新导入")
                 items.append(
@@ -291,7 +312,9 @@ def register_research_outputs(
                     (item["business_key"],),
                 ).fetchone()
                 if old:
-                    maintain(db, actor["id"], json.loads(old["payload"]))
+                    maintain(
+                        db, actor["id"], json.loads(old["payload"]), historical=True
+                    )
                     if not old["active"]:
                         raise HTTPException(409, "业务编号已有作废历史，不可重新导入")
                 if (old["version"] if old else 0) != item["expected_version"]:
@@ -355,7 +378,17 @@ def register_research_outputs(
             if not output:
                 raise HTTPException(404, "成果不存在")
             payload = json.loads(output["payload"])
-            maintain(db, actor["id"], payload)
+            maintain(db, actor["id"], payload, historical=True)
+            for participant in payload["participants"]:
+                if not allowed(
+                    db,
+                    actor["id"],
+                    "research_papers",
+                    "void",
+                    participant["college"],
+                    participant["major"],
+                ):
+                    raise HTTPException(403, "缺少全部参与者作废权限")
             if (
                 body.get("expected_version") != output["version"]
                 or not output["active"]
