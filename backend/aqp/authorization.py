@@ -22,6 +22,7 @@ Category = Literal[
     "conferences",
     "blind_reviews",
     "defenses",
+    "mentor_groups",
 ]
 
 Operation = Literal[

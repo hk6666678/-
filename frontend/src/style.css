@@ -511,3 +511,16 @@ nav button:focus-visible {
 .output-danger { background:#fcf4f1; border-left:3px solid #c6826c; padding:16px 20px; margin-top:20px; }
 .output-danger button { background:#9a4835; }
 @media(max-width:650px) { .citation-fields { grid-template-columns:1fr; } .output-history-title { align-items:flex-start; } }
+
+/* Mentor business directories share the platform's quiet table workspace. */
+section[aria-label="导师与课题组"] > h3 { margin-top:32px; padding-top:24px; border-top:1px solid #dce5e2; }
+section[aria-label="导师与课题组"] form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 24px; align-items:end; margin:24px 0; }
+section[aria-label="导师与课题组"] form > h4 { grid-column:1/-1; margin:0 0 18px; }
+section[aria-label="导师与课题组"] form > button { justify-self:start; margin:0 0 18px; }
+section[aria-label="导师与课题组"] select { display:block; width:100%; margin-top:8px; border:1px solid #cbd6d3; border-radius:6px; padding:12px; background:white; color:#173535; font:inherit; }
+section[aria-label="导师与课题组"] .actions { display:flex; flex-wrap:wrap; gap:24px; }
+@media(max-width:650px) { section[aria-label="导师与课题组"] form { grid-template-columns:1fr; } }
+section[aria-label="导师与课题组"] .mentor-detail-action { padding:4px 0; background:transparent; color:#12665c; text-decoration:underline; font-weight:500; }
+.mentor-fact-summary { margin:8px 0 16px; font-weight:600; }
+.mentor-missing { margin:20px 0; padding:12px 16px; background:#eaf0ed; border-left:3px solid #b8ccc4; }
+.mentor-missing p { margin:0; }

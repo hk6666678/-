@@ -15,6 +15,36 @@ from aqp.authorization import allowed, student_allowed
 from aqp.store import connection
 
 
+def current_participant(
+    db: sqlite3.Connection,
+    actor: int,
+    category: str,
+    operation: str,
+    participant: dict[str, Any],
+) -> tuple[bool, sqlite3.Row | None]:
+    """The shared current-view boundary for output listings and relation facts."""
+    student = db.execute(
+        "SELECT id,college,major,name FROM students WHERE student_number=? AND active=1",
+        (participant["student_number"],),
+    ).fetchone()
+    permitted = student_allowed(
+        db, actor, student["id"] if student else None
+    ) and allowed(
+        db, actor, category, operation, participant["college"], participant["major"]
+    )
+    if student:
+        permitted = (
+            permitted
+            and allowed(
+                db, actor, category, operation, student["college"], student["major"]
+            )
+            and all(
+                student[key] == participant[key] for key in ["college", "major", "name"]
+            )
+        )
+    return permitted, student
+
+
 def register_research_outputs(
     app: FastAPI,
     path: Path,
@@ -42,36 +72,10 @@ def register_research_outputs(
                 payload = json.loads(row["payload"])
                 participants = []
                 for participant in payload["participants"]:
-                    student = db.execute(
-                        "SELECT id,college,major,name FROM students WHERE student_number=? AND active=1",
-                        (participant["student_number"],),
-                    ).fetchone()
-                    if not student_allowed(
-                        db, user["id"], student["id"] if student else None
-                    ):
-                        continue
-                    if not allowed(
-                        db,
-                        user["id"],
-                        category,
-                        "view",
-                        participant["college"],
-                        participant["major"],
-                    ):
-                        continue
-                    if student and (
-                        not allowed(
-                            db,
-                            user["id"],
-                            category,
-                            "view",
-                            student["college"],
-                            student["major"],
-                        )
-                        or student["college"] != participant["college"]
-                        or student["major"] != participant["major"]
-                        or student["name"] != participant["name"]
-                    ):
+                    permitted, student = current_participant(
+                        db, user["id"], category, "view", participant
+                    )
+                    if not permitted:
                         continue
                     visible = dict(participant)
                     visible["association"] = "linked" if student else "pending"
