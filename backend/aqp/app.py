@@ -201,7 +201,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     register_original_downloads(app, path, current)
     from aqp.research_outputs import register_research_outputs
 
-    register_research_outputs(app, path, current)
+    for output_category in ("research_papers", "patents", "awards", "conferences"):
+        register_research_outputs(app, path, current, output_category)
     frontend = Path(__file__).resolve().parents[2] / "frontend" / "dist"
     if frontend.is_dir():
         app.mount("/", StaticFiles(directory=frontend, html=True), name="frontend")

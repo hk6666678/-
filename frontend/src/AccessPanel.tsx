@@ -23,6 +23,7 @@ const categories: Record<string, string> = {
   midterm: "中期",
   papers: "论文",
   research_papers: "已发表科研论文",
+  patents:"专利", awards:"获奖项目", conferences:"会议",
 };
 const operations: Record<string, string> = {
   maintain: "维护",
