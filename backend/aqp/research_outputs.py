@@ -104,6 +104,54 @@ def register_research_outputs(
                 "distinct_outputs": 0 if voided else len(items),
             }
 
+    @app.get(f"/api/{endpoint}/statistics")
+    def statistics(request: Request) -> dict[str, Any]:
+        result = listing(request)
+        years: dict[str, dict[str, int]] = {}
+        latest = []
+        missing_citations = 0
+        with connection(path) as db:
+            current(db, request)
+            for item in result["items"]:
+                details = item["details"]
+                raw = details.get(
+                    {
+                        "patents": "申请日期",
+                        "awards": "获奖年份",
+                        "conferences": "会议日期",
+                    }.get(category, "发表年份"),
+                    "",
+                )
+                year = (
+                    str(raw)[:4]
+                    if re.fullmatch(r"\d{4}(?:-\d{2}-\d{2})?", str(raw))
+                    else "年份缺失"
+                )
+                bucket = years.setdefault(
+                    year, {"distinct_outputs": 0, "personal_participations": 0}
+                )
+                bucket["distinct_outputs"] += 1
+                bucket["personal_participations"] += len(item["participants"])
+                if category == "research_papers":
+                    citation = db.execute(
+                        "SELECT snapshot_date,version,count FROM research_citations WHERE output_id=? ORDER BY snapshot_date DESC,version DESC LIMIT 1",
+                        (item["id"],),
+                    ).fetchone()
+                    if citation:
+                        latest.append({"output_id": item["id"], **dict(citation)})
+                    else:
+                        missing_citations += 1
+        return {
+            "years": [
+                {"year": year, **values} for year, values in sorted(years.items())
+            ],
+            "distinct_outputs": result["distinct_outputs"],
+            "personal_participations": result["personal_participations"],
+            "latest_citations": latest,
+            "missing_citations": missing_citations,
+            "basis": "当前授权参与范围；成果去重，个人参与按人次；引用取各成果最新日期的最新版本，不同快照日期不合并为同日总数",
+        }
+
     @app.get(f"/api/{endpoint}/template")
     def template(request: Request) -> Response:
         from io import BytesIO
@@ -185,92 +233,247 @@ def register_research_outputs(
             ):
                 raise HTTPException(403, "缺少参与者当前学院维护范围")
 
-    @app.get(f"/api/{endpoint}/{{output_id}}/citations")
-    def citations(output_id: int, request: Request) -> dict[str, Any]:
-        if category != "research_papers":
-            raise HTTPException(404, "仅科研论文支持引用快照")
-        with connection(path) as db:
-            actor, _ = current(db, request)
-            visible = listing(request)["items"]
-            if not any(item["id"] == output_id for item in visible):
-                raise HTTPException(404, "成果不存在或不可查看")
-            output = db.execute(
-                "SELECT payload FROM research_outputs WHERE id=?", (output_id,)
-            ).fetchone()
-            assert output is not None
-            identity = True
-            for participant in json.loads(output["payload"])["participants"]:
-                student = db.execute(
-                    "SELECT id,college,major FROM students WHERE student_number=? AND active=1",
-                    (participant["student_number"],),
-                ).fetchone()
-                if not student_allowed(
-                    db, actor["id"], student["id"] if student else None
-                ) or not allowed(
-                    db,
-                    actor["id"],
-                    category,
-                    "identity",
-                    participant["college"],
-                    participant["major"],
-                ):
-                    identity = False
-                if student and not allowed(
-                    db,
-                    actor["id"],
-                    category,
-                    "identity",
-                    student["college"],
-                    student["major"],
-                ):
-                    identity = False
-            items = [
-                dict(row)
-                for row in db.execute(
-                    "SELECT snapshot_date AS date,version,count,source_department,reason,created_at "
-                    "FROM research_citations WHERE output_id=? ORDER BY snapshot_date,version",
-                    (output_id,),
+    if category == "research_papers":
+
+        @app.get(f"/api/{endpoint}/citations/template")
+        def citation_template(request: Request) -> Response:
+            from io import BytesIO
+
+            from openpyxl import Workbook
+
+            with connection(path) as db:
+                current(db, request)
+            wb = Workbook()
+            assert wb.active is not None
+            wb.active.append(["AQP-PGS", "research_citations", "1"])
+            wb.active.append(
+                ["业务编号/DOI", "引用日期 YYYY-MM-DD", "引用数量", "来源部门"]
+            )
+            stream = BytesIO()
+            wb.save(stream)
+            return Response(
+                stream.getvalue(),
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={
+                    "Content-Disposition": "attachment; filename=citations-v1.xlsx"
+                },
+            )
+
+        @app.post(f"/api/{endpoint}/citations/preview")
+        async def citation_preview(
+            request: Request, file: Annotated[UploadFile, File()]
+        ) -> dict[str, Any]:
+            from io import BytesIO
+            from uuid import uuid4
+
+            from openpyxl import load_workbook
+
+            raw = await file.read(8_000_001)
+            if len(raw) > 8_000_000:
+                raise HTTPException(422, "文件过大")
+            try:
+                wb = load_workbook(BytesIO(raw), read_only=True, data_only=True)
+                assert wb.active is not None
+                rows = iter(wb.active.values)
+                if tuple(next(rows))[:3] != ("AQP-PGS", "research_citations", "1"):
+                    raise ValueError()
+                next(rows)
+            except (ValueError, BadZipFile, StopIteration):
+                raise HTTPException(422, "引用模板无效") from None
+            items, errors = [], []
+            with connection(path) as db:
+                db.execute("BEGIN IMMEDIATE")
+                actor, _ = current(db, request)
+                seen = set()
+                for number, row in enumerate(rows, 3):
+                    if not any(value is not None for value in row):
+                        continue
+                    values = list(row) + [None] * 4
+                    key, day, count, source = values[:4]
+                    output = db.execute(
+                        "SELECT id FROM research_outputs WHERE business_key=? AND active=1",
+                        (str(key),),
+                    ).fetchone()
+                    body = {"date": day, "count": count, "source_department": source}
+                    if not output or (key, str(day)) in seen:
+                        errors.append(
+                            {"row": number, "message": "成果不存在或文件内同日重复"}
+                        )
+                        continue
+                    seen.add((key, str(day)))
+                    old = db.execute(
+                        "SELECT version,count FROM research_citations WHERE output_id=? AND snapshot_date=? ORDER BY version DESC LIMIT 1",
+                        (output["id"], str(day)),
+                    ).fetchone()
+                    body.update(
+                        expected_version=old["version"] if old else 0,
+                        confirmed=True,
+                        reason="模板预览验证",
+                    )
+                    db.execute("SAVEPOINT citation_preview")
+                    try:
+                        result = append_citation(db, actor["id"], output["id"], body)
+                        items.append(
+                            {
+                                "output_id": output["id"],
+                                "business_key": key,
+                                "body": body,
+                                "status": result["status"],
+                            }
+                        )
+                    except HTTPException as error:
+                        errors.append({"row": number, "message": str(error.detail)})
+                    finally:
+                        db.execute("ROLLBACK TO citation_preview")
+                        db.execute("RELEASE citation_preview")
+                identifier = str(uuid4())
+                db.execute(
+                    "INSERT INTO research_output_previews(id,actor_id,payload) VALUES (?,?,?)",
+                    (
+                        identifier,
+                        actor["id"],
+                        json.dumps({"citation_items": items, "errors": errors}),
+                    ),
                 )
-            ]
-            if not identity:
+                return {"id": identifier, "items": items, "errors": errors}
+
+        @app.post(f"/api/{endpoint}/citations/previews/{{identifier}}/confirm")
+        def citation_confirm(
+            identifier: str, request: Request, body: Annotated[dict[str, Any], Body()]
+        ) -> dict[str, Any]:
+            with connection(path) as db:
+                db.execute("BEGIN IMMEDIATE")
+                actor, _ = current(db, request)
+                batch = db.execute(
+                    "SELECT * FROM research_output_previews WHERE id=? AND actor_id=?",
+                    (identifier, actor["id"]),
+                ).fetchone()
+                if not batch:
+                    raise HTTPException(404, "预览不存在")
+                saved = json.loads(batch["payload"])
+                if "citation_items" not in saved or saved["errors"]:
+                    raise HTTPException(409, "请先修正错误行")
+                if batch["confirmed"]:
+                    return {"status": "already_confirmed"}
+                results = []
+                for item in saved["citation_items"]:
+                    snapshot = dict(item["body"])
+                    snapshot["confirmed"] = body.get("accept_changes") is True
+                    snapshot["reason"] = body.get("reason", "")
+                    latest = db.execute(
+                        "SELECT version FROM research_citations WHERE output_id=? AND snapshot_date=? ORDER BY version DESC LIMIT 1",
+                        (item["output_id"], snapshot["date"]),
+                    ).fetchone()
+                    if (latest["version"] if latest else 0) != snapshot[
+                        "expected_version"
+                    ]:
+                        raise HTTPException(409, "引用数据已变化，请重新预览")
+                    results.append(
+                        append_citation(db, actor["id"], item["output_id"], snapshot)
+                    )
+                db.execute(
+                    "UPDATE research_output_previews SET confirmed=1 WHERE id=?",
+                    (identifier,),
+                )
+                return {"items": results}
+
+        @app.get(f"/api/{endpoint}/{{output_id}}/citations")
+        def citations(output_id: int, request: Request) -> dict[str, Any]:
+            if category != "research_papers":
+                raise HTTPException(404, "仅科研论文支持引用快照")
+            with connection(path) as db:
+                actor, _ = current(db, request)
+                visible = listing(request)["items"]
+                if not any(item["id"] == output_id for item in visible):
+                    raise HTTPException(404, "成果不存在或不可查看")
+                output = db.execute(
+                    "SELECT payload FROM research_outputs WHERE id=?", (output_id,)
+                ).fetchone()
+                assert output is not None
+                identity = True
+                for participant in json.loads(output["payload"])["participants"]:
+                    student = db.execute(
+                        "SELECT id,college,major FROM students WHERE student_number=? AND active=1",
+                        (participant["student_number"],),
+                    ).fetchone()
+                    if not student_allowed(
+                        db, actor["id"], student["id"] if student else None
+                    ) or not allowed(
+                        db,
+                        actor["id"],
+                        category,
+                        "identity",
+                        participant["college"],
+                        participant["major"],
+                    ):
+                        identity = False
+                    if student and not allowed(
+                        db,
+                        actor["id"],
+                        category,
+                        "identity",
+                        student["college"],
+                        student["major"],
+                    ):
+                        identity = False
+                items = [
+                    dict(row)
+                    for row in db.execute(
+                        "SELECT snapshot_date AS date,version,count,source_department,reason,created_at "
+                        "FROM research_citations WHERE output_id=? ORDER BY snapshot_date,version",
+                        (output_id,),
+                    )
+                ]
+                if not identity:
+                    for item in items:
+                        item.pop("source_department")
+                        item.pop("reason")
                 for item in items:
-                    item.pop("source_department")
-                    item.pop("reason")
-            return {"items": items, "data_version": len(items)}
+                    item["latest_snapshot"] = bool(
+                        items
+                        and item["date"] == items[-1]["date"]
+                        and item["version"] == items[-1]["version"]
+                    )
+                return {"items": items, "data_version": len(items)}
 
-    @app.post(f"/api/{endpoint}/{{output_id}}/citations")
-    def save_citation(
-        output_id: int, request: Request, body: Annotated[dict[str, Any], Body()]
-    ) -> dict[str, Any]:
-        from datetime import date
+        @app.post(f"/api/{endpoint}/{{output_id}}/citations")
+        def save_citation(
+            output_id: int, request: Request, body: Annotated[dict[str, Any], Body()]
+        ) -> dict[str, Any]:
+            with connection(path) as db:
+                db.execute("BEGIN IMMEDIATE")
+                actor, _ = current(db, request)
+                return append_citation(db, actor["id"], output_id, body)
 
-        if category != "research_papers":
-            raise HTTPException(404, "仅科研论文支持引用快照")
-        day = body.get("date")
-        count = body.get("count")
-        source = body.get("source_department")
-        if (
-            not isinstance(day, str)
-            or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day)
-            or type(count) is not int
-            or count < 0
-            or not isinstance(source, str)
-            or not source.strip()
-        ):
-            raise HTTPException(422, "需要标准日期、非负整数引用数及来源部门")
-        try:
-            date.fromisoformat(day)
-        except ValueError:
-            raise HTTPException(422, "日期无效") from None
-        with connection(path) as db:
-            db.execute("BEGIN IMMEDIATE")
-            actor, _ = current(db, request)
+        def append_citation(
+            db: sqlite3.Connection, actor: int, output_id: int, body: dict[str, Any]
+        ) -> dict[str, Any]:
+            from datetime import date
+
+            if category != "research_papers":
+                raise HTTPException(404, "仅科研论文支持引用快照")
+            day = body.get("date")
+            count = body.get("count")
+            source = body.get("source_department")
+            if (
+                not isinstance(day, str)
+                or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day)
+                or type(count) is not int
+                or count < 0
+                or not isinstance(source, str)
+                or not source.strip()
+            ):
+                raise HTTPException(422, "需要标准日期、非负整数引用数及来源部门")
+            try:
+                date.fromisoformat(day)
+            except ValueError:
+                raise HTTPException(422, "日期无效") from None
             output = db.execute(
                 "SELECT * FROM research_outputs WHERE id=? AND active=1", (output_id,)
             ).fetchone()
             if not output:
                 raise HTTPException(404, "成果不存在")
-            maintain(db, actor["id"], json.loads(output["payload"]))
+            maintain(db, actor, json.loads(output["payload"]))
             old = db.execute(
                 "SELECT * FROM research_citations WHERE output_id=? AND snapshot_date=? ORDER BY version DESC LIMIT 1",
                 (output_id, day),
@@ -294,13 +497,13 @@ def register_research_outputs(
                     version,
                     count,
                     source.strip(),
-                    actor["id"],
+                    actor,
                     reason if old else "",
                 ),
             )
             audit(
                 db,
-                actor["id"],
+                actor,
                 "research_citations.append",
                 str(output_id),
                 details={"date": day, "version": version},
