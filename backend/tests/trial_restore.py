@@ -7,6 +7,8 @@ All inputs are synthetic. No model acceptance is implied.
 
 import argparse
 import hashlib
+from io import BytesIO
+from openpyxl import load_workbook
 import json
 import os
 import socket
@@ -214,6 +216,22 @@ def run(manifest, output):
                 f"/api/analyses/{ident}" for ident in source["analysis_ids"].values()
             ]
             snapshots = {path: checked(client.get(path)) for path in paths}
+            exports = {}
+            if extension:
+                for path in extension["restore_paths"]:
+                    if path.startswith("/api/reports/"):
+                        export_path = (
+                            path.replace("?", "/export?", 1)
+                            if "?" in path
+                            else path + "/export"
+                        )
+                        response = client.get(export_path)
+                        assert response.status_code == 200, response.text
+                        book = load_workbook(BytesIO(response.content))
+                        exports[export_path] = {
+                            sheet.title: list(sheet.values) for sheet in book
+                        }
+
             pdf = client.get(f"/api/papers/{paper}/download")
             assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF-")
             pdf_hash = hashlib.sha256(pdf.content).hexdigest()
@@ -284,6 +302,22 @@ def run(manifest, output):
                         "path": path,
                         "source_sha256": digest(semantic(before)),
                         "restored_sha256": digest(semantic(response["body"])),
+                    }
+                )
+            for path, before in exports.items():
+                downloaded_excel = page.evaluate(
+                    "async path => {const r=await fetch(path); return {status:r.status, bytes:Array.from(new Uint8Array(await r.arrayBuffer()))}}",
+                    path,
+                )
+                assert downloaded_excel["status"] == 200
+                book = load_workbook(BytesIO(bytes(downloaded_excel["bytes"])))
+                after = {sheet.title: list(sheet.values) for sheet in book}
+                assert after == before, (path, before, after)
+                report["checks"].append(
+                    {
+                        "excel": path,
+                        "source_sha256": digest(before),
+                        "restored_sha256": digest(after),
                     }
                 )
             page.get_by_role("button", name="论文上传与解析", exact=True).click()

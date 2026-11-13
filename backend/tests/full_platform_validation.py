@@ -88,7 +88,11 @@ def run(manifest):
             checked(client.post(f"/api/imports/{batch['id']}/confirm", headers=headers))
             second = next(
                 item
-                for item in checked(client.get("/api/students?limit=200"))["items"]
+                for item in checked(
+                    client.get(
+                        f"/api/students?limit=200&offset={source['observed_counts']['students']}"
+                    )
+                )["items"]
                 if item.get("student_number") == "SYN-FULL10-B"
             )
             report["second_student_id"] = second["id"]
