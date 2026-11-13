@@ -5,7 +5,7 @@ import { MentorGroupPanel } from "./MentorGroupPanel";
 import { ResearchOutputs } from "./ResearchOutputs";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { RecordPanel } from "./RecordPanel";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
 import { AccessPanel } from "./AccessPanel";
@@ -90,6 +90,8 @@ function App() {
     [password, setPassword] = useState(""),
     [selected, setSelected] = useState<Role[]>(["college_analyst"]);
   const [page, setPage] = useState("overview");
+  const contentRef = useRef<HTMLElement>(null);
+  useEffect(() => { contentRef.current?.scrollTo(0, 0); }, [page]);
   useEffect(() => {
     const expired = () => {
       setSession(null);
@@ -314,7 +316,7 @@ function App() {
           数据驱动，依据可查
         </div>
       </aside>
-      <main className="content">
+      <main className="content" ref={contentRef}>
         <header>
           <div>
             <span className="eyebrow">研究生培养质量研究 / 工作平台</span>

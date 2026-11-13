@@ -176,7 +176,7 @@ function Growth({ snapshots }: { snapshots: SnapshotItem[] }) {
           ))}
         </svg>
       )}
-      <table>
+      <div className="table-wrap"><table>
         <thead>
           <tr>
             <th>快照</th>
@@ -193,7 +193,7 @@ function Growth({ snapshots }: { snapshots: SnapshotItem[] }) {
             </tr>
           ))}
         </tbody>
-      </table>
+      </table></div>
     </div>
   );
 }
@@ -263,7 +263,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
       <article className="card">
         <h3>规则版本</h3>
         <button onClick={() => void perform(load)}>读取当前授权规则</button>
-        <table>
+        <div className="table-wrap"><table>
           <thead>
             <tr>
               <th>选择</th>
@@ -298,7 +298,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       </article>
       <article className="card">
         <h3>新建不可覆盖的规则草稿</h3>
@@ -341,7 +341,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
             <input type="checkbox" name="revise" disabled={!rule} />
             基于选中规则创建下一版本
           </label>
-          <table>
+          <div className="table-wrap"><table>
             <thead>
               <tr>
                 <th>指标</th>
@@ -407,7 +407,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
           <button
             type="button"
             disabled={metrics.length >= 6}
@@ -616,7 +616,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
               />
             </div>
           </div>
-          <table>
+          <div className="table-wrap"><table>
             <thead>
               <tr>
                 <th>指标</th>
@@ -643,7 +643,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
           <details>
             <summary>数据版本摘要</summary>
             <code>{snapshot.data_digest}</code>

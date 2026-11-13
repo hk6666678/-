@@ -6,6 +6,7 @@ test("all navigation states and independent scroll", async ({ page }) => {
     .getByLabel("密码", { exact: true })
     .fill("Synthetic-password-123!");
   await page.getByRole("button", { name: "登录平台" }).click();
+  await page.screenshot({ path: "../artifacts/ui-polish/overview.png" });
   const nav = page.getByRole("navigation");
   await expect(nav).toBeVisible();
   for (const name of await nav.getByRole("button").allTextContents()) {
@@ -14,6 +15,8 @@ test("all navigation states and independent scroll", async ({ page }) => {
     await expect(button).toHaveAttribute("aria-current", "page");
     await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
   }
+  await nav.getByRole("button").last().hover();
+  expect(await nav.getByRole("button").last().evaluate(el => getComputedStyle(el).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
   await page.keyboard.press("Tab");
   await page.keyboard.press("Shift+Tab");
   await expect(nav.getByRole("button").last()).toBeFocused();
@@ -37,6 +40,7 @@ test("all navigation states and independent scroll", async ({ page }) => {
   expect(await page.locator("aside").boundingBox()).toEqual(before);
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
   await nav.getByRole("button", { name: "个人账号管理", exact: true }).click();
+  expect(await page.locator(".content").evaluate(el => el.scrollTop)).toBe(0);
   await expect(
     page.getByRole("heading", { name: "创建个人账号" }),
   ).toBeVisible();

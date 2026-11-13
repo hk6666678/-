@@ -208,4 +208,10 @@ test("three-level reports with charts drilldown and authorized export", async ({
     path: "../artifacts/full08-reports.png",
     fullPage: true,
   });
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await page.locator(".content").evaluate(el => el.scrollTo(0, 0));
+  await page.screenshot({ path: "../artifacts/ui-polish/reports-desktop.png" });
+  await page.setViewportSize({ width: 375, height: 812 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(375);
+  await page.screenshot({ path: "../artifacts/ui-polish/reports-mobile.png" });
 });

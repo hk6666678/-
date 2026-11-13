@@ -590,10 +590,8 @@ td button { padding: 7px 11px; }
   .brand { padding: 0; }
   .welcome { padding: 20px; }
   .card, fieldset { min-width: 0; }
-  .content { overflow-x: hidden; }
   .user-menu { gap: 10px; }
   input, select, textarea { min-width: 0; max-width: 100%; }
-  table { min-width: 540px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }

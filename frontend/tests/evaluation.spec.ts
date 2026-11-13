@@ -313,4 +313,15 @@ test("simulation rule, scoring, history, charts and authorized export", async ({
     .locator(".evaluation-charts")
     .evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").length);
   expect(columns).toBe(1);
+  await page.setViewportSize({ width: 1280, height: 1000 });
+  await page.locator(".content").evaluate(el => el.scrollTo(0, 0));
+  await page.screenshot({ path: "../artifacts/ui-polish/evaluation-desktop.png" });
+  await page.setViewportSize({ width: 375, height: 812 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(375);
+  const wideTable = page.locator(".table-wrap").first();
+  expect(await wideTable.evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true);
+  await wideTable.evaluate(el => { el.scrollLeft = el.scrollWidth; });
+  expect(await wideTable.evaluate(el => el.scrollLeft)).toBeGreaterThan(0);
+  await wideTable.evaluate(el => { el.scrollLeft = 0; });
+  await page.screenshot({ path: "../artifacts/ui-polish/evaluation-mobile.png" });
 });
