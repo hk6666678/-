@@ -349,6 +349,21 @@ def run(manifest):
                         "other_student_report": 403,
                     }
                 )
+            report["restore_grants"] = grants
+            report["restore_paths"] = [
+                "/api/research-outputs",
+                "/api/patents",
+                "/api/awards",
+                "/api/conferences",
+                "/api/external-assessments",
+                "/api/mentor-groups/directory/mentors",
+                "/api/mentor-groups/directory/groups",
+                "/api/mentor-groups/relations",
+                f"/api/evaluation-snapshots/{snapshot['id']}",
+                f"/api/reports/students/{student['id']}",
+                f"/api/reports/colleges?college={COLLEGE}&major={MAJOR}",
+                f"/api/reports/mentor-groups?as_of=2026-11-13&mentor_id={directories[0]}",
+            ]
             grant(client, headers, checked(client.get("/api/me"))["user"], original)
             assert (
                 client.get(f"/api/evaluation-snapshots/{snapshot['id']}").status_code

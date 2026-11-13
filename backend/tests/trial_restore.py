@@ -27,6 +27,15 @@ from trial_scale import COLLEGE, MAJOR, PASSWORD, checked, grant, login
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def semantic(value):
+    """Report generation time is ephemeral; preserve every other source field."""
+    return (
+        {k: v for k, v in value.items() if k != "generated_at"}
+        if isinstance(value, dict)
+        else value
+    )
+
+
 def digest(value):
     return hashlib.sha256(
         json.dumps(value, sort_keys=True, ensure_ascii=False).encode()
@@ -179,6 +188,28 @@ def run(manifest, output):
                 f"/api/candidate-results/{candidate['id']}",
                 f"/api/candidate-results/{candidate['id']}/reviews",
             ]
+            extension_path = manifest.with_name("full-platform-report.json")
+            extension = (
+                json.loads(extension_path.read_text(encoding="utf-8"))
+                if extension_path.exists()
+                else None
+            )
+            if extension:
+                assert extension["status"] == "passed"
+                grant(
+                    client,
+                    headers,
+                    checked(client.get("/api/me"))["user"],
+                    extension["restore_grants"]
+                    + [
+                        g
+                        for g in checked(client.get("/api/access/grants"))
+                        if g not in extension["restore_grants"]
+                    ],
+                )
+                listing = checked(client.get("/api/students?limit=200"))
+                paths += extension["restore_paths"]
+                report["full_platform_extension"] = str(extension_path)
             paths += [
                 f"/api/analyses/{ident}" for ident in source["analysis_ids"].values()
             ]
@@ -186,7 +217,9 @@ def run(manifest, output):
             pdf = client.get(f"/api/papers/{paper}/download")
             assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF-")
             pdf_hash = hashlib.sha256(pdf.content).hexdigest()
-            assert listing["total"] == source["observed_counts"]["students"]
+            assert listing["total"] == source["observed_counts"]["students"] + (
+                1 if extension else 0
+            )
             evidence = snapshots[f"/api/papers/{paper}/evidence"]
             assert evidence["version_id"] == paper
             pages = evidence["result"]["pages"]
@@ -243,12 +276,14 @@ def run(manifest, output):
                     path,
                 )
                 assert response["status"] == 200, (path, response)
-                assert response["body"] == before, f"restored content differs: {path}"
+                assert semantic(response["body"]) == semantic(before), (
+                    f"restored content differs: {path}"
+                )
                 report["checks"].append(
                     {
                         "path": path,
-                        "source_sha256": digest(before),
-                        "restored_sha256": digest(response["body"]),
+                        "source_sha256": digest(semantic(before)),
+                        "restored_sha256": digest(semantic(response["body"])),
                     }
                 )
             page.get_by_role("button", name="论文上传与解析", exact=True).click()
