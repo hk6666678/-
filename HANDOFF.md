@@ -1,4 +1,15 @@
-## 2026-11-13 任务10最终模拟检查点（最新，待根复审合并）
+## 2026-11-13 任务10根最终集成检查点（最新，仅本地）
+
+- 交接时间：2026-11-13 Asia/Shanghai；阶段收口。根D:/AQP-PGS，integration/aqp-trial；源codex/full-10@6e723e0235205eb84180ba71a7fb557facf412bd，无冲突合并1479b0eb2975300413293b926aae78b3feb01534；文档最终HEAD以git log -1核实。
+- 官方额度本次单次读数短周期剩66%、周剩26%，非实时监控；仅本地未push。
+- 任务矩阵：01–09逐项核实resolved且已集成；10本次tracked工单resolved且已集成。两轴最终独立review可合；启动环境guard及三个导出HTTP200/Excel解析已修。实现完成、模拟验证通过；真实业务验收仍待。
+- 最终集成1479b0e唯一一轮全pytest145 passed（133.75秒，包含报告/Agent/evaluation）；mypy31、Ruff、TS/Vite build通过；Chrome23/23 passed（46.7秒，端口8059）。不宣称两轮全绿。
+- 最终源码小样本及全量基线克隆扩展各15项、恢复各25项已由writer实际验证；复用1000/30000/各2000/100论文基线，未重导。语义/附件/PDF哈希、旧会话401、独立权限矩阵详见FULL10-CHECKPOINT.md。
+- 进程与数据：本次pytest/build/Chrome/webServer均退出，8059无监听，PID30484/39056不存在；writer工具服务已收取。仅隔离合成数据，无真实data修改及模型外发。
+- 全部历史工作树保留，git worktree list可核实；git branch --no-merged HEAD为空，full10与P1均已合。未知未跟踪两张.scratch/*void-history.png及artifacts/保留不提交。根起始tracked clean，仅还原本轮Chrome生成两张assessment截图，源码clean。
+- 决策沿用当前权限现算、导师显式绑定、来源版本追溯、独立导出授权、模拟规则不作正式人才识别；保留GLM和失败历史，旧claimed/WIP状态由本节取代。
+- 下一步及诚实性声明：01–10已确认模拟范围完成，不代表原案全部完成。训练、因果反事实、外网抓取、PDF/Word排版、正式部署为后续；真实学校数据、专家正式规则/权重、获准模型效果及真实业务验收待输入。由用户选择后续方向。
+## 2026-11-13 任务10最终模拟检查点（历史，合并前）
 
 full10已合入integration@910be3d来源授权P1修复，当前分支HEAD以git log -1核实；本轮仅本地未push。任务10完成已确认模拟范围，实现完成/模拟验证通过，不等于真实业务验收。最终small/full隔离扩展各15项、CLI恢复与独立Chrome各25项通过，完整路径、环境、耗时、失败历史和AC见FULL10-CHECKPOINT.md。基线1000学生/30000课程/各2000阶段/100论文沿用；扩展新增B学院1学生、四成果/共同专利、引用、盲审答辩2、关系1、模拟评分1。旧评分stale、身份/export/download独立撤权、导师兼任绑定矩阵、默认Agent503通过。附件及PDF字节hash、三级JSON/Excel语义hash一致，Chrome157.0.8103.39。Ruff通过，根910be3d回归145pytest/mypy31/Chrome23/build已过，最终合并回归由根负责。
 
