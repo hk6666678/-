@@ -173,6 +173,9 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     paper_access, comparison_snapshot, comparison_history = register_comparisons(
         app, path, current
     )
+    from aqp.evaluation import register_evaluation
+
+    register_evaluation(app, path, current)
     from aqp.candidates import register_candidates
 
     candidate_access = register_candidates(

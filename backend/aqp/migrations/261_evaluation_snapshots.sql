@@ -1,0 +1,1 @@
+CREATE TABLE IF NOT EXISTS evaluation_snapshots (id INTEGER PRIMARY KEY, student_id INTEGER NOT NULL REFERENCES students(id), rule_id INTEGER NOT NULL REFERENCES evaluation_rules(id), result TEXT NOT NULL, data_digest TEXT NOT NULL, created_by INTEGER NOT NULL REFERENCES users(id), created_at INTEGER NOT NULL);
