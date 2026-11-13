@@ -161,6 +161,9 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     from aqp.mentor_groups import register_mentor_groups
 
     register_mentor_groups(app, path, current)
+    from aqp.reports import register_reports
+
+    register_reports(app, path, current)
 
     from aqp.model_connection import register_model_connection
 

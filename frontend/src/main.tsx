@@ -1,4 +1,5 @@
 import { EvaluationPanel } from "./EvaluationPanel";
+import { ReportsPanel } from "./ReportsPanel";
 import { AssessmentPanel } from "./AssessmentPanel";
 import { MentorGroupPanel } from "./MentorGroupPanel";
 import { ResearchOutputs } from "./ResearchOutputs";
@@ -269,6 +270,7 @@ function App() {
               label: "研究分析",
               items: [
                 ["evaluation", "人才指标模拟评价"],
+                ["reports", "三级报告"],
                 ["analysis", "课程统计与通过规则"],
                 ["papers", "论文上传与解析"],
                 ["research_outputs", "已发表科研论文"],
@@ -331,6 +333,7 @@ function App() {
                   patents:"专利", awards:"获奖项目", conferences:"会议",
                   agent: "Agent 查询",
                   evaluation: "人才指标模拟评价",
+                  reports: "三级报告",
                   analysis: "课程统计与通过规则",
                   courses: "课程导入与待关联",
                   students: "基础导入与学生档案",
@@ -386,6 +389,8 @@ function App() {
           <AgentPanel csrf={session.csrf_token} />
         ) : page === "evaluation" ? (
           <EvaluationPanel csrf={session.csrf_token} />
+        ) : page === "reports" ? (
+          <ReportsPanel csrf={session.csrf_token} />
         ) : page === "analysis" ? (
           <AnalysisPanel csrf={session.csrf_token} />
         ) : page === "courses" ? (

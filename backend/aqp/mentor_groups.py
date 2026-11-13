@@ -85,6 +85,112 @@ def relation_allowed(
     )
 
 
+def group_facts(
+    db: sqlite3.Connection,
+    actor: int,
+    as_of: str,
+    mentor_id: int | None = None,
+    group_id: int | None = None,
+) -> dict[str, Any]:
+    """Current-authority group facts for an as-of date; shared by the
+    mentor-group panel and the three-level reports."""
+    students: dict[int, sqlite3.Row] = {}
+    relation_ids = []
+    for row in db.execute("SELECT * FROM mentor_group_relations ORDER BY id"):
+        if (mentor_id is not None and mentor_id != row["mentor_id"]) or (
+            group_id is not None and group_id != row["group_id"]
+        ):
+            continue
+        if not (row["start_date"] <= as_of <= (row["end_date"] or "9999-12-31")):
+            continue
+        if not relation_allowed(
+            db, actor, "view", row
+        ) or not relation_allowed(db, actor, "analyze", row):
+            continue
+        student = db.execute(
+            "SELECT * FROM students WHERE id=? AND active=1", (row["student_id"],)
+        ).fetchone()
+        assert student is not None
+        students[student["id"]] = student
+        relation_ids.append(row["id"])
+    categories = {}
+    for category, table in [
+        ("research_papers", "research"),
+        ("patents", "patents"),
+        ("awards", "awards"),
+        ("conferences", "conferences"),
+    ]:
+        participants: set[int] = set()
+        outputs = []
+        for output in db.execute(f"SELECT * FROM {table}_outputs WHERE active=1"):
+            payload = json.loads(output["payload"])
+            output_students: set[int] = set()
+            for participant in payload["participants"]:
+                viewable, student = current_participant(
+                    db, actor, category, "view", participant
+                )
+                analyzable, _ = current_participant(
+                    db, actor, category, "analyze", participant
+                )
+                if (
+                    viewable
+                    and analyzable
+                    and student is not None
+                    and student["id"] in students
+                ):
+                    output_students.add(student["id"])
+            if output_students:
+                participants.update(output_students)
+                raw = payload.get("details", {}).get(
+                    {
+                        "patents": "申请日期",
+                        "awards": "获奖年份",
+                        "conferences": "会议日期",
+                    }.get(category, "发表年份")
+                ) or payload.get(
+                    {
+                        "patents": "申请日期",
+                        "awards": "获奖年份",
+                        "conferences": "会议日期",
+                    }.get(category, "发表年份"),
+                    "",
+                )
+                outputs.append(
+                    {
+                        "id": output["id"],
+                        "version": output["version"],
+                        "business_key": output["business_key"],
+                        "title": payload["title"],
+                        "year": (
+                            str(raw)[:4]
+                            if re.fullmatch(r"\d{4}(?:-\d{2}-\d{2})?", str(raw))
+                            else None
+                        ),
+                        "participant_count": len(output_students),
+                    }
+                )
+        categories[category] = {
+            "student_count": len(participants),
+            "distinct_outputs": len(outputs),
+            "items": outputs,
+        }
+    return {
+        "as_of": as_of,
+        "student_count": len(students),
+        "relation_ids": relation_ids,
+        "categories": categories,
+        "graduation": {
+            "status": "missing",
+            "reason": "缺少已确认的毕业口径与完整毕业事实",
+        },
+        "delay": {
+            "status": "missing",
+            "reason": "缺少应毕业日期与已确认的延期口径",
+        },
+        "basis": "指定日期有效关系；学生按当前授权去重；成果按当前有效业务记录去重，参与者须匹配当前学生身份与院系专业并具有对应查看及分析权限。关系日期不代表成果发生日期，不作优劣排名。",
+    }
+
+
 def register_mentor_groups(
     app: FastAPI, path: Path, current: Callable[..., Any]
 ) -> None:
@@ -327,89 +433,9 @@ def register_mentor_groups(
     ) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
-            students: dict[int, sqlite3.Row] = {}
-            relation_ids = []
-            for row in db.execute("SELECT * FROM mentor_group_relations ORDER BY id"):
-                if (mentor_id is not None and mentor_id != row["mentor_id"]) or (
-                    group_id is not None and group_id != row["group_id"]
-                ):
-                    continue
-                if not (
-                    row["start_date"]
-                    <= as_of.isoformat()
-                    <= (row["end_date"] or "9999-12-31")
-                ):
-                    continue
-                if not relation_allowed(
-                    db, actor["id"], "view", row
-                ) or not relation_allowed(db, actor["id"], "analyze", row):
-                    continue
-                student = db.execute(
-                    "SELECT * FROM students WHERE id=? AND active=1",
-                    (row["student_id"],),
-                ).fetchone()
-                assert student is not None
-                students[student["id"]] = student
-                relation_ids.append(row["id"])
-            categories = {}
-            for category, table in [
-                ("research_papers", "research"),
-                ("patents", "patents"),
-                ("awards", "awards"),
-                ("conferences", "conferences"),
-            ]:
-                participants: set[int] = set()
-                outputs = []
-                for output in db.execute(
-                    f"SELECT * FROM {table}_outputs WHERE active=1"
-                ):
-                    payload = json.loads(output["payload"])
-                    output_students: set[int] = set()
-                    for participant in payload["participants"]:
-                        viewable, student = current_participant(
-                            db, actor["id"], category, "view", participant
-                        )
-                        analyzable, _ = current_participant(
-                            db, actor["id"], category, "analyze", participant
-                        )
-                        if (
-                            viewable
-                            and analyzable
-                            and student is not None
-                            and student["id"] in students
-                        ):
-                            output_students.add(student["id"])
-                    if output_students:
-                        participants.update(output_students)
-                        outputs.append(
-                            {
-                                "id": output["id"],
-                                "version": output["version"],
-                                "business_key": output["business_key"],
-                                "title": payload["title"],
-                                "participant_count": len(output_students),
-                            }
-                        )
-                categories[category] = {
-                    "student_count": len(participants),
-                    "distinct_outputs": len(outputs),
-                    "items": outputs,
-                }
-            return {
-                "as_of": as_of.isoformat(),
-                "student_count": len(students),
-                "relation_ids": relation_ids,
-                "categories": categories,
-                "graduation": {
-                    "status": "missing",
-                    "reason": "缺少已确认的毕业口径与完整毕业事实",
-                },
-                "delay": {
-                    "status": "missing",
-                    "reason": "缺少应毕业日期与已确认的延期口径",
-                },
-                "basis": "指定日期有效关系；学生按当前授权去重；成果按当前有效业务记录去重，参与者须匹配当前学生身份与院系专业并具有对应查看及分析权限。关系日期不代表成果发生日期，不作优劣排名。",
-            }
+            return group_facts(
+                db, actor["id"], as_of.isoformat(), mentor_id, group_id
+            )
 
     @app.put("/api/mentor-groups/directory/{kind}/{entry_id}")
     def update_entry(
