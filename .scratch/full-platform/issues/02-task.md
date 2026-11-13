@@ -16,3 +16,5 @@
 ## Answer
 已合integration 16fe56e（源2e6ea6d），科研导入、更正、历史、作废、scope/identity/mentor授权闭环完成。根110 pytest、mypy27、Ruff、build及科研Chrome通过。全e2e现有限制：18/19，students共享样例重复顺序依赖，单跑通过；真实学校业务待验。引用快照归04。仅本地保存。
 
+
+集成补验：经授权隔离students测试专属合成样例后，全Chrome e2e 19/19通过；此前顺序依赖已解除。生产逻辑未改。

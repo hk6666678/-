@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { test, expect } from "@playwright/test";
 test("basic Excel preview then confirmed archive", async ({ page }) => {
   await page.goto("/");
@@ -33,7 +34,17 @@ test("basic Excel preview then confirmed archive", async ({ page }) => {
     name: "synthetic-basic.xlsx",
     mimeType:
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    buffer: await template.body(),
+    buffer: execFileSync(
+      "../.venv/Scripts/python.exe",
+      [
+        "-c",
+        "import sys,io;from openpyxl import load_workbook;w=load_workbook(io.BytesIO(sys.stdin.buffer.read()));w.active.cell(3,1,'SYN-STUDENTS-ARCHIVE-ONLY');w.active.cell(3,2,'档案专项合成学生');o=io.BytesIO();w.save(o);sys.stdout.buffer.write(o.getvalue())",
+      ],
+      {
+        input: await template.body(),
+        env: { ...process.env, PYTHONUTF8: "1" },
+      },
+    ),
   });
   await page.getByRole("button", { name: "上传并预览" }).click();
   await expect(page.getByText("ready: 1 / invalid: 1")).toBeVisible();
