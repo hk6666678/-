@@ -15,16 +15,27 @@ import sys
 import threading
 import time
 from contextlib import contextmanager
+from io import BytesIO
 from pathlib import Path
 from uuid import uuid4
 
 import httpx
 import uvicorn
 from aqp.app import create_app
+from openpyxl import load_workbook
 from playwright.sync_api import expect, sync_playwright
 from trial_scale import COLLEGE, MAJOR, PASSWORD, checked, grant, login
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def semantic(value):
+    """Report generation time is ephemeral; preserve every other source field."""
+    return (
+        {k: v for k, v in value.items() if k != "generated_at"}
+        if isinstance(value, dict)
+        else value
+    )
 
 
 def digest(value):
@@ -179,14 +190,57 @@ def run(manifest, output):
                 f"/api/candidate-results/{candidate['id']}",
                 f"/api/candidate-results/{candidate['id']}/reviews",
             ]
+            extension_path = manifest.with_name("full-platform-report.json")
+            extension = (
+                json.loads(extension_path.read_text(encoding="utf-8"))
+                if extension_path.exists()
+                else None
+            )
+            if extension:
+                assert extension["status"] == "passed"
+                grant(
+                    client,
+                    headers,
+                    checked(client.get("/api/me"))["user"],
+                    extension["restore_grants"]
+                    + [
+                        g
+                        for g in checked(client.get("/api/access/grants"))
+                        if g not in extension["restore_grants"]
+                    ],
+                )
+                listing = checked(client.get("/api/students?limit=200"))
+                paths += extension["restore_paths"]
+                report["full_platform_extension"] = str(extension_path)
             paths += [
                 f"/api/analyses/{ident}" for ident in source["analysis_ids"].values()
             ]
             snapshots = {path: checked(client.get(path)) for path in paths}
+            exports = {}
+            if extension:
+                for path in extension["restore_paths"]:
+                    if path.startswith("/api/reports/"):
+                        export_path = (
+                            path.replace("?", "/export?", 1)
+                            if "?" in path
+                            else path + "/export"
+                        )
+                        response = client.get(export_path)
+                        assert response.status_code == 200, response.text
+                        book = load_workbook(BytesIO(response.content))
+                        exports[export_path] = {
+                            sheet.title: [
+                                row for row in sheet.values if row[0] != "generated_at"
+                            ]
+                            for sheet in book
+                        }
+
             pdf = client.get(f"/api/papers/{paper}/download")
             assert pdf.status_code == 200 and pdf.content.startswith(b"%PDF-")
             pdf_hash = hashlib.sha256(pdf.content).hexdigest()
-            assert listing["total"] == source["observed_counts"]["students"]
+            assert listing["total"] == source["observed_counts"]["students"] + (
+                1 if extension else 0
+            )
             evidence = snapshots[f"/api/papers/{paper}/evidence"]
             assert evidence["version_id"] == paper
             pages = evidence["result"]["pages"]
@@ -207,6 +261,18 @@ def run(manifest, output):
         report["restore"] = maintenance(
             "restore", "--archive", output / "backup.zip", "--target", target
         )
+        if extension:
+            hashes = {
+                str(p.relative_to(target / "attachments")): hashlib.sha256(
+                    p.read_bytes()
+                ).hexdigest()
+                for p in (target / "attachments").rglob("*")
+                if p.is_file()
+            }
+            assert hashes == extension["source_attachment_sha256"], (
+                "restored source attachment hashes differ"
+            )
+            report["source_attachment_sha256"] = hashes
         with serving(target / "aqp.sqlite3") as url, sync_playwright() as pw:
             browser = pw.chromium.launch(channel="chrome", headless=True)
             context = browser.new_context()
@@ -216,6 +282,7 @@ def run(manifest, output):
                     for key, value in old_cookies.items()
                 ]
             )
+            report["chrome_version"] = browser.version
             page = context.new_page()
             page.goto(url)
             old = page.evaluate("async () => (await fetch('/api/me')).status")
@@ -243,12 +310,35 @@ def run(manifest, output):
                     path,
                 )
                 assert response["status"] == 200, (path, response)
-                assert response["body"] == before, f"restored content differs: {path}"
+                assert semantic(response["body"]) == semantic(before), (
+                    f"restored content differs: {path}"
+                )
                 report["checks"].append(
                     {
                         "path": path,
+                        "source_sha256": digest(semantic(before)),
+                        "restored_sha256": digest(semantic(response["body"])),
+                    }
+                )
+            for path, before in exports.items():
+                downloaded_excel = page.evaluate(
+                    "async path => {const r=await fetch(path); return {status:r.status, bytes:Array.from(new Uint8Array(await r.arrayBuffer()))}}",
+                    path,
+                )
+                assert downloaded_excel["status"] == 200
+                book = load_workbook(BytesIO(bytes(downloaded_excel["bytes"])))
+                after = {
+                    sheet.title: [
+                        row for row in sheet.values if row[0] != "generated_at"
+                    ]
+                    for sheet in book
+                }
+                assert after == before, (path, before, after)
+                report["checks"].append(
+                    {
+                        "excel": path,
                         "source_sha256": digest(before),
-                        "restored_sha256": digest(response["body"]),
+                        "restored_sha256": digest(after),
                     }
                 )
             page.get_by_role("button", name="论文上传与解析", exact=True).click()
