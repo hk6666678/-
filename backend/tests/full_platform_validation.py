@@ -20,6 +20,8 @@ from trial_scale import COLLEGE, MAJOR, PASSWORD, checked, grant, login
 
 
 def run(manifest, output):
+    if os.environ.get("AQP_ATTACHMENTS"):
+        raise RuntimeError("Unset AQP_ATTACHMENTS before synthetic validation")
     # Snapshot a stopped baseline into a new isolated directory; reruns never mutate it.
     baseline = json.loads(manifest.read_text(encoding="utf-8"))
     assert baseline["synthetic"] and baseline["server_stopped"]
@@ -336,14 +338,20 @@ def run(manifest, output):
                     assert (
                         result["sections"]["mentor_groups"]["active_relations"] == 1
                     ), result
+                export_path = (
+                    path.replace("?", "/export?", 1)
+                    if "?" in path
+                    else path + "/export"
+                )
+                export = client.get(export_path)
+                assert export.status_code == 200, (export_path, export.text)
+                book = load_workbook(BytesIO(export.content))
+                assert book.sheetnames and book.active.max_row > 1
                 report["checks"].append(
                     {
                         "report": path,
-                        "export_status": client.get(
-                            path.replace("?", "/export?", 1)
-                            if "?" in path
-                            else path + "/export"
-                        ).status_code,
+                        "export_status": 200,
+                        "export_rows": book.active.max_row,
                     }
                 )
             # Change the scored source to a cross-college shared patent: same business key, two participants.

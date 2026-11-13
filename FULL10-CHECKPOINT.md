@@ -1,3 +1,18 @@
+# Final source-fix verification (2026-11-13)
+
+已确认模拟完整版范围验证完成，待根最终独立复审和合并。已合入 integration 910be3d 的来源授权 P1 修复；下列最终验证取代下方历史 WIP 状态。真实业务验收仍待输入。
+
+- 最终小样本扩展：data/full10-final-small/full-platform-report.json，passed，2.021s，15项记录；恢复 data/full10-final-small-restored/report.json，passed，2.881s，25项记录。
+- 最终全量基线克隆扩展：data/full10-final-scale/full-platform-report.json，passed，1.807s，15项记录；恢复 data/full10-final-scale-restored/report.json，passed，28.942s，25项记录。复用既有干净1000/30000/2000/2000/100基线，未重导。新增合成量见历史章节，时长为本机观察不是性能承诺。
+- Chrome 157.0.8103.39；OS/CPU/Python见扩展JSON，完整HTTP/sqlite环境见基线JSON。全部附件文件hash和PDF原件hash一致；三级Excel按表名与单元格内容比较，仅排除生成时间行；JSON仅排除顶层generated_at。
+- 独立工具审查两项已修：启动先拒非空AQP_ATTACHMENTS，公开CLI修前return0且生成输出，修后在读取不存在manifest之前拒绝、无输出目录/服务；三个报表导出都断言200并openpyxl解析非空，不再仅记录状态。
+- 默认Agent真实HTTP503，未启用模型；独立identity/export/download、A/B、导师兼任管理员绑定/撤绑矩阵通过。来源P1另有根145pytest/19专项与独立审查证据；本工具最终恢复覆盖修复后评分/报告摘要。
+- Ruff通过；根910be3d已145pytest/mypy31/Chrome23/build验证，合并后最终全回归由根merger执行。所有本工具HTTP/Chrome服务已结束；无真实data修改，无push。
+
+任务10四条AC的模拟范围均有公开HTTP、版本来源、权限、浏览器和静态/回归证据；原案外网抓取、训练、因果反事实、PDFWord排版、真实专家模型及正式部署验收不在本轮完成声明。下方保留失败历史与当时缺口，不覆盖最终状态。
+
+---
+
 # Full10 simulation acceptance checkpoint
 
 Status: WIP, pending source-authority P1 integration and final rerun/review. Synthetic evidence only; not real business acceptance. Local commits only, no push.
