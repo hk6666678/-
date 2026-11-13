@@ -1,5 +1,17 @@
 # 集成检查点（2026-11-13）
 
+## 2026-11-13 接续GLM：任务10进行中（本节最新，仅本地）
+
+已读取HANDOFF及docs/agents/handoff-template.md，保留GLM全部07–09成果和历史工作树，不reset或覆盖。根integration/aqp-trial基线c97e354（模板提交），已有24个本地提交未push。root实际复验145pytest（128.20秒）、mypy31、Ruff、build、全Chrome23/23（42.5秒）通过；这不代表对抗权限与最终规模验收已完成。
+
+独立复核发现评分跨入口P1：reports与Agent直接读取快照总分绕过evaluation安全loader的来源权限/stale；来源撤权或更正后可能仍显示旧分。独立修复树D:/AQP-PGS-worktrees/snapshot-access-fix，codex/snapshot-access-fix，正在统一安全loader、实际来源export及过期score相关分析处理，尚未合入。不能把基线测试全绿当漏洞已排除。
+
+任务10独占树D:/AQP-PGS-worktrees/full-10、codex/full-10。小样本四成果、引用、模拟评分、导师关系、三级报告导出、第二学院10/1范围和跨院403、共享专利去重1/参与2、盲审答辩2条、源变化stale已实测通过。小样本恢复CLI/Chrome新增域逐项语义hash和PDF字节hash、旧会话401已通过。源提交6a31f5f、f9f024f。导师矩阵、Excel语义内容核对、完整规模扩展/恢复及最终审查仍欠，10保持claimed。
+
+无既有全量manifest，正必要新建一次data/full10-scale基线1000/30000/各2000/100论文/约5用户；后续复用，不重复导入。全部合成隔离库，未修改真实试用data。没有真实模型服务、专家规则或真实业务输入；正式验收仍待。测试进程由对应writer收取结束，最终交接再核实。
+
+官方root可读get_usage_limits，开工短100%周31%，此为单次历史读数非实时监控；旧GLM“不可读”只代表其当时工具环境。平时仅本地提交，<=5先保存交接再集中上传；本轮尚未push，不使用额度重置券。
+
 根D:/AQP-PGS，integration/aqp-trial；科研成果合并HEAD 16fe56e182046cac9fab884cad1037132cdadb3f（源codex/full-02 2e6ea6d）。本文后续文档提交HEAD以git log -1核实。
 
 ## 2026-11-13 09集成检查点（本节最新，仅本地未push）
