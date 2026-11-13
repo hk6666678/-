@@ -23,7 +23,7 @@ def register_research_outputs(
 ) -> None:
     endpoint = "research-outputs" if category == "research_papers" else category
     key_label, title_label, extra_labels = {
-        "research_papers": ("业务编号/DOI", "论文标题", ()),
+        "research_papers": ("业务编号/DOI", "论文标题", ("发表年份",)),
         "patents": ("申请号", "专利名称", ("专利类型", "申请日期")),
         "awards": ("业务编号", "获奖项目名称", ("获奖等级", "获奖年份")),
         "conferences": ("业务编号", "会议名称", ("报告类型", "会议日期")),
@@ -532,7 +532,8 @@ def register_research_outputs(
             rows = iter(ws.values)
             if tuple(next(rows))[:3] != ("AQP-PGS", category, "1"):
                 raise ValueError()
-            if tuple(next(rows)) != (
+            imported_header = tuple(next(rows))
+            expected_header = (
                 key_label,
                 title_label,
                 "学号",
@@ -542,8 +543,12 @@ def register_research_outputs(
                 "所属学院",
                 "专业",
                 *extra_labels,
+            )
+            if imported_header != expected_header and not (
+                category == "research_papers" and imported_header == expected_header[:8]
             ):
                 raise ValueError()
+            imported_labels = extra_labels if len(imported_header) > 8 else ()
             grouped: dict[str, Any] = {}
             for row in rows:
                 if all(value is None for value in row):
@@ -559,7 +564,7 @@ def register_research_outputs(
                     )
                 details = dict(
                     zip(
-                        extra_labels,
+                        imported_labels,
                         (str(value or "").strip() for value in row[8:]),
                         strict=True,
                     )
@@ -576,7 +581,20 @@ def register_research_outputs(
                     or not 1900 <= int(details["获奖年份"]) <= 2100
                 ):
                     raise ValueError()
-                if extra_labels and not all(details.values()):
+                if category == "research_papers":
+                    year = details.get("发表年份", "")
+                    if year and (
+                        re.fullmatch(r"[0-9]{4}", year) is None
+                        or not 1900 <= int(year) <= 2100
+                    ):
+                        raise ValueError()
+                    if not year:
+                        details = {}
+                if (
+                    category != "research_papers"
+                    and extra_labels
+                    and not all(details.values())
+                ):
                     raise ValueError()
                 if (
                     not all([key, title, number, name, role, college, major])
@@ -595,7 +613,7 @@ def register_research_outputs(
                     )
                 ):
                     raise ValueError()
-                if not extra_labels:
+                if not details:
                     output.pop("details", None)
                 output["participants"].append(
                     {

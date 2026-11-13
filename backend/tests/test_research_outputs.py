@@ -90,6 +90,19 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
     assert result["distinct_outputs"] == 1
     assert result["items"][0]["participants"][0]["association"] == "pending"
     assert preview()["items"][0]["status"] == "duplicate"
+    wb.active["I3"] = "20x5"
+    stream = BytesIO()
+    wb.save(stream)
+    assert (
+        client.post(
+            "/api/research-outputs/preview",
+            headers=headers,
+            data={"source_department": "Synthetic"},
+            files={"file": ("invalid.xlsx", stream.getvalue())},
+        ).status_code
+        == 422
+    )
+    wb.active["I3"] = 2025
     wb.active["B3"] = "合成科研论文更正"
     stream = BytesIO()
     wb.save(stream)
@@ -107,6 +120,9 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
     result = client.get("/api/research-outputs").json()
     assert result["distinct_outputs"] == 1
     assert result["items"][0]["version"] == 2
+    assert client.get("/api/research-outputs/statistics").json()["years"] == [
+        {"year": "2025", "distinct_outputs": 1, "personal_participations": 1}
+    ]
     assert result["items"][0]["title"] == "合成科研论文更正"
     output_id = result["items"][0]["id"]
     citation_template = client.get("/api/research-outputs/citations/template")
