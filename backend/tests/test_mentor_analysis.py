@@ -66,3 +66,62 @@ def test_mentor_role_can_be_created_without_implicit_data_access(client):  # noq
     assert signed.status_code == 200
     assert client.get("/api/me").json()["user"]["roles"] == ["mentor"]
     assert client.get("/api/students").status_code == 403
+
+
+def test_mentor_historical_analysis_evidence_rechecks_binding(client, tmp_path):  # noqa: F811
+    headers = login_admin(client)
+    from test_courses import course_file
+
+    synthetic_student_and_analysis(client, headers)
+    batch = client.post(
+        "/api/imports/courses/preview",
+        headers=headers,
+        data={
+            "source_department": "synthetic",
+            "college": "示例学院",
+            "major": "计算机",
+        },
+        files={
+            "file": (
+                "courses.xlsx",
+                course_file([["001", "SYN", "2025秋", 1, "百分制", 80, "合成学生"]]),
+            )
+        },
+    ).json()
+    assert (
+        client.post(
+            f"/api/imports/courses/{batch['id']}/confirm", headers=headers
+        ).status_code
+        == 200
+    )
+    snapshot = client.post(
+        "/api/analyses/courses",
+        headers=headers,
+        json={"college": "示例学院", "major": "计算机"},
+    ).json()
+    analysis_id = snapshot["id"]
+    assert snapshot["evidence"]
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        actor = db.execute("SELECT id FROM users").fetchone()[0]
+        student = db.execute("SELECT id FROM students").fetchone()[0]
+        db.execute(
+            "UPDATE users SET roles=? WHERE id=?",
+            (json.dumps(["platform_admin", "mentor"]), actor),
+        )
+        db.execute("INSERT INTO user_student_bindings VALUES (?,?)", (actor, student))
+    for suffix in ["", "/evidence"]:
+        assert (
+            client.get(
+                f"/api/analyses/{analysis_id}{suffix}", headers=headers
+            ).status_code
+            == 200
+        )
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        db.execute("DELETE FROM user_student_bindings WHERE user_id=?", (actor,))
+    for suffix in ["", "/evidence"]:
+        assert (
+            client.get(
+                f"/api/analyses/{analysis_id}{suffix}", headers=headers
+            ).status_code
+            == 403
+        )

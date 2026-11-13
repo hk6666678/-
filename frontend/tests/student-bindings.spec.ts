@@ -1,0 +1,31 @@
+import { test, expect } from "@playwright/test";
+test("administrator saves and revokes explicit student bindings", async ({ page }) => {
+  await page.goto("/");
+  await page.getByLabel("用户名", { exact: true }).fill("synthetic-admin");
+  await page.getByLabel("密码", { exact: true }).fill("Synthetic-password-123!");
+  await page.getByRole("button", { name: "登录平台" }).click();
+  await expect(page.getByRole("heading", { name: "欢迎回到工作台" })).toBeVisible();
+  const session = await (await page.request.get("/api/me")).json();
+  const headers = { "X-CSRF-Token": session.csrf_token };
+  expect((await page.request.put(`/api/users/${session.user.id}/grants`, { headers, data: { expected_version: session.user.version, request_id: crypto.randomUUID(), grants: ["maintain", "view"].map(operation => ({ category: "basic", operation, college: "合成学院", major: "合成专业" })) } })).status()).toBe(200);
+  const template = await page.request.get("/api/templates/basic?sample=true");
+  const preview = await (await page.request.post("/api/imports/basic/preview", { headers, multipart: { source_department: "合成", file: { name: "synthetic.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", buffer: await template.body() } } })).json();
+  expect((await page.request.post(`/api/imports/${preview.id}/confirm`, { headers })).status()).toBe(200);
+  const students = await (await page.request.get("/api/students")).json();
+  const research = students.items[0].research_id;
+  await page.getByRole("button", { name: "授权与脱敏验证", exact: true }).click();
+  await page.getByLabel("配置账号").selectOption({ label: "synthetic-admin" });
+  const bindings = page.getByLabel("学生研究编号绑定（每行一个）");
+  await bindings.fill(research);
+  await page.getByRole("button", { name: "保存学生绑定" }).click();
+  await expect(page.getByRole("status")).toContainText("学生绑定已保存");
+  await page.reload();
+  await page.getByRole("button", { name: "授权与脱敏验证", exact: true }).click();
+  await page.getByLabel("配置账号").selectOption({ label: "synthetic-admin" });
+  await expect(bindings).toHaveValue(research);
+  await bindings.fill("");
+  await page.getByRole("button", { name: "保存学生绑定" }).click();
+  await expect(page.getByRole("status")).toContainText("学生绑定已保存");
+  expect((await (await page.request.get(`/api/users/${session.user.id}/student_bindings`)).json()).student_bindings).toEqual([]);
+});
+

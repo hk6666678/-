@@ -163,7 +163,7 @@ export function AccessPanel({ admin, csrf, users, fetcher }: Props) {
                   />
                 </label>
                 <p>
-                  仅保存显式绑定；导师角色及学生级访问隔离尚未启用。清空后保存可撤销全部绑定。
+                  导师只能访问显式绑定学生与数据授权的交集，兼任角色也受此约束。清空后保存立即撤销全部绑定。
                 </p>
                 <button
                   disabled={busy}
