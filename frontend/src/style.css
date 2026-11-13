@@ -536,3 +536,11 @@ section[aria-label="导师与课题组"] .mentor-detail-action { padding:4px 0; 
 .evaluation-growth svg { max-width: 100%; height: auto; }
 .evaluation-growth table { margin-top: 10px; }
 @media(max-width:650px) { .evaluation-charts { grid-template-columns: 1fr; } }
+
+/* Three-level reports */
+.reports-panel details { margin: 8px 0; }
+.reports-panel pre { max-width: 100%; overflow: auto; }
+.report-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; }
+.report-subsection { margin: 10px 0; }
+.report-bars { display: block; max-width: 420px; }
+@media(max-width:650px) { .report-charts { grid-template-columns: 1fr; } }
