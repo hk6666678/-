@@ -239,3 +239,92 @@ def test_change_cannot_remove_out_of_scope_existing_participant(client, tmp_path
         files={"file": ("synthetic.xlsx", stream.getvalue())},
     )
     assert result.status_code == 403
+
+
+def test_shared_research_mentor_and_scope_matrix(client, tmp_path):  # noqa: F811
+    import json
+
+    from aqp.store import connection
+
+    headers = login_admin(client)
+    actor = client.get("/api/me").json()["user"]["id"]
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        participants = []
+        for index, college in [(1, "A"), (2, "B")]:
+            db.execute(
+                "INSERT INTO students(id,research_id,student_number,name,college,major,level,entry_year,payload) VALUES (?,?,?,?,?,?,?,?,?)",
+                (
+                    index,
+                    str(index),
+                    str(index),
+                    f"Synthetic{index}",
+                    college,
+                    "Math",
+                    "master",
+                    2025,
+                    "{}",
+                ),
+            )
+            participants.append(
+                {
+                    "student_number": str(index),
+                    "name": f"Synthetic{index}",
+                    "college": college,
+                    "major": "Math",
+                    "order": index,
+                    "role": "author",
+                }
+            )
+            for operation in ["view", "identity", "maintain"]:
+                db.execute(
+                    "INSERT INTO grants VALUES (?,?,?,?,?)",
+                    (actor, "research_papers", operation, college, "Math"),
+                )
+        payload = json.dumps(
+            {"title": "Synthetic shared", "participants": participants}
+        )
+        db.execute(
+            "INSERT INTO research_outputs(id,business_key,payload) VALUES (1,'shared',?)",
+            (payload,),
+        )
+        db.execute(
+            "INSERT INTO research_output_versions VALUES (1,1,?,?,?)",
+            (payload, "Synthetic source", actor),
+        )
+        db.execute(
+            "UPDATE users SET roles=? WHERE id=?",
+            (json.dumps(["platform_admin", "mentor"]), actor),
+        )
+    assert client.get("/api/research-outputs").json()["distinct_outputs"] == 0
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        db.execute("INSERT INTO user_student_bindings VALUES (?,1)", (actor,))
+    result = client.get("/api/research-outputs").json()
+    assert result["personal_participations"] == 1
+    assert result["distinct_outputs"] == 1
+    assert result["items"][0]["participants"][0]["name"] == "Synthetic1"
+    assert client.get("/api/research-outputs/1/history").status_code == 403
+    assert (
+        client.post(
+            "/api/research-outputs/1/void",
+            headers=headers,
+            json={"expected_version": 1, "reason": "Synthetic"},
+        ).status_code
+        == 403
+    )
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        db.execute("INSERT INTO user_student_bindings VALUES (?,2)", (actor,))
+    assert client.get("/api/research-outputs").json()["personal_participations"] == 2
+    assert client.get("/api/research-outputs/1/history").status_code == 200
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        db.execute(
+            "DELETE FROM grants WHERE user_id=? AND category='research_papers' AND operation='identity' AND college='B'",
+            (actor,),
+        )
+    assert (
+        "name"
+        not in client.get("/api/research-outputs").json()["items"][0]["participants"][1]
+    )
+    assert client.get("/api/research-outputs/1/history").status_code == 403
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        db.execute("DELETE FROM user_student_bindings WHERE user_id=?", (actor,))
+    assert client.get("/api/research-outputs").json()["distinct_outputs"] == 0
