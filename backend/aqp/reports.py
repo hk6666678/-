@@ -34,7 +34,7 @@ YEAR_KEY = {
 }
 
 
-def register_reports(app: FastAPI, path: Path, current: Callable[..., Any]) -> None:
+def register_reports(app: FastAPI, path: Path, current: Callable[..., Any], snapshot_loader: Callable[..., dict[str, Any]]) -> None:
     def deny(db: Any, actor: int, target: str, message: str) -> None:
         audit(db, actor, "reports.access", target, "denied")
         db.commit()
@@ -223,7 +223,14 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any]) -> N
         ).fetchone()
         if latest is None:
             return missing("尚无评分快照")
-        result = json.loads(latest["result"])
+        try:
+            result = snapshot_loader(db, actor, latest["id"])
+        except HTTPException as exc:
+            if exc.status_code == 403:
+                return unauthorized()
+            raise
+        if result["stale"]:
+            return missing("评分快照已过期，请重新评分")
         return {
             "status": "ok",
             "snapshot_id": latest["id"],
@@ -569,6 +576,9 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any]) -> N
         with connection(path) as db:
             actor, _ = current(db, request)
             report = student_report(db, actor["id"], student_id)
+            evaluation = report["sections"]["evaluation"]
+            if evaluation.get("status") == "ok":
+                snapshot_loader(db, actor["id"], evaluation["snapshot_id"], export=True)
             require_section_exports(
                 db,
                 actor["id"],

@@ -322,6 +322,10 @@ def test_snapshot_listing_and_independent_export(client, tmp_path):
     assert fresh.status_code == 200
     assert fresh.json()["stale"] is False
     assert fresh.json()["family_id"] == 1
+    report_url = "/api/reports/students/1"
+    assert client.get(report_url, headers=headers).json()["sections"]["evaluation"]["total"] == 25
+    assert client.get(report_url + "/export", headers=headers).status_code == 403
+
     with connection(dbpath) as db:
         row = json.loads(
             db.execute("SELECT payload FROM patents_outputs WHERE id=1").fetchone()[0]
@@ -363,6 +367,39 @@ def test_snapshot_listing_and_independent_export(client, tmp_path):
     workbook.close()
     assert any("模拟演示" in str(cell) for cell in cells)
     assert 25 in cells
+    assert client.get(report_url + "/export", headers=headers).status_code == 200
+    from test_agent import replace_grants
+
+    full = ["view", "identity", "analyze", "export"]
+    replace_grants(client, headers, [
+        {"category": category, "operation": operation,
+         "college": "synthetic", "major": "synthetic"}
+        for category in ["basic", "talent_evaluation", "patents"]
+        for operation in full
+        if (category, operation) != ("patents", "export")
+    ])
+    assert client.get(report_url + "/export", headers=headers).status_code == 403
+    assert client.get(report_url, headers=headers).json()["sections"]["evaluation"]["total"] == 25
+    for revoked in ["view", "identity", "analyze"]:
+        replace_grants(client, headers, [
+            {"category": category, "operation": operation,
+             "college": "synthetic", "major": "synthetic"}
+            for category in ["basic", "talent_evaluation", "patents"]
+            for operation in full
+            if (category, operation) != ("patents", revoked)
+        ])
+        section = client.get(report_url, headers=headers).json()["sections"]["evaluation"]
+        assert "total" not in section
+    me = client.get("/api/me").json()["user"]
+    update_grants(full)
+
+    with connection(dbpath) as db:
+        db.execute("UPDATE patents_outputs SET active=0 WHERE id=1")
+        db.commit()
+    stale_section = client.get(report_url, headers=headers).json()["sections"]["evaluation"]
+    assert stale_section["status"] != "ok"
+    assert "total" not in stale_section
+
     update_grants([])
     assert client.get("/api/evaluation-snapshots", headers=headers).json() == {
         "items": []
