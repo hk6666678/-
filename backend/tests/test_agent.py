@@ -590,10 +590,55 @@ def test_agent_correlation_computed_by_tool_with_limits(
                     (number, f"C{ident}-{index}", "2025", 1, ident, json.dumps(payload), ident * 10 + index),
                 )
         db.commit()
+    with connection(dbpath) as db:
+        db.execute(
+            "INSERT INTO evaluation_rules(id,family_id,version,config,enabled,created_by,created_at) "
+            "VALUES(1,1,1,?,1,1,0)",
+            (
+                json.dumps(
+                    {
+                        "name": "correlation",
+                        "college": "synthetic",
+                        "major": "synthetic",
+                        "mode": "simulation",
+                        "metrics": [
+                            {"feature": "patent_count", "weight": 1, "minimum": 0, "maximum": 4}
+                        ],
+                    }
+                ),
+            ),
+        )
+        db.execute(
+            "INSERT INTO evaluation_snapshots(student_id,rule_id,result,data_digest,created_by,created_at) "
+            "VALUES(1,1,?,?,1,0)",
+            (
+                json.dumps(
+                    {
+                        "mode": "simulation",
+                        "student_id": 1,
+                        "rule_id": 1,
+                        "rule_version": 1,
+                        "as_of": 0,
+                        "inputs": [],
+                        "total": 25,
+                    }
+                ),
+                "digest",
+            ),
+        )
+        db.commit()
     agent_grants(
         client,
         headers,
-        ["basic", "courses", "patents", "awards", "conferences", "research_papers"],
+        [
+            "basic",
+            "courses",
+            "patents",
+            "awards",
+            "conferences",
+            "research_papers",
+            "talent_evaluation",
+        ],
         ["view", "analyze"],
     )
     enable_agent(client, headers, monkeypatch)
@@ -635,9 +680,10 @@ def test_agent_correlation_computed_by_tool_with_limits(
     assert abs(tool["regression"]["r_squared"] - 1.0) < 1e-9
     assert "不表示因果" in tool["limitations"]
     assert tool["per_student"][0]["research_id"] == "R1"
-    assert result["evidence_links"][0]["url"] == (
-        "/api/reports/colleges?college=synthetic&major="
-    )
+    assert "四类成果个人参与人次合计" in tool["variable_definitions"]["y"]
+    # Without a major the evidence link is omitted: the college report would
+    # otherwise describe a different population (or refuse access).
+    assert result["evidence_links"] == []
     # With only two complete samples the tool refuses to compute numbers.
     with connection(dbpath) as db:
         db.execute("UPDATE students SET active=0 WHERE id=3")
@@ -651,6 +697,49 @@ def test_agent_correlation_computed_by_tool_with_limits(
     assert small["tool_result"]["sample_size"] == 2
     assert small["tool_result"]["regression"] is None
     assert "不足3个" in small["tool_result"]["notice"]
+    # With an explicit major the referenced college report is reachable.
+    outputs.append(
+        json.dumps(
+            {
+                "tool": "correlation_analysis",
+                "college": "synthetic",
+                "major": "synthetic",
+                "x_variable": "course_pass_ratio",
+                "y_variable": "output_count",
+            }
+        )
+    )
+    outputs.append("again")
+    linked = client.post(
+        "/api/agent/query",
+        headers=headers,
+        json={"question": "按专业分析课程通过比例与专利数的关系"},
+    ).json()
+    url = linked["evidence_links"][0]["url"]
+    assert url == "/api/reports/colleges?college=synthetic&major=synthetic"
+    assert client.get(url, headers=headers).status_code == 200
+    # score_total only exists for the snapshotted student, so the variable
+    # path runs but refuses to compute on a single complete sample.
+    outputs.append(
+        json.dumps(
+            {
+                "tool": "correlation_analysis",
+                "college": "synthetic",
+                "x_variable": "output_count",
+                "y_variable": "score_total",
+            }
+        )
+    )
+    outputs.append("again")
+    scores = client.post(
+        "/api/agent/query",
+        headers=headers,
+        json={"question": "分析专利数与评分总分的关系"},
+    ).json()
+    assert scores["tool_result"]["sample_size"] == 1
+    assert scores["tool_result"]["excluded_missing"] == 1
+    assert scores["tool_result"]["regression"] is None
+    assert "模拟演示" in scores["tool_result"]["variable_definitions"]["y"]
     # Without course analysis grants the tool refuses outright; output_count
     # itself needs every output category, so keep those grants in place.
     agent_grants(
