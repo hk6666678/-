@@ -109,6 +109,13 @@ def main():
                         "个人参与次数：1；范围内成果去重数：1。", exact=False
                     )
                 ).to_be_visible()
+                page.get_by_role("button", name="来源与历史", exact=True).click()
+                expect(page.get_by_role("cell", name="合成科研处", exact=True)).to_be_visible()
+                page.get_by_label("作废依据", exact=True).fill("合成重复登记核实")
+                page.get_by_role("button", name="确认作废成果", exact=True).click()
+                expect(page.get_by_text("该成果已作废，原始内容和历史继续保留。", exact=True)).to_be_visible()
+                expect(page.get_by_text("个人参与次数：0；范围内成果去重数：0。", exact=False)).to_be_visible()
+                page.screenshot(path=str(Path(__file__).resolve().parents[2] / ".scratch" / "research-void-history.png"), full_page=True)
                 browser.close()
                 print("Chrome research import and statistics passed")
         finally:
