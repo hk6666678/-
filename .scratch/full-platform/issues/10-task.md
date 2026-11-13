@@ -1,6 +1,6 @@
 # 10: 全流程多学院规模恢复验收与交付
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 **Blocked by:** 09
 

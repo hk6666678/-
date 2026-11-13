@@ -1,5 +1,37 @@
 # 集成检查点（2026-11-13）
 
+## 2026-11-13 评分跨入口权限修复集成检查点（最新，仅本地）
+
+- 交接时间：2026-11-13（Asia/Shanghai）；原因：阶段收口。
+- 根目录/集成分支：D:/AQP-PGS，integration/aqp-trial；修复合并HEAD 059ae37015c845171e2b542c38879aa9b6996602（git log核实），本文文档提交HEAD以git log -1核实。
+- 官方额度：本次单次读取短周期剩75%、周剩27%，非实时监控；仅本地未push。
+
+| 任务 | 工单状态 | 分支/源HEAD | 合并到 | 验证摘要 |
+|---|---|---|---|---|
+| 评分跨入口权限修复 | 实现完成，模拟验证通过 | codex/snapshot-access-fix@f5083fd9b8449565a9c23fc2ef4e160cd6475735 | integration@059ae37 | pytest145 / Chrome23 |
+| 10完整平台验收 | claimed(WIP) | codex/full-10@5bccf106774e477f7d48c04bb8660d6dc638b573 | 未合并 | 独立树阶段验证，最终审查/合并后复测待办 |
+
+- 修复闭环：reports与Agent统一复用evaluation安全快照loader，读取时复核当前来源权限与学生范围；导出复核实际指标来源export；stale报告不展示旧总分，Agent披露过期，相关分析排除stale评分并说明数量。独立review两项P1已修复；细节见.scratch/full-platform/snapshot-access-validation.md。
+- 集成回归对应059ae37：唯一一轮全pytest 145 passed（133.19秒，包含reports/Agent/evaluation专项）；mypy31文件通过；Ruff通过；TS/Vite build通过；全Chrome23/23通过（41.6秒，端口8059）。未追加删除断言或无关修复；不能称两轮全绿。
+- 进程与数据：本次pytest、build、Chrome runner及webServer均退出；已核实8059无监听，服务PID64244及runner57548不存在。本轮仅临时合成隔离测试，无真实数据、模型外发。
+- 未合并分支：git branch --no-merged HEAD仅codex/full-10，工作树D:/AQP-PGS-worktrees/full-10；不触碰其开发。全部历史工作树保留，列表以git worktree list为准。
+- 未知/用户原改动保留：两张assessment截图、.scratch/patents-void-history.png、.scratch/research-void-history.png、artifacts/，不加入本次提交。
+- 关键决策沿用：当前权限现算、独立导出授权、来源与版本追溯、模拟规则不作正式人才识别，保留GLM历史。
+- 下一步：任务10 writer基于新集成HEAD合入修复后完成大小样本最终复测；独立最终审查通过才合并，当前10仍claimed。真实学校数据、专家正式规则/权重、获准模型效果与真实业务验收仍待，不宣称全平台完成。
+
+
+## 2026-11-13 接续GLM：任务10进行中（历史，仅本地）
+
+已读取HANDOFF及docs/agents/handoff-template.md，保留GLM全部07–09成果和历史工作树，不reset或覆盖。根integration/aqp-trial基线c97e354（模板提交），已有24个本地提交未push。root实际复验145pytest（128.20秒）、mypy31、Ruff、build、全Chrome23/23（42.5秒）通过；这不代表对抗权限与最终规模验收已完成。
+
+独立复核发现评分跨入口P1：reports与Agent直接读取快照总分绕过evaluation安全loader的来源权限/stale；来源撤权或更正后可能仍显示旧分。独立修复树D:/AQP-PGS-worktrees/snapshot-access-fix，codex/snapshot-access-fix，正在统一安全loader、实际来源export及过期score相关分析处理，尚未合入。不能把基线测试全绿当漏洞已排除。
+
+任务10独占树D:/AQP-PGS-worktrees/full-10、codex/full-10。小样本四成果、引用、模拟评分、导师关系、三级报告导出、第二学院10/1范围和跨院403、共享专利去重1/参与2、盲审答辩2条、源变化stale已实测通过。小样本恢复CLI/Chrome新增域逐项语义hash和PDF字节hash、旧会话401已通过。源提交6a31f5f、f9f024f。导师矩阵、Excel语义内容核对、完整规模扩展/恢复及最终审查仍欠，10保持claimed。
+
+无既有全量manifest，正必要新建一次data/full10-scale基线1000/30000/各2000/100论文/约5用户；后续复用，不重复导入。全部合成隔离库，未修改真实试用data。没有真实模型服务、专家规则或真实业务输入；正式验收仍待。测试进程由对应writer收取结束，最终交接再核实。
+
+官方root可读get_usage_limits，开工短100%周31%，此为单次历史读数非实时监控；旧GLM“不可读”只代表其当时工具环境。平时仅本地提交，<=5先保存交接再集中上传；本轮尚未push，不使用额度重置券。
+
 根D:/AQP-PGS，integration/aqp-trial；科研成果合并HEAD 16fe56e182046cac9fab884cad1037132cdadb3f（源codex/full-02 2e6ea6d）。本文后续文档提交HEAD以git log -1核实。
 
 ## 2026-11-13 09集成检查点（本节最新，仅本地未push）

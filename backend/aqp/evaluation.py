@@ -61,7 +61,7 @@ class Activation(BaseModel):
     acknowledge_simulation: Literal[True]
 
 
-def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -> None:
+def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -> Callable[..., dict[str, Any]]:
     def deny(db: Any, actor: int, target: str, message: str) -> None:
         # Matches the analysis module: refusals stay auditable.
         audit(db, actor, "evaluation.access", target, "denied")
@@ -272,7 +272,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
         ).hexdigest()
         return result, digest
 
-    def load_snapshot(db: Any, actor: int, ident: int) -> dict[str, Any]:
+    def load_snapshot(db: Any, actor: int, ident: int, export: bool = False) -> dict[str, Any]:
         saved = db.execute(
             "SELECT * FROM evaluation_snapshots WHERE id=?", (ident,)
         ).fetchone()
@@ -281,8 +281,15 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
         rule = db.execute(
             "SELECT * FROM evaluation_rules WHERE id=?", (saved["rule_id"],)
         ).fetchone()
+        config = json.loads(rule["config"])
+        if export:
+            for category in {"basic", "talent_evaluation"} | {
+                SOURCE_CATEGORY[m["feature"]] for m in config["metrics"]
+            }:
+                if not allowed(db, actor, category, "export", config["college"], config["major"]):
+                    deny(db, actor, str(ident), "评价或指标来源导出授权不足")
         _, digest = inputs(
-            db, actor, saved["student_id"], json.loads(rule["config"])
+            db, actor, saved["student_id"], config
         )
         return {
             "id": ident,
@@ -403,33 +410,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
     def snapshot_export(ident: int, request: Request) -> Response:
         with connection(path) as db:
             actor, _ = current(db, request)
-            saved = db.execute(
-                "SELECT rule_id FROM evaluation_snapshots WHERE id=?", (ident,)
-            ).fetchone()
-            if saved is None:
-                raise HTTPException(404, "评分快照不存在")
-            rule = db.execute(
-                "SELECT * FROM evaluation_rules WHERE id=?", (saved["rule_id"],)
-            ).fetchone()
-            if rule is None:
-                raise HTTPException(404, "评分快照不存在")
-            config = json.loads(rule["config"])
-            # Downloading the report needs the independent export grant on the
-            # evaluation scope and on every metric's source category.
-            for category in sorted(
-                {"basic", "talent_evaluation"}
-                | {SOURCE_CATEGORY[m["feature"]] for m in config["metrics"]}
-            ):
-                if not allowed(
-                    db,
-                    actor["id"],
-                    category,
-                    "export",
-                    config["college"],
-                    config["major"],
-                ):
-                    deny(db, actor["id"], str(ident), "评价或指标来源导出授权不足")
-            report = load_snapshot(db, actor["id"], ident)
+            report = load_snapshot(db, actor["id"], ident, export=True)
             audit(db, actor["id"], "evaluation.export", str(ident))
             db.commit()
             return excel_report(report, f"evaluation-snapshot-{ident}")
@@ -534,6 +515,8 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                 "enabled": True,
                 "notice": "模拟演示，不构成正式人才识别",
             }
+
+    return load_snapshot
 
 
 class ScoreInput(BaseModel):

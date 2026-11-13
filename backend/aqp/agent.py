@@ -125,6 +125,7 @@ def date_like(value: str) -> bool:
 
 
 class AgentLoaders(NamedTuple):
+    snapshot: Callable[..., dict[str, Any]]
     analysis: Callable[..., dict[str, Any]]
     paper: Callable[..., Any]
     semantic: Callable[[sqlite3.Connection, int, int], dict[str, Any]]
@@ -334,7 +335,7 @@ def mentor_group_facts_tool(
 
 
 def evaluation_snapshot_tool(
-    db: sqlite3.Connection, actor: int, plan: AgentPlan
+    db: sqlite3.Connection, actor: int, plan: AgentPlan, snapshot_loader: Callable[..., dict[str, Any]]
 ) -> dict[str, Any]:
     row = db.execute(
         "SELECT * FROM students WHERE active=1 AND (id=? OR research_id=?) ORDER BY id LIMIT 1",
@@ -362,19 +363,20 @@ def evaluation_snapshot_tool(
             "notice": "该学生尚无评分快照。",
             "filters": {"student_id": row["id"]},
         }
-    result = json.loads(latest["result"])
+    result = snapshot_loader(db, actor, latest["id"])
     return {
         "student_id": row["id"],
         "research_id": row["research_id"],
         "snapshot": {
             "id": latest["id"],
+            "stale": result["stale"],
             "rule_id": result.get("rule_id"),
             "rule_version": result.get("rule_version"),
             "mode": result.get("mode"),
             "total": result.get("total"),
             "as_of": result.get("as_of"),
         },
-        "notice": "模拟演示，不构成正式人才识别；明细见人才指标模拟评价。",
+        "notice": ("评分快照已过期，请重新评分。\u6a21\u62df\u6f14\u793a\uff0c\u4e0d\u6784\u6210\u6b63\u5f0f\u4eba\u624d\u8bc6\u522b\u3002" if result["stale"] else "模拟演示，不构成正式人才识别。"),
         "filters": {"student_id": row["id"]},
     }
 
@@ -453,7 +455,7 @@ def participant_allowed(
 
 
 def student_score_total(
-    db: sqlite3.Connection, actor: int, student: sqlite3.Row
+    db: sqlite3.Connection, actor: int, student: sqlite3.Row, snapshot_loader: Callable[..., dict[str, Any]]
 ) -> float | None:
     if not all(
         allowed(db, actor, "talent_evaluation", op, student["college"], student["major"])
@@ -461,35 +463,39 @@ def student_score_total(
     ):
         deny_agent(db, actor, "Agent 当前无权分析评分数据")
     latest = db.execute(
-        "SELECT result FROM evaluation_snapshots WHERE student_id=? ORDER BY id DESC LIMIT 1",
+        "SELECT id FROM evaluation_snapshots WHERE student_id=? ORDER BY id DESC LIMIT 1",
         (student["id"],),
     ).fetchone()
     if latest is None:
         return None
-    total = json.loads(latest["result"]).get("total")
+    result = snapshot_loader(db, actor, latest["id"])
+    if result["stale"]:
+        return None
+    total = result.get("total")
     return float(total) if total is not None else None
 
 
 VARIABLE_COMPUTERS = {
     "course_pass_ratio": student_course_pass_ratio,
     "output_count": student_output_count,
-    "score_total": student_score_total,
 }
 
 
 def correlation_analysis(
-    db: sqlite3.Connection, actor: int, plan: AgentPlan
+    db: sqlite3.Connection, actor: int, plan: AgentPlan, snapshot_loader: Callable[..., dict[str, Any]]
 ) -> dict[str, Any]:
     if not has_basic_view(db, actor, plan.college, plan.major):
         deny_agent(db, actor, "Agent 当前无权统计该学生范围")
     students = agent_scope_students(db, actor, plan.college, plan.major)
-    compute_x = VARIABLE_COMPUTERS[plan.x_variable]
-    compute_y = VARIABLE_COMPUTERS[plan.y_variable]
+    def compute(variable: str, student: sqlite3.Row) -> float | None:
+        if variable == "score_total":
+            return student_score_total(db, actor, student, snapshot_loader)
+        return VARIABLE_COMPUTERS[variable](db, actor, student)
     points = []
     excluded = 0
     for student in students:
-        x = compute_x(db, actor, student)
-        y = compute_y(db, actor, student)
+        x = compute(plan.x_variable, student)
+        y = compute(plan.y_variable, student)
         if x is None or y is None:
             excluded += 1
             continue
@@ -507,6 +513,7 @@ def correlation_analysis(
         },
         "sample_size": len(points),
         "excluded_missing": excluded,
+        "exclusion_notice": "Missing values and stale evaluation snapshots are excluded.",
         "limitations": CORRELATION_LIMITS,
         "filters": {"college": plan.college, "major": plan.major},
     }
@@ -772,9 +779,9 @@ def execute_plan(
     if plan.tool == "mentor_group_facts":
         return mentor_group_facts_tool(db, actor, plan), []
     if plan.tool == "evaluation_snapshot":
-        return evaluation_snapshot_tool(db, actor, plan), []
+        return evaluation_snapshot_tool(db, actor, plan, loaders.snapshot), []
     if plan.tool == "correlation_analysis":
-        result = correlation_analysis(db, actor, plan)
+        result = correlation_analysis(db, actor, plan, loaders.snapshot)
         # The college report filters by an exact major, so without a major in
         # the plan the link would describe a different population (or 403).
         links: list[dict[str, str]] = []

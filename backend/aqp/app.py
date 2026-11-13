@@ -161,11 +161,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     from aqp.mentor_groups import register_mentor_groups
 
     register_mentor_groups(app, path, current)
-    from aqp.reports import register_reports
-
-    register_reports(app, path, current)
-
     from aqp.model_connection import register_model_connection
+    from aqp.reports import register_reports
 
     register_model_connection(app, path, current)
     from aqp.papers import register_papers
@@ -178,7 +175,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     )
     from aqp.evaluation import register_evaluation
 
-    register_evaluation(app, path, current)
+    snapshot_loader = register_evaluation(app, path, current)
+    register_reports(app, path, current, snapshot_loader)
     from aqp.candidates import register_candidates
 
     candidate_access = register_candidates(
@@ -200,6 +198,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     from aqp.exports import register_original_downloads
 
     agent_loaders = AgentLoaders(
+        snapshot=snapshot_loader,
         analysis=analysis_loader,
         paper=paper_access,
         semantic=semantic_history,
