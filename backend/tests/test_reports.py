@@ -224,6 +224,67 @@ def test_group_report_current_relations_and_export(client, tmp_path):
     assert any("Patent P1" in str(cell) for cell in cells)
 
 
+def test_college_mentor_section_respects_bindings_and_group_export_floor(
+    client, tmp_path,
+):
+    from time import strftime
+
+    from aqp.store import connection
+
+    headers = login_admin(client)
+    me = client.get("/api/me").json()["user"]
+    dbpath = tmp_path / "accounts.sqlite3"
+    today = strftime("%Y-%m-%d")
+    give_grants(
+        client,
+        headers,
+        me,
+        ["basic", "mentor_groups"],
+        ["view", "identity", "analyze"],
+    )
+    with connection(dbpath) as db:
+        seed_student(db, 1, "S1")
+        db.execute(
+            "INSERT INTO mentor_directory(id,mentor_number,name,college,major) VALUES(1,'M1','Synthetic Mentor','synthetic','synthetic')"
+        )
+        db.execute(
+            "INSERT INTO research_groups(id,group_number,name,college,major) VALUES(1,'G1','Synthetic Group','synthetic','synthetic')"
+        )
+        db.execute(
+            "INSERT INTO mentor_group_relations(id,student_id,mentor_id,group_id,start_date,end_date,source_department) "
+            "VALUES(1,1,1,1,'2020-01-01',NULL,'synthetic')"
+        )
+        # Mentor accounts only see explicitly bound students.
+        db.execute(
+            "UPDATE users SET roles=? WHERE id=?",
+            (json.dumps(["mentor"]), me["id"]),
+        )
+        db.commit()
+    data = client.get(
+        "/api/reports/colleges?college=synthetic&major=synthetic", headers=headers
+    ).json()
+    assert data["sections"]["students"]["status"] == "missing"
+    assert data["sections"]["mentor_groups"]["active_relations"] == 0
+    # The empty-relation group export still needs the basic export floor.
+    assert (
+        client.get(
+            f"/api/reports/mentor-groups/export?as_of={today}&mentor_id=1",
+            headers=headers,
+        ).status_code
+        == 403
+    )
+    with connection(dbpath) as db:
+        db.execute(
+            "INSERT INTO user_student_bindings(user_id,student_id) VALUES(?,1)",
+            (me["id"],),
+        )
+        db.commit()
+    data = client.get(
+        "/api/reports/colleges?college=synthetic&major=synthetic", headers=headers
+    ).json()
+    assert data["sections"]["mentor_groups"]["active_relations"] == 1
+
+
 def test_college_report_counts_and_partial_sections(client, tmp_path):
     from aqp.store import connection
 

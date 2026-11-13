@@ -122,8 +122,8 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any]) -> N
         rules = [
             dict(r)
             for r in db.execute(
-                "SELECT * FROM pass_rules WHERE college=? AND category='courses' ORDER BY id",
-                (student["college"],),
+                "SELECT * FROM pass_rules WHERE college=? AND major=? AND category='courses' ORDER BY id",
+                (student["college"], student["major"]),
             )
         ]
         evidence = []
@@ -350,8 +350,8 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any]) -> N
             rules = [
                 dict(r)
                 for r in db.execute(
-                    "SELECT * FROM pass_rules WHERE college=? AND category='courses' ORDER BY id",
-                    (college,),
+                    "SELECT * FROM pass_rules WHERE college=? AND major=? AND category='courses' ORDER BY id",
+                    (college, major),
                 )
             ]
             statuses = []
@@ -409,6 +409,7 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any]) -> N
                     student is None
                     or student["college"] != college
                     or student["major"] != major
+                    or not student_allowed(db, actor, student["id"])
                     or not (
                         row["start_date"]
                         <= today
@@ -435,6 +436,7 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any]) -> N
                 "status": "ok",
                 "active_relations": len(active_relations),
                 "relation_ids": active_relations,
+                "note": "仅统计当前授权与导师显式绑定范围内、指定学院专业的当前有效关系",
             }
         else:
             sections["mentor_groups"] = unauthorized()
@@ -514,9 +516,19 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any]) -> N
                 ).fetchone()
                 if scope is not None:
                     scopes.add(("mentor_groups", scope["college"], scope["major"]))
+                    scopes.add(("basic", scope["college"], scope["major"]))
                     for category in categories:
                         scopes.add((category, scope["college"], scope["major"]))
         return sorted(scopes)
+
+    def any_basic_export(db: Any, actor: int) -> bool:
+        return (
+            db.execute(
+                "SELECT 1 FROM grants WHERE user_id=? AND category='basic' AND operation='export' LIMIT 1",
+                (actor,),
+            ).fetchone()
+            is not None
+        )
 
     @app.get("/api/reports/students/{student_id}")
     def student(student_id: int, request: Request) -> dict[str, Any]:
@@ -575,6 +587,10 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any]) -> N
         with connection(path) as db:
             actor, _ = current(db, request)
             report = group_report(db, actor["id"], as_of, mentor_id, group_id)
+            # The same basic-export floor as the other two report exports,
+            # even when the report drew no relations at all.
+            if not any_basic_export(db, actor["id"]):
+                deny(db, actor["id"], "export", "报告导出授权不足")
             for category, college, major in group_export_scopes(db, report):
                 if not allowed(db, actor["id"], category, "export", college, major):
                     deny(db, actor["id"], "export", "报告导出授权不足")
@@ -585,7 +601,7 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any]) -> N
                 f"group:{mentor_id or '*'}/{group_id or '*'}@{as_of}",
             )
             db.commit()
-            return excel_report(report, f"report-group-{mentor_id or group_id}")
+            return excel_report(report, f"report-group-{mentor_id or group_id or 'all'}")
 
     @app.get("/api/reports/colleges/export")
     def college_export(request: Request, college: str, major: str) -> Response:
