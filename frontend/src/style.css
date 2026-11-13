@@ -487,3 +487,14 @@ nav button:focus-visible {
     display: none;
   }
 }
+
+.assessment-panel .card { margin: 20px 0; }
+.assessment-panel h3 { margin-top: 0; }
+.assessment-note { color: #526d71; font-size: 14px; }
+.assessment-success { padding: 14px 18px; background: #e4f3eb; border-left: 4px solid #287a54; color: #185338; }
+.assessment-error { padding: 14px 18px; background: #fff0ed; border-left: 4px solid #b64b3a; color: #843126; }
+.assessment-download { display: inline-block; padding: 9px 13px; margin-bottom: 16px; border: 1px solid #a9c3c0; border-radius: 5px; color: #185e58; text-decoration: none; }
+.assessment-preview > button { margin-top: 16px; margin-left: 16px; }
+.assessment-preview > button:disabled { background: #d9e1e0; color: #536765; opacity: 1; cursor: not-allowed; }
+.assessment-templates { margin: 20px 0; color: #526d71; }
+.assessment-records table { margin-top: 18px; }

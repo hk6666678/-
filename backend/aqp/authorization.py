@@ -10,7 +10,8 @@ from pydantic import BaseModel, Field
 from aqp.accounts import PASSWORDS, require_admin
 from aqp.store import audit, connection
 
-Category = Literal["basic", "courses", "topic", "midterm", "papers", "research_papers"]
+Category = Literal["basic", "courses", "topic", "midterm", "papers", "research_papers", "blind_reviews", "defenses"]
+
 Operation = Literal[
     "maintain",
     "view",
@@ -22,6 +23,7 @@ Operation = Literal[
     "pass_rules",
     "labels",
     "candidate_rules",
+    "activate_templates",
     "review",
 ]
 
@@ -223,3 +225,4 @@ def compatible_scope(
         and (not payload.get("专业") or not g["major"] or g["major"] == payload["专业"])
         for g in grants_for(db, actor)
     )
+

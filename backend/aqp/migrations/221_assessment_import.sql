@@ -1,0 +1,1 @@
+CREATE TABLE assessment_import_batches (id TEXT PRIMARY KEY, actor_id INTEGER NOT NULL REFERENCES users(id), rows_json TEXT NOT NULL, errors_json TEXT NOT NULL, confirmed INTEGER NOT NULL DEFAULT 0);
