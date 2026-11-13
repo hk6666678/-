@@ -1,5 +1,6 @@
 """Approved model boundary; callers must filter business data before invocation."""
 
+import logging
 import os
 import sqlite3
 import time
@@ -32,6 +33,9 @@ class ModelConfig(BaseModel):
         default="AQP_MODEL_KEY_LOCAL", pattern=r"^AQP_MODEL_KEY_[A-Z0-9_]+$"
     )
     allowed_purposes: list[Literal["papers", "agent"]] = Field(default_factory=list)
+    max_input_chars: int = Field(default=60000, ge=1000, le=200000)
+    max_output_tokens: int = Field(default=4096, ge=128, le=8192)
+    timeout_seconds: int = Field(default=60, ge=5, le=120)
 
     @model_validator(mode="after")
     def approved_target(self) -> "ModelConfig":
@@ -74,23 +78,35 @@ def config_from(db: sqlite3.Connection) -> tuple[ModelConfig, int]:
 
 
 def default_runner(config: ModelConfig, text: str) -> str:
+    if len(text) > config.max_input_chars:
+        raise HTTPException(413, "模型输入超过长度限制；未发送，请缩小材料范围")
     from langchain_openai import ChatOpenAI
     from langsmith import tracing_context
 
     key = os.environ.get(config.key_env)
     if not key:
         raise HTTPException(503, "模型凭证未配置")
-    with httpx.Client(follow_redirects=False, trust_env=False, timeout=15) as client:  # noqa: SIM117
+    with httpx.Client(  # noqa: SIM117
+        follow_redirects=False, trust_env=False, timeout=config.timeout_seconds
+    ) as client:
         with tracing_context(enabled=False):
             model = ChatOpenAI(
                 model=config.model,
                 base_url=config.endpoint,
                 api_key=SecretStr(key),
                 http_client=client,
-                timeout=15,
+                timeout=config.timeout_seconds,
+                max_completion_tokens=config.max_output_tokens,
                 max_retries=0,
             )
             output = model.invoke(text, config={"callbacks": []})
+            if usage := output.usage_metadata:
+                logging.getLogger(__name__).info(
+                    "model_usage input_tokens=%s output_tokens=%s total_tokens=%s",
+                    usage["input_tokens"],
+                    usage["output_tokens"],
+                    usage["total_tokens"],
+                )
             if not isinstance(output.content, str):
                 raise HTTPException(502, "模型返回非文本内容")
             return output.content
