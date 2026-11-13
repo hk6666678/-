@@ -229,7 +229,10 @@ def run(manifest, output):
                         assert response.status_code == 200, response.text
                         book = load_workbook(BytesIO(response.content))
                         exports[export_path] = {
-                            sheet.title: list(sheet.values) for sheet in book
+                            sheet.title: [
+                                row for row in sheet.values if row[0] != "generated_at"
+                            ]
+                            for sheet in book
                         }
 
             pdf = client.get(f"/api/papers/{paper}/download")
@@ -311,7 +314,12 @@ def run(manifest, output):
                 )
                 assert downloaded_excel["status"] == 200
                 book = load_workbook(BytesIO(bytes(downloaded_excel["bytes"])))
-                after = {sheet.title: list(sheet.values) for sheet in book}
+                after = {
+                    sheet.title: [
+                        row for row in sheet.values if row[0] != "generated_at"
+                    ]
+                    for sheet in book
+                }
                 assert after == before, (path, before, after)
                 report["checks"].append(
                     {

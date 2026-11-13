@@ -2,17 +2,37 @@
 
 import argparse
 import json
+import shutil
+import sqlite3
 import subprocess
 from io import BytesIO
 from pathlib import Path
+from uuid import uuid4
 
 import httpx
 from openpyxl import Workbook, load_workbook
 from trial_restore import serving
-from trial_scale import COLLEGE, MAJOR, checked, grant, login
+from trial_scale import COLLEGE, MAJOR, PASSWORD, checked, grant, login
 
 
-def run(manifest):
+def run(manifest, output):
+    # Snapshot a stopped baseline into a new isolated directory; reruns never mutate it.
+    baseline = json.loads(manifest.read_text(encoding="utf-8"))
+    assert baseline["synthetic"] and baseline["server_stopped"]
+    output.mkdir(parents=True, exist_ok=False)
+    with (
+        sqlite3.connect(baseline["database"]) as source_db,
+        sqlite3.connect(output / "aqp.sqlite3") as target_db,
+    ):
+        source_db.backup(target_db)
+    shutil.copytree(baseline["attachments"], output / "attachments")
+    baseline.update(
+        database=str(output / "aqp.sqlite3"), attachments=str(output / "attachments")
+    )
+    manifest = output / "report.json"
+    manifest.write_text(
+        json.dumps(baseline, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     source = json.loads(manifest.read_text(encoding="utf-8"))
     assert source["synthetic"] and source["server_stopped"]
     report = {
@@ -335,6 +355,75 @@ def run(manifest):
                     "old_snapshot_stale": True,
                 }
             )
+            # Independent mentor with broad data grants still needs explicit student bindings.
+            mentor = checked(
+                client.post(
+                    "/api/users",
+                    headers=headers,
+                    json={
+                        "username": "full10-mentor",
+                        "password": PASSWORD,
+                        "roles": ["mentor", "platform_admin"],
+                        "request_id": str(uuid4()),
+                    },
+                ),
+                201,
+            )
+            grant(client, headers, mentor, grants)
+            binding_url = f"/api/users/{mentor['id']}/student_bindings"
+            binding = checked(client.get(binding_url))
+            checked(
+                client.put(
+                    binding_url,
+                    headers=headers,
+                    json={
+                        "expected_version": binding["version"],
+                        "request_id": str(uuid4()),
+                        "student_bindings": [student["research_id"]],
+                    },
+                )
+            )
+            with httpx.Client(
+                base_url=url, timeout=300, trust_env=False
+            ) as mentor_client:
+                login(mentor_client, "full10-mentor")
+                assert (
+                    checked(mentor_client.get("/api/students?limit=200"))["total"] == 1
+                )
+                assert (
+                    mentor_client.get(
+                        f"/api/reports/students/{second['id']}"
+                    ).status_code
+                    == 403
+                )
+                binding = checked(client.get(binding_url))
+                checked(
+                    client.put(
+                        binding_url,
+                        headers=headers,
+                        json={
+                            "expected_version": binding["version"],
+                            "request_id": str(uuid4()),
+                            "student_bindings": [],
+                        },
+                    )
+                )
+                assert (
+                    checked(mentor_client.get("/api/students?limit=200"))["total"] == 0
+                )
+                assert (
+                    mentor_client.get(
+                        f"/api/reports/students/{student['id']}"
+                    ).status_code
+                    == 403
+                )
+            report["checks"].append(
+                {
+                    "mentor_platform_admin_bound_students": 1,
+                    "after_unbind": 0,
+                    "report_after_unbind": 403,
+                }
+            )
             # Restrict the same session to A and then B; current authority must apply immediately.
             for college, expected in [
                 (COLLEGE, source["observed_counts"]["students"]),
@@ -385,4 +474,6 @@ def run(manifest):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, required=True)
-    run(parser.parse_args().manifest.resolve())
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    run(args.manifest.resolve(), args.output.resolve())
