@@ -20,12 +20,12 @@ def register_research_outputs(
     current: Callable[[sqlite3.Connection, Request], tuple[sqlite3.Row, str]],
 ) -> None:
     @app.get("/api/research-outputs")
-    def listing(request: Request) -> dict[str, Any]:
+    def listing(request: Request, voided: bool = False) -> dict[str, Any]:
         with connection(path) as db:
             user, _ = current(db, request)
             items = []
             count = 0
-            for row in db.execute("SELECT * FROM research_outputs WHERE active=1"):
+            for row in db.execute("SELECT * FROM research_outputs WHERE active=?", (0 if voided else 1,)):
                 payload = json.loads(row["payload"])
                 participants = []
                 for participant in payload["participants"]:
@@ -86,8 +86,8 @@ def register_research_outputs(
                     )
             return {
                 "items": items,
-                "personal_participations": count,
-                "distinct_outputs": len(items),
+                "personal_participations": 0 if voided else count,
+                "distinct_outputs": 0 if voided else len(items),
             }
 
     @app.get("/api/research-outputs/template")
