@@ -512,13 +512,17 @@ def test_agent_mentor_group_facts_and_evaluation_snapshot(
                 "digest",
             ),
         )
+        seed_agent_output(db, "P1", "S1")
         db.commit()
     agent_grants(
         client,
         headers,
         ["basic", "patents", "mentor_groups", "talent_evaluation"],
-        ["view", "analyze"],
+        ["view", "identity", "analyze"],
     )
+    scored = client.post("/api/evaluation-snapshots", headers=headers,
+                         json={"student_id": 1, "rule_id": 1})
+    assert scored.status_code == 200, scored.text
     enable_agent(client, headers, monkeypatch)
     outputs = [
         json.dumps({"tool": "mentor_group_facts", "as_of": today, "mentor_id": 1}),
@@ -542,6 +546,24 @@ def test_agent_mentor_group_facts_and_evaluation_snapshot(
     ).json()
     assert snapshot["tool_result"]["snapshot"]["total"] == 25
     assert "模拟" in snapshot["tool_result"]["notice"]
+    assert snapshot["tool_result"]["snapshot"]["stale"] is False
+    with connection(dbpath) as db:
+        db.execute("UPDATE patents_outputs SET active=0")
+        db.commit()
+    outputs.extend([json.dumps({"tool": "evaluation_snapshot", "research_id": "R1"}), "old"])
+    stale = client.post("/api/agent/query", headers=headers,
+                        json={"question": "R1 evaluation"})
+    assert stale.status_code == 200
+    assert stale.json()["tool_result"]["snapshot"]["stale"] is True
+    assert "\u8fc7\u671f" in stale.json()["tool_result"]["notice"]
+    assert "\u6a21\u62df\u6f14\u793a" in stale.json()["tool_result"]["notice"]
+    agent_grants(client, headers, ["basic", "talent_evaluation"],
+                 ["view", "identity", "analyze"])
+    outputs.extend([json.dumps({"tool": "evaluation_snapshot", "research_id": "R1"})])
+    denied = client.post("/api/agent/query", headers=headers,
+                         json={"question": "R1 evaluation"})
+    assert denied.status_code == 403
+
 
 
 def test_agent_correlation_computed_by_tool_with_limits(
@@ -639,8 +661,11 @@ def test_agent_correlation_computed_by_tool_with_limits(
             "research_papers",
             "talent_evaluation",
         ],
-        ["view", "analyze"],
+        ["view", "identity", "analyze"],
     )
+    scored = client.post("/api/evaluation-snapshots", headers=headers,
+                         json={"student_id": 1, "rule_id": 1})
+    assert scored.status_code == 200, scored.text
     enable_agent(client, headers, monkeypatch)
     outputs = [
         json.dumps(
@@ -739,6 +764,17 @@ def test_agent_correlation_computed_by_tool_with_limits(
     assert scores["tool_result"]["sample_size"] == 1
     assert scores["tool_result"]["excluded_missing"] == 1
     assert scores["tool_result"]["regression"] is None
+    with connection(dbpath) as db:
+        db.execute("UPDATE patents_outputs SET active=0")
+        db.commit()
+    outputs.extend([json.dumps({"tool": "correlation_analysis", "college": "synthetic",
+                                "x_variable": "output_count", "y_variable": "score_total"}), "excluded"])
+    stale_scores = client.post("/api/agent/query", headers=headers,
+                               json={"question": "analyze scores"})
+    assert stale_scores.status_code == 200
+    assert stale_scores.json()["tool_result"]["sample_size"] == 0
+    assert stale_scores.json()["tool_result"]["excluded_missing"] == 2
+
     assert "模拟演示" in scores["tool_result"]["variable_definitions"]["y"]
     # Without course analysis grants the tool refuses outright; output_count
     # itself needs every output category, so keep those grants in place.
