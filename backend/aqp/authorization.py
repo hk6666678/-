@@ -20,7 +20,10 @@ Category = Literal[
     "patents",
     "awards",
     "conferences",
+    "blind_reviews",
+    "defenses",
 ]
+
 Operation = Literal[
     "maintain",
     "view",
@@ -32,6 +35,7 @@ Operation = Literal[
     "pass_rules",
     "labels",
     "candidate_rules",
+    "activate_templates",
     "review",
 ]
 

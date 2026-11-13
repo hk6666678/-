@@ -199,6 +199,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     )
     register_agent(app, path, current, agent_loaders)
     register_original_downloads(app, path, current)
+    from aqp.external_assessments import register_external_assessments
+    register_external_assessments(app, path, current)
     from aqp.research_outputs import register_research_outputs
 
     for output_category in ("research_papers", "patents", "awards", "conferences"):

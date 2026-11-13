@@ -20,3 +20,12 @@
 ## 集成回归收口
 
 在dd96390之后按协调授权修复students浏览器用例共享样例冲突：仅将下载样例有效行改为该用例专属合成学号/姓名，保留错误行和全部业务断言，不改生产去重。修前全套两次失败，修后全Chrome e2e 19/19 passed（29.7秒），因此此前全套限制已解除。最后官方短周期剩78%、周剩43%。最终提交HEAD用git log -1核实；本轮未push。科研专项生成的未跟踪截图.scratch/research-void-history.png保留供核验。
+
+## 05集成检查点（2026-11-13）
+
+05源codex/full-05@5d7d36d，已无冲突合入integration/aqp-trial@481ef95d7ebc8b396b1e824c9c9b985d4ef8ff0d。当前文档提交HEAD用git log -1核实。独立盲审/答辩、版本评分模板与Excel模板/预览/确认、范围/身份独立授权、来源审计和UI已完成；05工单tracked且resolved。两项事务P1及批内冲突P2已修复并经独立审查。05验证记录保留在.scratch/full-platform/full05-validation.md。
+
+03工作树D:/AQP-PGS-worktrees/full-03、codex/full-03@8388ce7为未合并WIP，等待独立审查与串行集成；根03工单仍ready-for-agent，不能视为已完成或ignored。04及后继任务未完成。保留全部历史工作树。未知未跟踪.scratch/research-void-history.png合成截图保留，不加入提交。真实学校业务/正式评分标准/专家/真实模型效果待验，无模型外发。
+
+验证对应合并481ef95：全pytest116 passed（99.23秒）、mypy28文件、Ruff全部通过；TS/Vite build通过；独立端口8056 Chrome20/20 passed（33.8秒）。测试仅合成资料，自动生成截图已还原到分支审查版本，无生产代码追加改动。所启动pytest和Chrome/webServer进程均已结束，无新增常驻服务。额度本轮开始官方短周期剩62%、周40%（单次读数非实时）；仅本地保存未push。本文恢复合并前根HANDOFF完整内容，避免05分支过时交接代替当前记录；分支原历史仍可由git show 5d7d36d:HANDOFF.md读取。
+

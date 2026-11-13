@@ -1,0 +1,10 @@
+ALTER TABLE external_assessment_templates ADD COLUMN category TEXT;
+ALTER TABLE external_assessment_templates ADD COLUMN college TEXT;
+ALTER TABLE external_assessment_templates ADD COLUMN major TEXT;
+ALTER TABLE external_assessment_templates ADD COLUMN state TEXT NOT NULL DEFAULT 'draft';
+ALTER TABLE external_assessment_templates ADD COLUMN created_by INTEGER REFERENCES users(id);
+ALTER TABLE external_assessment_templates ADD COLUMN confirmed_by TEXT;
+ALTER TABLE external_assessment_templates ADD COLUMN basis TEXT;
+ALTER TABLE external_assessment_templates ADD COLUMN activated_by INTEGER REFERENCES users(id);
+ALTER TABLE external_assessment_templates ADD COLUMN activated_at TEXT;
+UPDATE external_assessment_templates SET state='active' WHERE version='simulation-v1';
