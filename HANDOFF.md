@@ -1,40 +1,23 @@
-# 完整平台当前检查点（2026-11-12）
+# 集成检查点（2026-11-13）
 
-本文件取代此前额度停止交接的过时状态。当前已完成安全检查点，不再开始新功能，最近官方短周期剩6%、周剩47%；尚未达到5%停止线，尚未触发本轮GitHub上传。
+根D:/AQP-PGS，integration/aqp-trial；科研成果合并HEAD 16fe56e182046cac9fab884cad1037132cdadb3f（源codex/full-02 2e6ea6d）。本文后续文档提交HEAD以git log -1核实。
 
-## 集成与已完成
+01已集成完成：导师显式绑定交集、历史分析依据撤销和Chrome保存/刷新/清空验证。02实现科研论文模板、预览确认、共同参与去重、显式更正版本、来源历史、带依据作废与筛选，作废保留payload/source/audit并退出当前统计；不提供恢复。当前scope与独立void授权专项已覆盖。引用日期快照归04后继范围。
 
-根 D:/AQP-PGS，integration/aqp-trial，功能HEAD5698851（后续交接文档提交以git log -1核实）。full01导师显式绑定交集完整集成：9e62e2d合794c250；c6faaa7历史分析GET/evidence绑定撤销测试；5c77545绑定管理Chrome保存/刷新持久化/清空撤销专项及启用文案；5698851领取02/05。
+02合并后验证：pytest 110 passed；mypy 27文件通过；Ruff通过；TS/Vite build通过；独立Chrome科研导入/历史/作废/统计/筛选流程通过（8052临时端口，服务已结束）。全Chrome e2e两次18/19：最后students测试期望ready实际duplicate:1/invalid:1；单独运行该测试1 passed，证据表明共享合成样例与前序测试顺序依赖。此现有限制未改无关代码，不能宣称全e2e通过。02双轴审查及修复信息由协调代理审查记录核实。真实学校业务、数据、专家及真实模型效果未验，无模型外发。
 
-验证：9e62e2d全后端103 passed；c6faaa7专项3 passed；mypy26、Ruff、TS/Vite、Chrome账号导师兼任创建及绑定管理专项通过。真实学校数据、导师对应关系、学校业务规则及专家验收未做。01本轮部分先实现后补测试，不能称严格TDD。
+## 未合并成果与后续
 
-## 正在开发、不能合并宣称完成
+- full05独立工作树D:/AQP-PGS-worktrees/full-05，codex/full-05，最后观察81fe2e8；仍claimed/WIP，未合，准确最新HEAD/缺口由writer HANDOFF核实。保留原成果与工作树，不触碰其开发。
+- full02工作树保留；full01及历史ticket工作树全部保留，完整列表用git worktree list。
+- migration210科研论文；05 migration220，research_papers/blind_reviews/defenses独立授权，学位papers及原reviews含义不变。
+- 下一步由协调代理安排03/04及05最终审查集成；当前根无常驻测试服务。本轮仅合成隔离测试，未改真实data。
 
-- D:/AQP-PGS-worktrees/full-02，codex/full-02，HEAD 252f2f9（b92b0a2之后双轴审查修复）（前edf2851/52d1bf2/e53a57b）。科研论文独立于学位papers；migration210，Category research_papers。后端模板/preview确认/业务键共享参与/去重及显式变更版本/history/待关联审计，相关回归8项及模块mypy/ruff通过；伪学院和当前学生迁学院约束测试补齐。UI上传预览确认/列表个人参与与范围去重统计/导航已实现，build通过，隔离Chrome登录上传预览确认与统计显示通过。WIP缺口：void、history/来源页面、引用日期快照、充分共享及mentor授权矩阵、最终全回归及双轴审查。未合并，不宣称完整02。分支自带HANDOFF，无运行进程。
-- D:/AQP-PGS-worktrees/full-05，codex/full-05，HEAD a85bd83（前09899e0）。独立盲审答辩创建/列表、模拟模板持久化、全体covered_student_ids授权、来源及原文download和identity分离、duplicate/conflict/即时撤权，5相关API测试+模块mypy/ruff通过。WIP缺口：Excel预览确认、模板管理完整版本流程、UI/browser、最终全回归与审查。未合并，不宣称完整05。分支自带HANDOFF，无运行进程。
-- 其他历史worktrees均保留；git worktree list核实全部，只有codex/full-02/full-05尚未合当前integration。full-01 HEAD794c250已合。
+## 额度与同步
 
-## 固定决定与下一步
+本轮官方账户短周期剩81%、周剩43%（单次读数非实时监控）；已恢复开发，旧5%暂停状态已过时。上轮集中同步已核实integration 9e7f7a5、full01 794c250、full02 252f2f9、full05 a85bd83。本轮新成果仅本地保存，未push。只有用户明确上传或官方任一窗口剩余<=5%时按规则先交接再集中同步。
 
-1. 02 migration210_research_outputs.sql，05 migration220_external_assessments.sql；类别research_papers/blind_reviews/defenses分别授权，学位papers和旧优秀普通复核reviews语义不变。
-2. 新领域无自动模型外发，现有模型purpose仍仅agent/papers。共同成果按当前可见参与范围展示，不泄露隐藏身份；个人参与和范围去重分开；导师兼任仍受绑定交集。
-3. 继续两模块公开API/界面/Chrome完整验证；没有完成不强行合并WIP。额度<=10%先各自保存准确commit及缺口，<=5%停止writer、保存本交接和工作树再集中上传integration及相关WIP分支核实SHA。
-4. 本轮没有改真实data；新测试均为合成fixture。当前无长期后台服务由协调代理启动，测试临时webserver结束自动清理；各writer进程最后另核实。
-
-## 同步
-
-origin核实为https://github.com/hk6666678/-.git；本轮仅本地保存，尚未push。停止线时按docs/agents/github-sync.md，先检查无密钥/真实业务数据再普通push并ls-remote核实，禁止force。
-
-## 最后只读审查与修复
-
-02双轴均发现同一P1：替换同DOI成果只检查新参与者，可删除无权旧参与者。252f2f9在preview和confirm都重新校验旧payload全体维护权限；公开API测试先200失败再403通过，科研专项4 passed，模块ruff/mypy通过。仅修现有缺陷，未增加功能，未合integration。最后quota6%仍高于5%，安全结束本轮，无push；不为压到5而消耗。
-
-## 官方5%停止线与集中同步
-
-2026-11-12 root再次读取get_usage_limits：短周期used95%，剩5%；周剩47%。所有writer已在干净本地提交停止，无测试服务遗留。现停止新增开发，按规则集中同步integration/aqp-trial、codex/full-02、codex/full-05及full-01来源分支。02/05未合并仍为WIP，进度/缺口/决策见上文。同步结果以本轮会话在线核对为准，失败不可声称已上传。
-
-
-集中同步已成功：在线ls-remote核对integration为9e7f7a5、full-01为794c250、full-02为252f2f9、full-05为a85bd83，与本地一致。此补记单独本地提交后同步集成分支；代码与其他分支不变。停止开发，等待额度恢复或用户另行安排。
+## 集成回归收口
 
 5918ebb工作树干净；变更Ruff检查通过。另待适配旧frontend/tests/exports.spec.ts导航、完整复核原件页面入口；19双轴审查未做。代理push约21秒后Github443连接失败，未核实上传；无遗留测试、服务或同步进程。
 
@@ -83,3 +66,4 @@ Implemented independent blind_reviews/defenses table and category grants; list/c
 Validated: public API tests cover unauthenticated access, empty list, write, duplicate, conflict, raw comment vs identity separation, revocation. pytest external_assessments + authorization: 5 passed. Module mypy and Ruff passed. Only synthetic API acceptance; real business validation pending.
 Incomplete: Excel standard template/preview/confirm and pending association/change confirmation; custom scoring template version publishing; mentor/multi-college explicit regressions; UI ExternalAssessments.tsx and navigation/AccessPanel labels, browser checks. Thus module is WIP and not ready for full acceptance. No application servers or background processes started in this worktree. Next: finish import public API slice, then UI with browser validation.
 Quota parent last reported short 11%, weekly48%; early checkpoint requested. No claim of real-time monitoring.
+在dd96390之后按协调授权修复students浏览器用例共享样例冲突：仅将下载样例有效行改为该用例专属合成学号/姓名，保留错误行和全部业务断言，不改生产去重。修前全套两次失败，修后全Chrome e2e 19/19 passed（29.7秒），因此此前全套限制已解除。最后官方短周期剩78%、周剩43%。最终提交HEAD用git log -1核实；本轮未push。科研专项生成的未跟踪截图.scratch/research-void-history.png保留供核验。

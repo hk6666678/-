@@ -1,4 +1,5 @@
 import { AssessmentPanel } from "./AssessmentPanel";
+import { ResearchOutputs } from "./ResearchOutputs";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { RecordPanel } from "./RecordPanel";
 import React, { useEffect, useState } from "react";
@@ -267,6 +268,7 @@ function App() {
               items: [
                 ["analysis", "课程统计与通过规则"],
                 ["papers", "论文上传与解析"],
+                ["research_outputs", "已发表科研论文"],
                 ["agent", "Agent 查询"],
               ],
             },
@@ -319,6 +321,7 @@ function App() {
                   milestones: "选题与中期导入",
                   assessments: "盲审与答辩",
                   papers: "论文上传与解析",
+                  research_outputs: "已发表科研论文",
                   agent: "Agent 查询",
                   analysis: "课程统计与通过规则",
                   courses: "课程导入与待关联",
@@ -365,7 +368,7 @@ function App() {
           <AssessmentPanel csrf={session.csrf_token} />
         ) : page === "milestones" ? (
           <MilestonePanel csrf={session.csrf_token} fetcher={request} />
-        ) : page === "papers" ? (
+        ) : page === "research_outputs" ? (<ResearchOutputs csrf={session.csrf_token} />) : page === "papers" ? (
           <>
             <PaperPanel csrf={session.csrf_token} />
             <ComparisonPanel csrf={session.csrf_token} />
@@ -556,3 +559,4 @@ function App() {
   );
 }
 createRoot(document.getElementById("root")!).render(<App />);
+
