@@ -11,6 +11,7 @@ type Snapshot = {
   id: number;
   student_id: number;
   rule_id: number;
+  family_id: number;
   rule_version: number;
   mode: string;
   notice: string;
@@ -32,6 +33,7 @@ type SnapshotItem = {
   student_id: number;
   research_id: string;
   rule_id: number;
+  family_id: number;
   rule_version: number;
   mode: string;
   total: number | null;
@@ -126,7 +128,7 @@ function Growth({ snapshots }: { snapshots: SnapshotItem[] }) {
   return (
     <div className="evaluation-growth">
       <p>
-        仅绘制真实保存的快照点，未形成总分的快照与缺失年份不补点、不外推。
+        仅绘制同一学生同一规则族的真实保存快照点，未形成总分的快照与缺失年份不补点、不外推；不同规则族的分数不可比，不混绘。
         {points.length < 2
           ? "有效快照不足两个，暂不绘制连线。"
           : `共${points.length}个有效快照点。`}
@@ -607,7 +609,9 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
               <h4>总分成长（真实快照）</h4>
               <Growth
                 snapshots={snapshots.filter(
-                  (s) => s.student_id === snapshot.student_id,
+                  (s) =>
+                    s.student_id === snapshot.student_id &&
+                    s.family_id === snapshot.family_id,
                 )}
               />
             </div>

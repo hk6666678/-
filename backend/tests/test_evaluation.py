@@ -309,12 +309,35 @@ def test_snapshot_listing_and_independent_export(client, tmp_path):
             "student_id": 1,
             "research_id": "R1",
             "rule_id": rule["id"],
+            "family_id": 1,
             "rule_version": 1,
             "mode": "simulation",
             "total": 25,
             "as_of": score["as_of"],
         }
     ]
+    # A fresh snapshot is not stale, and presentation-only evidence edits do
+    # not change the semantic data digest.
+    fresh = client.get(f"/api/evaluation-snapshots/{score['id']}", headers=headers)
+    assert fresh.status_code == 200
+    assert fresh.json()["stale"] is False
+    assert fresh.json()["family_id"] == 1
+    with connection(dbpath) as db:
+        row = json.loads(
+            db.execute("SELECT payload FROM patents_outputs WHERE id=1").fetchone()[0]
+        )
+        row["title"] = "Renamed Synthetic Patent"
+        db.execute(
+            "UPDATE patents_outputs SET payload=? WHERE id=1",
+            (json.dumps(row),),
+        )
+        db.commit()
+    assert (
+        client.get(f"/api/evaluation-snapshots/{score['id']}", headers=headers).json()[
+            "stale"
+        ]
+        is False
+    )
     # Full analysis access never grants the report download by itself.
     export = client.get(
         f"/api/evaluation-snapshots/{score['id']}/export", headers=headers
@@ -350,6 +373,202 @@ def test_snapshot_listing_and_independent_export(client, tmp_path):
         ).status_code
         == 403
     )
+
+
+def test_review_fixes_scope_lock_partial_grants_deactivation_audit(client, tmp_path):
+    import json
+    from uuid import uuid4
+
+    from aqp.store import connection
+
+    headers = login_admin(client)
+    me = client.get("/api/me").json()["user"]
+    assert (
+        client.put(
+            f"/api/users/{me['id']}/grants",
+            headers=headers,
+            json={
+                "expected_version": me["version"],
+                "request_id": str(uuid4()),
+                "grants": [
+                    {
+                        "category": category,
+                        "operation": operation,
+                        "college": "synthetic",
+                        "major": "synthetic",
+                    }
+                    for category in ["basic", "talent_evaluation", "patents"]
+                    for operation in [
+                        "view",
+                        "identity",
+                        "analyze",
+                        "maintain",
+                        "activate_evaluation",
+                    ]
+                ]
+                + [
+                    {
+                        "category": "talent_evaluation",
+                        "operation": "maintain",
+                        "college": "elsewhere",
+                        "major": "elsewhere",
+                    }
+                ],
+            },
+        ).status_code
+        == 200
+    )
+    dbpath = tmp_path / "accounts.sqlite3"
+    with connection(dbpath) as db:
+        db.execute(
+            "INSERT INTO students(id,research_id,student_number,name,college,major,level,entry_year,payload) VALUES(1,'R1','S1','Synthetic','synthetic','synthetic','master',2025,'{}')"
+        )
+        db.execute(
+            "INSERT INTO patents_outputs(business_key,payload) VALUES(?,?)",
+            (
+                "P1",
+                json.dumps(
+                    {
+                        "title": "Synthetic Patent",
+                        "participants": [
+                            {
+                                "student_number": "S1",
+                                "name": "Synthetic",
+                                "college": "synthetic",
+                                "major": "synthetic",
+                            }
+                        ],
+                    }
+                ),
+            ),
+        )
+        db.commit()
+    rule = client.post(
+        "/api/evaluation-rules",
+        headers=headers,
+        json={
+            "name": "simulation",
+            "college": "synthetic",
+            "major": "synthetic",
+            "mode": "simulation",
+            "expected_version": 0,
+            "metrics": [
+                {"feature": "patent_count", "weight": 1, "minimum": 0, "maximum": 4}
+            ],
+        },
+    ).json()
+    assert (
+        client.post(
+            f"/api/evaluation-rules/{rule['id']}/activate",
+            headers=headers,
+            json={
+                "expected_version": 1,
+                "confirmed_by": "expert",
+                "basis": "synthetic",
+                "acknowledge_simulation": True,
+            },
+        ).status_code
+        == 200
+    )
+    score = client.post(
+        "/api/evaluation-snapshots",
+        headers=headers,
+        json={"student_id": 1, "rule_id": rule["id"]},
+    ).json()
+    # Revisions may not change scope: a family activation retires the whole
+    # family, so a scope change would silently disable another scope's rule.
+    assert (
+        client.post(
+            "/api/evaluation-rules",
+            headers=headers,
+            json={
+                "name": "scope shift",
+                "college": "elsewhere",
+                "major": "elsewhere",
+                "mode": "simulation",
+                "metrics": [
+                    {"feature": "patent_count", "weight": 1, "minimum": 0, "maximum": 4}
+                ],
+                "previous_id": rule["id"],
+                "expected_version": 1,
+            },
+        ).status_code
+        == 409
+    )
+    # Missing grants for one metric's source category refuse the whole score
+    # without leaking any partially collected evidence.
+    two_metrics = client.post(
+        "/api/evaluation-rules",
+        headers=headers,
+        json={
+            "name": "partial",
+            "college": "synthetic",
+            "major": "synthetic",
+            "mode": "simulation",
+            "expected_version": 0,
+            "metrics": [
+                {"feature": "patent_count", "weight": 1, "minimum": 0, "maximum": 4},
+                {
+                    "feature": "course_pass_ratio",
+                    "weight": 1,
+                    "minimum": 0,
+                    "maximum": 1,
+                },
+            ],
+        },
+    ).json()
+    assert (
+        client.post(
+            f"/api/evaluation-rules/{two_metrics['id']}/activate",
+            headers=headers,
+            json={
+                "expected_version": 1,
+                "confirmed_by": "expert",
+                "basis": "synthetic",
+                "acknowledge_simulation": True,
+            },
+        ).status_code
+        == 200
+    )
+    refused = client.post(
+        "/api/evaluation-snapshots",
+        headers=headers,
+        json={"student_id": 1, "rule_id": two_metrics["id"]},
+    )
+    assert refused.status_code == 403
+    assert "inputs" not in refused.json()
+    # Deactivated students lose export access even with grants intact.
+    with connection(dbpath) as db:
+        db.execute("UPDATE students SET active=0 WHERE id=1")
+        db.commit()
+    assert (
+        client.get(
+            f"/api/evaluation-snapshots/{score['id']}/export", headers=headers
+        ).status_code
+        == 403
+    )
+    with connection(dbpath) as db:
+        db.execute("UPDATE students SET active=1 WHERE id=1")
+        db.commit()
+    # Lists, reads and denials leave audit trails like the analysis module.
+    assert (
+        client.get(f"/api/evaluation-snapshots/{score['id']}", headers=headers).status_code
+        == 200
+    )
+    assert client.get("/api/evaluation-snapshots", headers=headers).status_code == 200
+    assert client.get("/api/evaluation-rules", headers=headers).status_code == 200
+    with connection(dbpath) as db:
+        actions = {
+            row[0]
+            for row in db.execute(
+                "SELECT action FROM audit WHERE action LIKE 'evaluation.%'"
+            )
+        }
+        denials = db.execute(
+            "SELECT COUNT(*) FROM audit WHERE action='evaluation.access' AND outcome='denied'"
+        ).fetchone()[0]
+    assert {"evaluation.list", "evaluation.read", "evaluation.score"} <= actions
+    assert denials >= 1
 
 
 def test_existing_260_database_upgrades_without_reset(client, tmp_path):

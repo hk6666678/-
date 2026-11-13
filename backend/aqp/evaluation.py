@@ -62,6 +62,12 @@ class Activation(BaseModel):
 
 
 def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -> None:
+    def deny(db: Any, actor: int, target: str, message: str) -> None:
+        # Matches the analysis module: refusals stay auditable.
+        audit(db, actor, "evaluation.access", target, "denied")
+        db.commit()
+        raise HTTPException(403, message)
+
     def authorize(db: Any, actor: int, config: dict[str, Any], operation: str) -> None:
         if not allowed(
             db,
@@ -71,7 +77,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
             config["college"],
             config["major"],
         ):
-            raise HTTPException(403, "人才评价授权不足")
+            deny(db, actor, "restricted", "人才评价授权不足")
 
     @app.get("/api/evaluation-rules")
     def listing(request: Request) -> dict[str, Any]:
@@ -89,6 +95,8 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                     config["major"],
                 ):
                     items.append({**dict(row), "config": config})
+            audit(db, actor["id"], "evaluation.list", "rules")
+            db.commit()
             return {"items": items}
 
     def inputs(
@@ -98,18 +106,18 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
             "SELECT * FROM students WHERE id=? AND active=1", (student_id,)
         ).fetchone()
         if student is None or not student_allowed(db, actor, student_id):
-            raise HTTPException(403, "学生当前范围不可访问")
+            deny(db, actor, str(student_id), "学生当前范围不可访问")
         if (
             student["college"] != config["college"]
             or student["major"] != config["major"]
         ):
-            raise HTTPException(403, "学生不在规则范围")
+            deny(db, actor, str(student_id), "学生不在规则范围")
         for category in ["basic", "talent_evaluation"]:
             for operation in ["view", "identity", "analyze"]:
                 if not allowed(
                     db, actor, category, operation, student["college"], student["major"]
                 ):
-                    raise HTTPException(403, "评价当前授权不足")
+                    deny(db, actor, str(student_id), "评价当前授权不足")
         result = []
         for metric in config["metrics"]:
             feature = metric["feature"]
@@ -118,7 +126,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                 if not allowed(
                     db, actor, category, operation, student["college"], student["major"]
                 ):
-                    raise HTTPException(403, "指标来源授权不足")
+                    deny(db, actor, str(student_id), "指标来源授权不足")
             evidence = []
             value = None
             missing = "尚无可查证来源记录"
@@ -140,7 +148,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                             if not current_participant(
                                 db, actor, category, operation, participant
                             )[0]:
-                                raise HTTPException(403, "来源记录当前范围不可访问")
+                                deny(db, actor, str(row["id"]), "来源记录当前范围不可访问")
                     item = {
                         "category": category,
                         "record_id": row["id"],
@@ -191,7 +199,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                         payload.get("学院") != student["college"]
                         or payload.get("专业") != student["major"]
                     ):
-                        raise HTTPException(403, "课程来源范围已变化")
+                        deny(db, actor, str(row["id"]), "课程来源范围已变化")
                     status, pass_rule = outcome(payload, rules)
                     statuses.append(status)
                     evidence.append(
@@ -234,7 +242,34 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                     "missing": missing if value is None else None,
                 }
             )
-        digest = hashlib.sha256(json.dumps(result, sort_keys=True).encode()).hexdigest()
+        # The digest covers only semantic data identity (which records and
+        # versions produced which values). Presentation-only evidence fields
+        # may evolve without marking every stored snapshot stale.
+        stable = [
+            {
+                "feature": v["feature"],
+                "value": v["value"],
+                "normalized": v["normalized"],
+                "weight": v["weight"],
+                "records": [
+                    {
+                        "category": e["category"],
+                        "record_id": e["record_id"],
+                        "version": e["version"],
+                    }
+                    for e in v["evidence"]
+                ],
+                **(
+                    {"citations": [e.get("citation") for e in v["evidence"]]}
+                    if v["feature"] == "latest_citation_count"
+                    else {}
+                ),
+            }
+            for v in result
+        ]
+        digest = hashlib.sha256(
+            json.dumps(stable, sort_keys=True, allow_nan=False).encode()
+        ).hexdigest()
         return result, digest
 
     def load_snapshot(db: Any, actor: int, ident: int) -> dict[str, Any]:
@@ -252,6 +287,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
         return {
             "id": ident,
             **json.loads(saved["result"]),
+            "family_id": rule["family_id"],
             "stale": digest != saved["data_digest"],
             "rule_currently_enabled": bool(rule["enabled"]),
         }
@@ -285,6 +321,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                 "notice": "模拟演示，不构成正式人才识别",
                 "student_id": body.student_id,
                 "rule_id": body.rule_id,
+                "family_id": rule["family_id"],
                 "rule_version": rule["version"],
                 "scope": {"college": config["college"], "major": config["major"]},
                 "as_of": now,
@@ -313,7 +350,10 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
     def snapshot(ident: int, request: Request) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
-            return load_snapshot(db, actor["id"], ident)
+            result = load_snapshot(db, actor["id"], ident)
+            audit(db, actor["id"], "evaluation.read", str(ident))
+            db.commit()
+            return result
 
     @app.get("/api/evaluation-snapshots")
     def snapshot_listing(request: Request) -> dict[str, Any]:
@@ -323,13 +363,14 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
             # Re-check the student and rule scope now: history never bypasses
             # deactivation or grant changes since the snapshot was saved.
             for row in db.execute(
-                "SELECT s.id, s.student_id, st.research_id, s.result "
+                "SELECT s.id, s.student_id, st.research_id, s.result, r.family_id "
                 "FROM evaluation_snapshots s "
                 "JOIN students st ON st.id=s.student_id AND st.active=1 "
+                "JOIN evaluation_rules r ON r.id=s.rule_id "
                 "ORDER BY s.id DESC"
             ):
                 result = json.loads(row["result"])
-                scope = result["scope"]
+                scope = result.get("scope") or {}
                 if not student_allowed(db, actor["id"], row["student_id"]):
                     continue
                 if not allowed(
@@ -337,8 +378,8 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                     actor["id"],
                     "talent_evaluation",
                     "view",
-                    scope["college"],
-                    scope["major"],
+                    scope.get("college", ""),
+                    scope.get("major", ""),
                 ):
                     continue
                 items.append(
@@ -347,12 +388,15 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                         "student_id": row["student_id"],
                         "research_id": row["research_id"],
                         "rule_id": result["rule_id"],
+                        "family_id": row["family_id"],
                         "rule_version": result["rule_version"],
                         "mode": result["mode"],
                         "total": result["total"],
                         "as_of": result["as_of"],
                     }
                 )
+            audit(db, actor["id"], "evaluation.list", "snapshots")
+            db.commit()
             return {"items": items}
 
     @app.get("/api/evaluation-snapshots/{ident}/export")
@@ -367,6 +411,8 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
             rule = db.execute(
                 "SELECT * FROM evaluation_rules WHERE id=?", (saved["rule_id"],)
             ).fetchone()
+            if rule is None:
+                raise HTTPException(404, "评分快照不存在")
             config = json.loads(rule["config"])
             # Downloading the report needs the independent export grant on the
             # evaluation scope and on every metric's source category.
@@ -382,7 +428,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                     config["college"],
                     config["major"],
                 ):
-                    raise HTTPException(403, "评价或指标来源导出授权不足")
+                    deny(db, actor["id"], str(ident), "评价或指标来源导出授权不足")
             report = load_snapshot(db, actor["id"], ident)
             audit(db, actor["id"], "evaluation.export", str(ident))
             db.commit()
@@ -409,7 +455,16 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                 ).fetchone()
                 if previous is None:
                     raise HTTPException(404, "规则不存在")
-                authorize(db, actor["id"], json.loads(previous["config"]), "maintain")
+                previous_config = json.loads(previous["config"])
+                authorize(db, actor["id"], previous_config, "maintain")
+                if (
+                    previous_config["college"],
+                    previous_config["major"],
+                ) != (config["college"], config["major"]):
+                    # Activating a family version disables the whole family;
+                    # a scope change would silently retire another scope's
+                    # enabled rule.
+                    raise HTTPException(409, "修订不得改变规则范围")
                 family = previous["family_id"]
                 latest = db.execute(
                     "SELECT MAX(version) FROM evaluation_rules WHERE family_id=?",
