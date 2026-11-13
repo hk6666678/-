@@ -294,7 +294,20 @@ def run(manifest, output):
                 f"/api/reports/colleges?college={COLLEGE}&major={MAJOR}",
                 f"/api/reports/mentor-groups?as_of=2026-11-13&mentor_id={directories[0]}",
             ]:
-                checked(client.get(path))
+                result = checked(client.get(path))
+                if path.startswith("/api/reports/students/"):
+                    assert result["sections"]["evaluation"]["total"] == 10, result
+                    for category in [
+                        "research_papers",
+                        "patents",
+                        "awards",
+                        "conferences",
+                    ]:
+                        assert result["sections"][category]["count"] == 1, result
+                if path.startswith("/api/reports/colleges"):
+                    assert (
+                        result["sections"]["mentor_groups"]["active_relations"] == 1
+                    ), result
                 report["checks"].append(
                     {
                         "report": path,
