@@ -401,6 +401,9 @@ def test_course_and_citation_versions_and_mentor_binding(client, tmp_path):
     result = client.post("/api/evaluation-snapshots", headers=headers, json=body).json()
     assert result["inputs"][0]["value"] == 0.5
     assert abs(result["total"] - 55) < 0.00001
+    reread = client.get(f"/api/evaluation-snapshots/{result['id']}")
+    assert reread.status_code == 200
+    assert abs(reread.json()["total"] - 55) < 0.00001
     with connection(dbpath) as db:
         db.execute(
             "UPDATE users SET roles=? WHERE id=?",
