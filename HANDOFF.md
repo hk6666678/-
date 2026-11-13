@@ -2,15 +2,21 @@
 
 根D:/AQP-PGS，integration/aqp-trial；科研成果合并HEAD 16fe56e182046cac9fab884cad1037132cdadb3f（源codex/full-02 2e6ea6d）。本文后续文档提交HEAD以git log -1核实。
 
-## 2026-11-13 07集成检查点（本节最新，仅本地未push）
+## 2026-11-13 08集成检查点（本节最新，仅本地未push）
 
-本会话主机无官方get_usage_limits工具，官方Codex额度无法读取或保证（上轮停止时读数为短剩5%）；用户明确指示继续开发，全程合成数据、仅本地提交未push。
+本会话主机无官方get_usage_limits工具，官方额度无法读取或保证；用户明确指示继续开发，全程合成数据、仅本地提交未push。
+
+08已完成并合入：源codex/full-08@a570bc4（功能c161c4e+审查修复73d4dd0）无冲突合入integration/aqp-trial@a13815d。三级报告（学生发展/导师课题组/学院学科）三GET端点+三Excel导出，全部读取时当前权限现算：无权段落标注未纳入不计数、缺数据标注缺失不填零、一条越权记录隐藏整段计数；证据带记录/版本/年份下钻（年份兼容payload.details与顶层）；导出要求basic export底座+每个实际纳入类别export，课题组导出按关系三方scope×纳入类别并含空关系兜底；审计reports.read/export/denied；06的facts提取为group_facts复用（逐行等价+年份）。前端ReportsPanel三区+SVG柱状+details下钻+导出下载，550px单列。独立审查"修复后可"两项必修已修并回归：学院mentor_groups段补导师显式绑定校验；课题组空关系导出补basic export底座。建议项采纳（pass_rule_version精确专业、文件名、集合提出循环）。Chrome全流程含2026真实年份DOM断言与三份xlsx下载；Chrome运行中抓出导入年份藏于payload.details的真实bug并修复；卡片截图两轮视觉复核。
+
+工单08 tracked且resolved。集成a13815d全回归：pytest142 passed（152.98秒）、mypy31文件、Ruff、TS/Vite build、全Chrome23/23（41.9秒）。已知不阻塞盲区（整段隐藏分支直测、导出停用学生、课程规模性能、today时区差）记录于FULL08-CHECKPOINT.md。真实业务验收待验，无模型外发。09Agent扩展与研究分析、10完整集成验收未开始。保留全部工作树；将基于本节最终提交预建D:/AQP-PGS-worktrees/full-09与codex/full-09，不启动实现。
+
+## 2026-11-13 07集成检查点（历史）
 
 07已完成并合入：源codex/full-07@179fdd2（含第二轮98d45dc快照历史/导出/雷达成长曲线与第三轮64356f8审查修复）无冲突合并为integration/aqp-trial@0df4d7b。功能闭环：模拟规则不可覆盖草稿与版本链、独立授权启用（业务确认人+依据+模拟确认）、白名单六指标评分、逐指标证据快照（含business_key/标题/来源部门/课程编号学期下钻，缺失不填零）、当前授权重查与stale、快照历史列表（重查学生授权与规则范围）、Excel导出独立授权（talent_evaluation+各来源类别+basic的export）、雷达图（<3指标不画防误导）、成长曲线仅同一学生同一规则族真实快照点（不补年份不外推）。独立只读审查"修复后可"的两项必修已落地复测：审计对齐（list/read/denied留痕）；digest改语义稳定子集，展示字段演进不再误标stale。加固：修订禁止跨院系范围、导出防御规则缺行、260幂等、异常行容忍、family_id贯通。审查员"引用泄露"经核实为误读（引用证据仅日期/版本/数量）。
 
 工单07 tracked且resolved。集成0df4d7b本机全回归：pytest138 passed（121.81秒）、mypy30文件、Ruff、TS/Vite build、全Chrome22/22（41.3秒）。两次评分用例（10.00→13.33）覆盖追加真实专利后曲线真实上升；快照卡片截图两轮视觉复核修复标签截断。
 
-仍待办：正式规则仅模拟模式，业务确认权重前不启用，评分不作正式人才识别；真实学校业务/正式标准/专家/模型效果未验，无模型外发。08三级报告、09Agent扩展与研究分析、10完整集成验收未开始。已知不阻塞盲区记录于FULL07-CHECKPOINT.md（同成果重复参与人双计防护、非对称极端权重下溢、部分分支测试未写）。保留全部工作树，git worktree list核实；将基于本节最终提交预建D:/AQP-PGS-worktrees/full-08与codex/full-08，不启动实现。
+仍待办：正式规则仅模拟模式，业务确认权重前不启用，评分不作正式人才识别；真实学校业务/正式标准/专家/模型效果未验，无模型外发。已知不阻塞盲区记录于FULL07-CHECKPOINT.md。
 
 
 01已集成完成：导师显式绑定交集、历史分析依据撤销和Chrome保存/刷新/清空验证。02实现科研论文模板、预览确认、共同参与去重、显式更正版本、来源历史、带依据作废与筛选，作废保留payload/source/audit并退出当前统计；不提供恢复。当前scope与独立void授权专项已覆盖。引用日期快照归04后继范围。
