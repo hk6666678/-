@@ -11,3 +11,7 @@
 
 合并基线b05c06f后，完整后端116 pytest通过（166.29秒）、全backend Ruff通过、mypy28模块通过、TS/Vite构建通过。Chrome20/20通过（32.3秒）；考核用例使用专属合成学生并finally恢复原授权，避免跨测试污染。最终仅测试隔离与截图路径有后续提交，无生产代码变化。
 固定截图：.scratch/full-platform/screenshots/assessment-error.png、assessment-confirmed.png；成功截图已view_image自查，标题不重复、导航当前项与分项成绩可读。合成验证不等同真实业务验收。
+
+## 独立视觉评审后一轮精修
+
+按独立评审三项建议拆分导入/预览/记录卡片，辅助模板管理收起；绿色成功status，红浅底错误禁用确认，UUID缩短；分项quality映射既有模拟模板质量名称（其他自定义项保留业务键），不伪造标签。下载模板为次级操作。TS/Vite与Chrome考核专项通过，固定截图更新（1280x1200覆盖记录区），已view_image自查。
