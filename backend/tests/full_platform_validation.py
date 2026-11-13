@@ -1,6 +1,7 @@
 """Extend a completed trial_scale manifest using public loopback HTTP APIs."""
 
 import argparse
+import hashlib
 import json
 import os
 import platform
@@ -29,6 +30,13 @@ def run(manifest, output):
     ):
         source_db.backup(target_db)
     shutil.copytree(baseline["attachments"], output / "attachments")
+    source_files = {
+        str(p.relative_to(output / "attachments")): hashlib.sha256(
+            p.read_bytes()
+        ).hexdigest()
+        for p in (output / "attachments").rglob("*")
+        if p.is_file()
+    }
     baseline.update(
         database=str(output / "aqp.sqlite3"), attachments=str(output / "attachments")
     )
@@ -51,6 +59,7 @@ def run(manifest, output):
         "source_commit": subprocess.check_output(
             ["git", "rev-parse", "HEAD"], text=True
         ).strip(),
+        "source_attachment_sha256": source_files,
         "checks": [],
         "status": "running",
     }
@@ -61,6 +70,15 @@ def run(manifest, output):
         ):
             headers = login(client, source["synthetic_account"])
             original = checked(client.get("/api/access/grants"))
+            disabled = client.post(
+                "/api/agent/query",
+                headers=headers,
+                json={"question": "统计合成学生人数"},
+            )
+            assert disabled.status_code == 503, disabled.text
+            report["checks"].append(
+                {"agent_default_disabled": 503, "model_egress": False}
+            )
             categories = [
                 "basic",
                 "research_papers",

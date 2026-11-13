@@ -261,6 +261,18 @@ def run(manifest, output):
         report["restore"] = maintenance(
             "restore", "--archive", output / "backup.zip", "--target", target
         )
+        if extension:
+            hashes = {
+                str(p.relative_to(target / "attachments")): hashlib.sha256(
+                    p.read_bytes()
+                ).hexdigest()
+                for p in (target / "attachments").rglob("*")
+                if p.is_file()
+            }
+            assert hashes == extension["source_attachment_sha256"], (
+                "restored source attachment hashes differ"
+            )
+            report["source_attachment_sha256"] = hashes
         with serving(target / "aqp.sqlite3") as url, sync_playwright() as pw:
             browser = pw.chromium.launch(channel="chrome", headless=True)
             context = browser.new_context()
@@ -270,6 +282,7 @@ def run(manifest, output):
                     for key, value in old_cookies.items()
                 ]
             )
+            report["chrome_version"] = browser.version
             page = context.new_page()
             page.goto(url)
             old = page.evaluate("async () => (await fetch('/api/me')).status")
