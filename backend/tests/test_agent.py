@@ -353,3 +353,416 @@ def test_agent_training_summary_and_clarification(
     ).json()
     assert clarify["answer"] == "请说明统计对象和年份。"
     assert clarify["tool_result"] is None
+
+
+def seed_agent_student(db, ident: int, number: str) -> None:
+    db.execute(
+        "INSERT INTO students(id,research_id,student_number,name,college,major,level,entry_year,payload)"
+        " VALUES(?,?,?,?,'synthetic','synthetic','master',2025,?)",
+        (
+            ident,
+            f"R{ident}",
+            number,
+            f"Synthetic{ident}",
+            json.dumps({"所属学院": "synthetic", "专业": "synthetic"}),
+        ),
+    )
+
+
+def seed_agent_output(db, key: str, number: str) -> None:
+    db.execute(
+        "INSERT INTO patents_outputs(business_key,payload) VALUES(?,?)",
+        (
+            key,
+            json.dumps(
+                {
+                    "title": f"Patent {key}",
+                    "participants": [
+                        {
+                            "student_number": number,
+                            "name": f"Synthetic{number[1:]}",
+                            "college": "synthetic",
+                            "major": "synthetic",
+                        }
+                    ],
+                }
+            ),
+        ),
+    )
+
+
+def agent_grants(test_client, headers, categories, operations) -> None:
+    replace_grants(
+        test_client,
+        headers,
+        [
+            {
+                "category": category,
+                "operation": operation,
+                "college": "synthetic",
+                "major": "synthetic",
+            }
+            for category in categories
+            for operation in operations
+        ],
+    )
+
+
+def test_agent_output_statistics_and_missing_grants(
+    client: TestClient,  # noqa: F811
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from aqp.store import connection
+
+    headers = login_admin(client)
+    dbpath = tmp_path / "accounts.sqlite3"
+    with connection(dbpath) as db:
+        seed_agent_student(db, 1, "S1")
+        seed_agent_output(db, "AP1", "S1")
+        db.commit()
+    agent_grants(client, headers, ["basic", "patents"], ["view", "analyze"])
+    enable_agent(client, headers, monkeypatch)
+    outputs = [
+        json.dumps({"tool": "output_statistics", "college": "synthetic"}, ensure_ascii=False),
+        "合成摘要：专利去重1项。",
+    ]
+    monkeypatch.setattr(
+        model_connection, "default_runner", lambda config, text: outputs.pop(0)
+    )
+    result = client.post(
+        "/api/agent/query",
+        headers=headers,
+        json={"question": "统计synthetic学院成果"},
+    ).json()
+    assert result["tool_result"]["student_total"] == 1
+    assert result["tool_result"]["categories"]["patents"]["distinct_outputs"] == 1
+    assert result["tool_result"]["categories"]["patents"]["authorized_students"] == 1
+    assert (
+        result["tool_result"]["categories"]["awards"]["authorized_students"] == 0
+    )
+    assert "无该类别可统计学生" in result["tool_result"]["categories"]["awards"]["notice"]
+    agent_grants(client, headers, ["patents"], ["view", "analyze"])
+    outputs.append(json.dumps({"tool": "output_statistics", "college": "synthetic"}, ensure_ascii=False))
+    outputs.append("again")
+    denied = client.post(
+        "/api/agent/query",
+        headers=headers,
+        json={"question": "统计synthetic学院成果"},
+    )
+    assert denied.status_code == 403
+
+
+def test_agent_mentor_group_facts_and_evaluation_snapshot(
+    client: TestClient,  # noqa: F811
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    import time as time_module
+
+    from aqp.store import connection
+
+    headers = login_admin(client)
+    dbpath = tmp_path / "accounts.sqlite3"
+    today = time_module.strftime("%Y-%m-%d")
+    with connection(dbpath) as db:
+        seed_agent_student(db, 1, "S1")
+        db.execute(
+            "INSERT INTO mentor_directory(id,mentor_number,name,college,major) VALUES(1,'AM1','Agent Mentor','synthetic','synthetic')"
+        )
+        db.execute(
+            "INSERT INTO research_groups(id,group_number,name,college,major) VALUES(1,'AG1','Agent Group','synthetic','synthetic')"
+        )
+        db.execute(
+            "INSERT INTO mentor_group_relations(id,student_id,mentor_id,group_id,start_date,source_department) "
+            "VALUES(1,1,1,1,'2020-01-01','synthetic')"
+        )
+        db.execute(
+            "INSERT INTO evaluation_rules(id,family_id,version,config,enabled,created_by,created_at) "
+            "VALUES(1,1,1,?,1,1,0)",
+            (
+                json.dumps(
+                    {
+                        "name": "agent",
+                        "college": "synthetic",
+                        "major": "synthetic",
+                        "mode": "simulation",
+                        "metrics": [
+                            {"feature": "patent_count", "weight": 1, "minimum": 0, "maximum": 4}
+                        ],
+                    }
+                ),
+            ),
+        )
+        db.execute(
+            "INSERT INTO evaluation_snapshots(id,student_id,rule_id,result,data_digest,created_by,created_at) "
+            "VALUES(1,1,1,?,?,1,0)",
+            (
+                json.dumps(
+                    {
+                        "mode": "simulation",
+                        "student_id": 1,
+                        "rule_id": 1,
+                        "rule_version": 1,
+                        "as_of": 0,
+                        "inputs": [],
+                        "total": 25,
+                    }
+                ),
+                "digest",
+            ),
+        )
+        db.commit()
+    agent_grants(
+        client,
+        headers,
+        ["basic", "patents", "mentor_groups", "talent_evaluation"],
+        ["view", "analyze"],
+    )
+    enable_agent(client, headers, monkeypatch)
+    outputs = [
+        json.dumps({"tool": "mentor_group_facts", "as_of": today, "mentor_id": 1}),
+        "合成摘要：当前1名学生。",
+        json.dumps({"tool": "evaluation_snapshot", "research_id": "R1"}),
+        "合成摘要：最新模拟总分25，仅模拟。",
+    ]
+    monkeypatch.setattr(
+        model_connection, "default_runner", lambda config, text: outputs.pop(0)
+    )
+    facts = client.post(
+        "/api/agent/query",
+        headers=headers,
+        json={"question": f"查看{today}的导师组事实"},
+    ).json()
+    assert facts["tool_result"]["student_count"] == 1
+    snapshot = client.post(
+        "/api/agent/query",
+        headers=headers,
+        json={"question": "R1最新评分"},
+    ).json()
+    assert snapshot["tool_result"]["snapshot"]["total"] == 25
+    assert "模拟" in snapshot["tool_result"]["notice"]
+
+
+def test_agent_correlation_computed_by_tool_with_limits(
+    client: TestClient,  # noqa: F811
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    from aqp.store import connection
+
+    headers = login_admin(client)
+    dbpath = tmp_path / "accounts.sqlite3"
+    with connection(dbpath) as db:
+        db.execute(
+            "INSERT INTO import_batches(id,category,template_version,source_department,filename,file_hash,original_file,uploaded_by,created_at) VALUES(1,'courses','1','synthetic','synthetic','synthetic',X'00',?,1)",
+            (1,),
+        )
+        # Three students: course pass ratio 1.0/0.5/0.0 with 1/2/3 patents is
+        # a perfect negative relation: r=-1, y = 3 - 2x, R2 = 1.
+        for ident, number, ratio, patents in [
+            (1, "S1", "通过", 1),
+            (2, "S2", "mixed", 2),
+            (3, "S3", "不通过", 3),
+        ]:
+            seed_agent_student(db, ident, number)
+            for index in range(patents):
+                seed_agent_output(db, f"AC{ident}-{index}", number)
+            if ratio == "mixed":
+                statuses = ["通过", "不通过"]
+            else:
+                statuses = [ratio] * 2
+            for index, status in enumerate(statuses):
+                payload = {
+                    "学院": "synthetic",
+                    "专业": "synthetic",
+                    "评分制度": "百分制",
+                    "业务通过结果": status,
+                }
+                db.execute(
+                    "INSERT INTO import_rows(id,batch_id,sheet,row_number,raw_json,normalized_json,state) "
+                    "VALUES(?,1,'sheet',?,'{}','{}','linked')",
+                    (ident * 10 + index, ident * 10 + index),
+                )
+                db.execute(
+                    "INSERT INTO course_records(student_number,course_code,term,attempt,student_id,payload,state,source_row_id) "
+                    "VALUES(?,?,?,?,?,?, 'linked', ?)",
+                    (number, f"C{ident}-{index}", "2025", 1, ident, json.dumps(payload), ident * 10 + index),
+                )
+        db.commit()
+    with connection(dbpath) as db:
+        db.execute(
+            "INSERT INTO evaluation_rules(id,family_id,version,config,enabled,created_by,created_at) "
+            "VALUES(1,1,1,?,1,1,0)",
+            (
+                json.dumps(
+                    {
+                        "name": "correlation",
+                        "college": "synthetic",
+                        "major": "synthetic",
+                        "mode": "simulation",
+                        "metrics": [
+                            {"feature": "patent_count", "weight": 1, "minimum": 0, "maximum": 4}
+                        ],
+                    }
+                ),
+            ),
+        )
+        db.execute(
+            "INSERT INTO evaluation_snapshots(student_id,rule_id,result,data_digest,created_by,created_at) "
+            "VALUES(1,1,?,?,1,0)",
+            (
+                json.dumps(
+                    {
+                        "mode": "simulation",
+                        "student_id": 1,
+                        "rule_id": 1,
+                        "rule_version": 1,
+                        "as_of": 0,
+                        "inputs": [],
+                        "total": 25,
+                    }
+                ),
+                "digest",
+            ),
+        )
+        db.commit()
+    agent_grants(
+        client,
+        headers,
+        [
+            "basic",
+            "courses",
+            "patents",
+            "awards",
+            "conferences",
+            "research_papers",
+            "talent_evaluation",
+        ],
+        ["view", "analyze"],
+    )
+    enable_agent(client, headers, monkeypatch)
+    outputs = [
+        json.dumps(
+            {
+                "tool": "correlation_analysis",
+                "college": "synthetic",
+                "x_variable": "course_pass_ratio",
+                "y_variable": "output_count",
+            }
+        ),
+        "合成摘要：r=-1，样本3，不表示因果。",
+        json.dumps(
+            {
+                "tool": "correlation_analysis",
+                "college": "synthetic",
+                "x_variable": "course_pass_ratio",
+                "y_variable": "output_count",
+            }
+        ),
+        "again",
+    ]
+    monkeypatch.setattr(
+        model_connection, "default_runner", lambda config, text: outputs.pop(0)
+    )
+    result = client.post(
+        "/api/agent/query",
+        headers=headers,
+        json={"question": "分析课程通过比例与专利数的关系"},
+    ).json()
+    assert "tool_result" in result, result
+    tool = result["tool_result"]
+    assert tool["sample_size"] == 3
+    assert tool["excluded_missing"] == 0
+    assert abs(tool["pearson_r"] - (-1.0)) < 1e-9
+    assert abs(tool["regression"]["slope"] - (-2.0)) < 1e-9
+    assert abs(tool["regression"]["intercept"] - 3.0) < 1e-9
+    assert abs(tool["regression"]["r_squared"] - 1.0) < 1e-9
+    assert "不表示因果" in tool["limitations"]
+    assert tool["per_student"][0]["research_id"] == "R1"
+    assert "四类成果个人参与人次合计" in tool["variable_definitions"]["y"]
+    # Without a major the evidence link is omitted: the college report would
+    # otherwise describe a different population (or refuse access).
+    assert result["evidence_links"] == []
+    # With only two complete samples the tool refuses to compute numbers.
+    with connection(dbpath) as db:
+        db.execute("UPDATE students SET active=0 WHERE id=3")
+        db.execute("UPDATE patents_outputs SET active=0 WHERE business_key LIKE 'AC3-%'")
+        db.commit()
+    small = client.post(
+        "/api/agent/query",
+        headers=headers,
+        json={"question": "再分析一次课程通过比例与专利数的关系"},
+    ).json()
+    assert small["tool_result"]["sample_size"] == 2
+    assert small["tool_result"]["regression"] is None
+    assert "不足3个" in small["tool_result"]["notice"]
+    # With an explicit major the referenced college report is reachable.
+    outputs.append(
+        json.dumps(
+            {
+                "tool": "correlation_analysis",
+                "college": "synthetic",
+                "major": "synthetic",
+                "x_variable": "course_pass_ratio",
+                "y_variable": "output_count",
+            }
+        )
+    )
+    outputs.append("again")
+    linked = client.post(
+        "/api/agent/query",
+        headers=headers,
+        json={"question": "按专业分析课程通过比例与专利数的关系"},
+    ).json()
+    url = linked["evidence_links"][0]["url"]
+    assert url == "/api/reports/colleges?college=synthetic&major=synthetic"
+    assert client.get(url, headers=headers).status_code == 200
+    # score_total only exists for the snapshotted student, so the variable
+    # path runs but refuses to compute on a single complete sample.
+    outputs.append(
+        json.dumps(
+            {
+                "tool": "correlation_analysis",
+                "college": "synthetic",
+                "x_variable": "output_count",
+                "y_variable": "score_total",
+            }
+        )
+    )
+    outputs.append("again")
+    scores = client.post(
+        "/api/agent/query",
+        headers=headers,
+        json={"question": "分析专利数与评分总分的关系"},
+    ).json()
+    assert scores["tool_result"]["sample_size"] == 1
+    assert scores["tool_result"]["excluded_missing"] == 1
+    assert scores["tool_result"]["regression"] is None
+    assert "模拟演示" in scores["tool_result"]["variable_definitions"]["y"]
+    # Without course analysis grants the tool refuses outright; output_count
+    # itself needs every output category, so keep those grants in place.
+    agent_grants(
+        client,
+        headers,
+        ["basic", "patents", "awards", "conferences", "research_papers"],
+        ["view", "analyze"],
+    )
+    outputs.append(
+        json.dumps(
+            {
+                "tool": "correlation_analysis",
+                "college": "synthetic",
+                "x_variable": "course_pass_ratio",
+                "y_variable": "output_count",
+            }
+        )
+    )
+    outputs.append("again")
+    denied = client.post(
+        "/api/agent/query",
+        headers=headers,
+        json={"question": "最后一次分析课程通过比例与专利数的关系"},
+    )
+    assert denied.status_code == 403
+ 
