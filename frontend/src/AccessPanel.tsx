@@ -22,6 +22,7 @@ const categories: Record<string, string> = {
   topic: "选题",
   midterm: "中期",
   papers: "论文",
+  research_papers: "已发表科研论文",
 };
 const operations: Record<string, string> = {
   maintain: "维护",
@@ -329,3 +330,4 @@ export function AccessPanel({ admin, csrf, users, fetcher }: Props) {
     </>
   );
 }
+

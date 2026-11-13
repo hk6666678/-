@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from aqp.accounts import PASSWORDS, require_admin
 from aqp.store import audit, connection
 
-Category = Literal["basic", "courses", "topic", "midterm", "papers"]
+Category = Literal["basic", "courses", "topic", "midterm", "papers", "research_papers"]
 Operation = Literal[
     "maintain",
     "view",
