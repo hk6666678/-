@@ -353,6 +353,34 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
             db.commit()
             return {"id": cursor.lastrowid, **result, "stale": False}
 
+    @app.get("/api/evaluation-snapshots/dashboard")
+    def dashboard(request: Request) -> dict[str, Any]:
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            items = []
+            for row in db.execute(
+                "SELECT e.id,e.rule_id,st.research_id,st.college,st.major "
+                "FROM evaluation_snapshots e JOIN students st ON st.id=e.student_id "
+                "WHERE st.active=1 AND e.id=(SELECT MAX(id) FROM evaluation_snapshots WHERE student_id=e.student_id)"
+            ):
+                try:
+                    result = load_snapshot(db, actor["id"], row["id"])
+                except HTTPException as exc:
+                    if exc.status_code == 403:
+                        continue
+                    raise
+                if result["mode"] != "simulation":
+                    continue
+                current_score = not result["stale"] and result["rule_currently_enabled"]
+                items.append({
+                    **dict(row), "rule_version": result["rule_version"], "as_of": result["as_of"],
+                    "total": result["total"] if current_score else None,
+                    "current": current_score,
+                })
+            audit(db, actor["id"], "evaluation.dashboard", "simulation")
+            db.commit()
+            return {"items": items}
+
     @app.get("/api/evaluation-snapshots/{ident}")
     def snapshot(ident: int, request: Request) -> dict[str, Any]:
         with connection(path) as db:

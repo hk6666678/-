@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { tongjiMajors } from "./tongjiMajors";
+import { EvaluationDashboard } from "./EvaluationDashboard";
 type Rule = {
   id: number;
   version: number;
@@ -286,6 +287,13 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
       </p>
       {error && <p role="alert">{error}</p>}
       {notice && <p className="notice compact-notice" role="status">{notice}</p>}
+      <EvaluationDashboard refresh={snapshots[0]?.id ?? 0} openSnapshot={(id) => {
+        setSnapshot(undefined);
+        void perform(async () => {
+          setSnapshot(await call(`/api/evaluation-snapshots/${id}`));
+          window.requestAnimationFrame(() => document.getElementById("evaluation-evidence")?.scrollIntoView());
+        });
+      }} />
       <article className="card">
         <h3>规则版本（进入本页自动读取）</h3>
         <p>
@@ -416,7 +424,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
         </label>
       </article>
       {snapshot && (
-        <article className="card">
+        <article className="card" id="evaluation-evidence">
           <h3>
             快照 #{snapshot.id} ·{" "}
             {snapshot.total === null

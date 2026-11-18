@@ -181,6 +181,10 @@ def test_score_evidence_missing_stale_and_current_access(client, tmp_path):
         db.commit()
     score = client.post("/api/evaluation-snapshots", headers=headers, json=body).json()
     assert score["total"] == 25
+    dashboard = client.get("/api/evaluation-snapshots/dashboard").json()["items"]
+    assert len(dashboard) == 1
+    assert dashboard[0]["id"] == score["id"]
+    assert dashboard[0]["total"] == 25 and dashboard[0]["current"] is True
     drilldown = score["inputs"][0]["evidence"][0]
     assert drilldown["record_id"] == 1
     assert drilldown["business_key"] == "P1"
@@ -399,8 +403,11 @@ def test_snapshot_listing_and_independent_export(client, tmp_path):
     stale_section = client.get(report_url, headers=headers).json()["sections"]["evaluation"]
     assert stale_section["status"] != "ok"
     assert "total" not in stale_section
+    dashboard = client.get("/api/evaluation-snapshots/dashboard").json()["items"]
+    assert dashboard[0]["total"] is None and dashboard[0]["current"] is False
 
     update_grants([])
+    assert client.get("/api/evaluation-snapshots/dashboard").json() == {"items": []}
     assert client.get("/api/evaluation-snapshots", headers=headers).json() == {
         "items": []
     }
