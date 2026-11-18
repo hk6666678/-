@@ -68,6 +68,103 @@ def test_account_presets_apply_scoped_permissions_and_clear_on_downgrade(
     assert {row["operation"] for row in grants} == {"view", "analyze"}
 
 
+def test_admin_school_view_is_schoolwide_and_read_only(client: TestClient) -> None:
+    from io import BytesIO
+
+    from openpyxl import Workbook
+
+    headers = login_admin(client)
+    user = client.get("/api/me").json()["user"]
+    assert client.get("/api/students").status_code == 403
+    path = f"/api/users/{user['id']}"
+    colleges = ["示例学院", "另一学院"]
+    granted = client.put(
+        path + "/grants",
+        headers=headers,
+        json={
+            "expected_version": user["version"],
+            "request_id": str(uuid4()),
+            "grants": [
+                {"category": "basic", "operation": "maintain", "college": name}
+                for name in colleges
+            ],
+        },
+    )
+    assert granted.status_code == 200
+    wb = Workbook()
+    sheet = wb.active
+    sheet.append(["AQP-PGS", "basic", "1"])
+    sheet.append(["学号", "姓名", "所属学院", "专业", "培养层次", "入学年份"])
+    for index, name in enumerate(colleges):
+        sheet.append(
+            [f"test-{index}", f"合成学生{index}", name, "计算机", "硕士", "2025"]
+        )
+    buf = BytesIO()
+    wb.save(buf)
+    batch = client.post(
+        "/api/imports/basic/preview",
+        headers=headers,
+        data={"source_department": "模拟"},
+        files={"file": ("demo.xlsx", buf.getvalue())},
+    )
+    assert batch.status_code == 200
+    assert (
+        client.post(
+            f"/api/imports/{batch.json()['id']}/confirm", headers=headers
+        ).status_code
+        == 200
+    )
+    user = client.get("/api/me").json()["user"]
+    cleared = client.put(
+        path + "/grants",
+        headers=headers,
+        json={
+            "expected_version": user["version"],
+            "request_id": str(uuid4()),
+            "grants": [],
+        },
+    )
+    assert cleared.status_code == 200
+    user = client.get("/api/me").json()["user"]
+    saved = client.patch(
+        f"/api/users/{user['id']}",
+        headers=headers,
+        json={
+            "active": True,
+            "roles": user["roles"],
+            "school_view": True,
+            "expected_version": user["version"],
+            "request_id": str(uuid4()),
+        },
+    )
+    assert saved.status_code == 200
+    assert saved.json()["school_view"] is True
+    result = client.get("/api/students")
+    assert result.status_code == 200
+    students = [item["data"] for item in result.json()["items"]]
+    assert {student["所属学院"] for student in students} == set(colleges)
+    assert all("姓名" not in student and "学号" not in student for student in students)
+    assert client.get("/api/templates/basic").status_code == 403
+    for college in colleges:
+        report = client.post(
+            "/api/analyses/courses", headers=headers, json={"college": college}
+        )
+        assert report.status_code == 200, report.text
+    disabled = client.patch(
+        path,
+        headers=headers,
+        json={
+            "active": True,
+            "roles": user["roles"],
+            "school_view": False,
+            "expected_version": saved.json()["version"],
+            "request_id": str(uuid4()),
+        },
+    )
+    assert disabled.status_code == 200
+    assert client.get("/api/students").status_code == 403
+
+
 def test_admin_can_login_and_logout(client: TestClient) -> None:
     assert client.get("/api/me").status_code == 401
     headers = login_admin(client)

@@ -64,6 +64,7 @@ class UserCreate(AccountRoles):
 
 class UserUpdate(AccountRoles):
     active: bool
+    school_view: bool | None = None
     expected_version: int = Field(ge=1)
     request_id: str = Field(min_length=16, max_length=64)
 
@@ -197,10 +198,17 @@ def register_management(
             ):
                 raise HTTPException(409, "不能停用或移除最后一位有效平台管理员")
             roles = json.dumps(sorted(set(body.roles)))
+            if body.school_view and "platform_admin" not in body.roles:
+                raise HTTPException(422, "只有管理员可以开启全校查看")
+            school_view = "platform_admin" in body.roles and (
+                bool(target["school_view"])
+                if body.school_view is None
+                else body.school_view
+            )
             changed = bool(target["active"]) != body.active or target["roles"] != roles
             db.execute(
-                "UPDATE users SET active=?,roles=?,version=version+1 WHERE id=?",
-                (body.active, roles, user_id),
+                "UPDATE users SET active=?,roles=?,school_view=?,version=version+1 WHERE id=?",
+                (body.active, roles, school_view, user_id),
             )
             preset_details = apply_preset(db, user_id, body)
             if changed:
@@ -218,11 +226,13 @@ def register_management(
                     "before": {
                         "active": bool(target["active"]),
                         "roles": json.loads(target["roles"]),
+                        "school_view": bool(target["school_view"]),
                         "version": target["version"],
                     },
                     "after": {
                         "active": body.active,
                         "roles": json.loads(roles),
+                        "school_view": school_view,
                         "version": result["version"],
                     },
                 },

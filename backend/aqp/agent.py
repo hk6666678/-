@@ -15,7 +15,7 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from aqp.analysis import outcome as course_outcome
-from aqp.authorization import allowed, grants_for, student_allowed
+from aqp.authorization import allowed, grants_for, school_read_allowed, student_allowed
 from aqp.courses import visible
 from aqp.milestones import milestone_details
 from aqp.model_connection import config_from, invoke_model
@@ -207,6 +207,8 @@ def deny_agent(db: sqlite3.Connection, actor: int, message: str) -> None:
 
 
 def has_basic_view(db: sqlite3.Connection, actor: int, college: str, major: str) -> bool:
+    if school_read_allowed(db, actor, "view"):
+        return True
     return any(
         grant["college"] == college
         and (

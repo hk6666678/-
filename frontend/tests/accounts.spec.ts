@@ -14,6 +14,10 @@ test("personal account lifecycle through the browser", async ({
     .fill("Synthetic-password-123!");
   await page.getByRole("button", { name: "登录平台" }).click();
   await page.getByRole("button", { name: "个人账号管理" }).click();
+  await page.getByRole("button", { name: "开启全校查看" }).click();
+  await expect(page.getByRole("button", { name: "关闭全校查看" })).toBeVisible();
+  await page.getByRole("button", { name: "关闭全校查看" }).click();
+  await expect(page.getByRole("button", { name: "开启全校查看" })).toBeVisible();
   await page.getByLabel("新账号用户名").fill("synthetic-member");
   await page.getByLabel("初始密码").fill("Synthetic-member-password!");
   await page.getByLabel("账号权限").selectOption("ordinary");

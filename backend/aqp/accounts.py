@@ -49,6 +49,8 @@ def public_user(
         "username": row["username"],
         "roles": json.loads(row["roles"]),
         "active": bool(row["active"]),
+        "school_view": bool(row["school_view"])
+        and "platform_admin" in json.loads(row["roles"]),
         "version": row["version"],
         "business_permissions": [
             dict(grant)

@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN school_view INTEGER NOT NULL DEFAULT 0 CHECK(school_view IN (0, 1));

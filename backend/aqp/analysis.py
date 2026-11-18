@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from aqp.authorization import allowed, student_allowed
+from aqp.authorization import allowed, school_read_allowed, student_allowed
 from aqp.courses import visible
 from aqp.exports import excel_report
 from aqp.milestones import masked, reconcile_milestones
@@ -66,6 +66,8 @@ class CreditStudent(TypedDict):
 def major_options(
     db: sqlite3.Connection, actor: int, scope: Scope, op: str
 ) -> set[str] | None:
+    if school_read_allowed(db, actor, op):
+        return None
     rows = db.execute(
         "SELECT major FROM grants WHERE user_id=? AND category=? AND operation=? AND college=?",
         (actor, scope.category, op, scope.college),

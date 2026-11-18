@@ -33,6 +33,7 @@ type User = {
   username: string;
   roles: Role[];
   active: boolean;
+  school_view?: boolean;
   version: number;
   business_permissions: string[];
   account_preset?: AccountPreset;
@@ -174,7 +175,7 @@ function App() {
       await refresh();
     });
   }
-  async function update(user: User, nextRoles: Role[], active: boolean) {
+  async function update(user: User, nextRoles: Role[], active: boolean, schoolView?: boolean) {
     await perform(async () => {
       await request(
         `/api/users/${user.id}`,
@@ -182,12 +183,15 @@ function App() {
         {
           roles: nextRoles,
           active,
+          school_view: schoolView,
           expected_version: user.version,
           request_id: crypto.randomUUID(),
         },
         session?.csrf_token,
       );
-      setNotice("账号已更新，受影响账号需重新登录");
+      setNotice(schoolView === undefined
+        ? "账号已更新，受影响账号需重新登录"
+        : schoolView ? "已开启全校查看" : "已关闭全校查看");
       await refresh();
     });
   }
@@ -299,10 +303,10 @@ function App() {
             {
               label: "系统管理",
               items: [
-                ["access", "授权与脱敏验证"],
                 ...(admin
                   ? [
                       ["accounts", "个人账号管理"],
+                      ["access", "高级授权"],
                       ["model", "获准模型连接"],
                       ["audit", "审计查询"],
                     ]
@@ -355,7 +359,7 @@ function App() {
                   courses: "课程导入与待关联",
                   students: "基础导入与学生档案",
                   model: "获准模型连接",
-                  access: "授权与脱敏验证",
+                  access: "高级授权",
                 }[page]
               }
             </h1>
@@ -518,6 +522,7 @@ function App() {
               <h2>
                 账号列表 <span className="muted">{users.length}</span>
               </h2>
+              <p className="muted">管理员可开启全校查看，直接查看和分析各学院。导入、修改、导出和查看学生身份仍按已有授权。</p>
               <div className="table-wrap">
                 <table className="accounts-table">
                   <thead>
@@ -555,6 +560,15 @@ function App() {
                           </span>
                         </td>
                         <td>
+                          {user.roles.includes("platform_admin") && (
+                            <button
+                              className="secondary"
+                              disabled={busy || !user.active}
+                              onClick={() => void update(user, user.roles, user.active, !user.school_view)}
+                            >
+                              {user.school_view ? "关闭全校查看" : "开启全校查看"}
+                            </button>
+                          )}{" "}
                           <button
                             className="secondary"
                             disabled={busy}

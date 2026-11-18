@@ -90,6 +90,20 @@ def student_allowed(
     )
 
 
+def school_read_allowed(db: sqlite3.Connection, user_id: int, operation: str) -> bool:
+    if operation not in {"view", "analyze"}:
+        return False
+    row = db.execute(
+        "SELECT roles,active,school_view FROM users WHERE id=?", (user_id,)
+    ).fetchone()
+    return bool(
+        row
+        and row["active"]
+        and row["school_view"]
+        and "platform_admin" in json.loads(row["roles"])
+    )
+
+
 def allowed(
     db: sqlite3.Connection,
     user_id: int,
@@ -98,6 +112,8 @@ def allowed(
     college: str,
     major: str,
 ) -> bool:
+    if school_read_allowed(db, user_id, operation):
+        return True
     return (
         db.execute(
             "SELECT 1 FROM grants WHERE user_id=? AND category=? AND operation=? AND college=? AND (major=? OR major='')",

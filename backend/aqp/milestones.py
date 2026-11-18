@@ -13,7 +13,13 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from openpyxl import Workbook, load_workbook
 
-from aqp.authorization import allowed, compatible_scope, grants_for, student_allowed
+from aqp.authorization import (
+    allowed,
+    compatible_scope,
+    grants_for,
+    school_read_allowed,
+    student_allowed,
+)
 from aqp.store import audit, connection
 
 BASIC_REQUIRED = ["学号", "姓名", "考核批次", "评分制度", "原始成绩"]
@@ -202,7 +208,7 @@ def register_milestones(
     ) -> None:
         if category not in ("topic", "midterm"):
             raise HTTPException(404, "环节不存在")
-        if not any(
+        if not school_read_allowed(db, actor, operation) and not any(
             g["category"] == category and g["operation"] == operation
             for g in grants_for(db, actor)
         ):
