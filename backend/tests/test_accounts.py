@@ -27,6 +27,47 @@ def client(tmp_path: Path) -> TestClient:
     return TestClient(create_app(database))
 
 
+def test_account_presets_apply_scoped_permissions_and_clear_on_downgrade(
+    client: TestClient,
+) -> None:
+    headers = login_admin(client)
+    body = {
+        "username": "preset-account",
+        "password": "Synthetic-password-123!",
+        "roles": ["college_analyst"],
+        "preset": "full",
+        "college": "示例学院",
+        "request_id": str(uuid4()),
+    }
+    response = client.post("/api/users", headers=headers, json=body)
+    assert response.status_code == 201
+    user = response.json()
+    assert user["roles"] == ["platform_admin"]
+    path = f"/api/users/{user['id']}"
+    grants = client.get(path + "/grants").json()["grants"]
+    assert {row["college"] for row in grants} == {"示例学院"}
+    assert {"identity", "maintain", "export", "download"} <= {
+        row["operation"] for row in grants
+    }
+    changed = client.patch(
+        path,
+        headers=headers,
+        json={
+            "active": True,
+            "roles": ["platform_admin"],
+            "preset": "ordinary",
+            "college": "另一学院",
+            "expected_version": user["version"],
+            "request_id": str(uuid4()),
+        },
+    )
+    assert changed.status_code == 200
+    assert changed.json()["roles"] == ["college_analyst"]
+    grants = client.get(path + "/grants").json()["grants"]
+    assert {row["college"] for row in grants} == {"另一学院"}
+    assert {row["operation"] for row in grants} == {"view", "analyze"}
+
+
 def test_admin_can_login_and_logout(client: TestClient) -> None:
     assert client.get("/api/me").status_code == 401
     headers = login_admin(client)

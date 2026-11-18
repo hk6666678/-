@@ -34,6 +34,8 @@ type User = {
   active: boolean;
   version: number;
   business_permissions: string[];
+  account_preset?: AccountPreset;
+  preset_college?: string;
 };
 type Session = { user: User; csrf_token: string };
 const roleNames: Record<Role, string> = {
@@ -44,7 +46,7 @@ const roleNames: Record<Role, string> = {
   college_data_admin: "学院数据管理员",
   college_analyst: "学院分析人员",
 };
-const roles = Object.keys(roleNames) as Role[];
+type AccountPreset = "ordinary" | "full";
 async function request<T>(
   url: string,
   method = "GET",
@@ -88,7 +90,10 @@ function App() {
   const [users, setUsers] = useState<User[]>([]),
     [username, setUsername] = useState(""),
     [password, setPassword] = useState(""),
-    [selected, setSelected] = useState<Role[]>(["college_analyst"]);
+    [preset, setPreset] = useState<AccountPreset>("ordinary");
+  const [accountCollege, setAccountCollege] = useState("");
+  const [editingAccount, setEditingAccount] = useState<User | null>(null);
+  const accountFormRef = useRef<HTMLElement>(null);
   const [navOpen, setNavOpen] = useState(false);
   const [navLabel, setNavLabel] = useState("工作台概览");
   const [page, setPage] = useState("overview");
@@ -101,6 +106,7 @@ function App() {
       setPassword("");
       setUsername("");
       setPage("overview");
+      setEditingAccount(null);
     };
     window.addEventListener("session-expired", expired);
     request<Session>("/api/me")
@@ -145,20 +151,25 @@ function App() {
   async function create(event: React.FormEvent) {
     event.preventDefault();
     await perform(async () => {
+      const account = editingAccount;
       await request(
-        "/api/users",
-        "POST",
+        account ? `/api/users/${account.id}` : "/api/users",
+        account ? "PATCH" : "POST",
         {
-          username,
-          password,
-          roles: selected,
+          ...(account
+            ? { active: account.active, expected_version: account.version }
+            : { username, password }),
+          roles: [preset === "full" ? "platform_admin" : "college_analyst"],
+          preset,
+          college: accountCollege.trim(),
           request_id: crypto.randomUUID(),
         },
         session?.csrf_token,
       );
       setUsername("");
       setPassword("");
-      setNotice("账号已创建");
+      setEditingAccount(null);
+      setNotice(account ? "账号权限已更新" : "账号已创建，权限已自动配置");
       await refresh();
     });
   }
@@ -450,12 +461,10 @@ function App() {
           </>
         ) : (
           <>
-            <section className="card">
-              <h2>创建个人账号</h2>
-              <p className="muted">
-                角色可兼任。密码为 12～128 个字符，创建后交由账号本人保管。
-              </p>
+            <section className="card" ref={accountFormRef}>
+              <h2>{editingAccount ? `更改权限 · ${editingAccount.username}` : "创建个人账号"}</h2>
               <form className="account-form" onSubmit={create}>
+                {!editingAccount && <>
                 <label>
                   新账号用户名
                   <input
@@ -479,28 +488,26 @@ function App() {
                     required
                   />
                 </label>
-                <fieldset>
-                  <legend>账号角色</legend>
-                  {roles.map((role) => (
-                    <label className="check" key={role}>
-                      <input
-                        type="checkbox"
-                        checked={selected.includes(role)}
-                        onChange={(e) =>
-                          setSelected(
-                            e.target.checked
-                              ? [...selected, role]
-                              : selected.filter((r) => r !== role),
-                          )
-                        }
-                      />
-                      {roleNames[role]}
-                    </label>
-                  ))}
-                </fieldset>
-                <button disabled={busy || selected.length === 0}>
-                  创建账号
+                </>}
+                <label>
+                  账号权限
+                  <select value={preset} onChange={(e) => setPreset(e.target.value === "full" ? "full" : "ordinary")}>
+                    <option value="ordinary">普通</option>
+                    <option value="full">全权限</option>
+                  </select>
+                </label>
+                <label>
+                  所属学院
+                  <input required maxLength={100} value={accountCollege} placeholder="例如：合成试用学院" onChange={(e) => setAccountCollege(e.target.value)} />
+                </label>
+                <p className="muted">
+                  {preset === "ordinary" ? "普通可查看和分析所选学院的数据，学生姓名和学号会隐藏。" : "全权限可管理账号，并查看、导入、维护和导出所选学院的数据，包括学生身份与原件。"}
+                  {editingAccount && "保存会替换此账号原有的角色和业务授权。"}
+                </p>
+                <button disabled={busy || !accountCollege.trim()}>
+                  {editingAccount ? "保存权限" : "创建账号"}
                 </button>
+                {editingAccount && <button className="secondary" type="button" onClick={() => setEditingAccount(null)}>取消</button>}
               </form>
             </section>
             <section className="card">
@@ -512,7 +519,7 @@ function App() {
                   <thead>
                     <tr>
                       <th>用户名</th>
-                      <th>角色（修改后需重新登录）</th>
+                      <th>账号权限</th>
                       <th>状态</th>
                       <th>操作</th>
                     </tr>
@@ -527,26 +534,14 @@ function App() {
                           )}
                         </td>
                         <td>
-                          {roles.map((role) => (
-                            <label className="check" key={role}>
-                              <input
-                                type="checkbox"
-                                aria-label={`${user.username} ${roleNames[role]}`}
-                                checked={user.roles.includes(role)}
-                                disabled={busy}
-                                onChange={(e) =>
-                                  void update(
-                                    user,
-                                    e.target.checked
-                                      ? [...user.roles, role]
-                                      : user.roles.filter((r) => r !== role),
-                                    user.active,
-                                  )
-                                }
-                              />
-                              {roleNames[role]}
-                            </label>
-                          ))}
+                          {user.account_preset ? (
+                            <>
+                              <span>{user.account_preset === "full" ? "全权限" : "普通"}</span>
+                              <small>{user.preset_college}</small>
+                            </>
+                          ) : (
+                            <>原有配置<small>{user.roles.map((role) => roleNames[role]).join("、")}</small></>
+                          )}
                         </td>
                         <td>
                           <span
@@ -556,6 +551,18 @@ function App() {
                           </span>
                         </td>
                         <td>
+                          <button
+                            className="secondary"
+                            disabled={busy}
+                            onClick={() => {
+                              setEditingAccount(user);
+                              setPreset(user.roles.includes("platform_admin") ? "full" : "ordinary");
+                              setAccountCollege(user.preset_college ?? "");
+                              accountFormRef.current?.scrollIntoView({ block: "start" });
+                            }}
+                          >
+                            更改权限
+                          </button>{" "}
                           <button
                             className="secondary"
                             disabled={busy}

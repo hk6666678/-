@@ -2,24 +2,68 @@ import json
 import sqlite3
 from collections.abc import Callable
 from pathlib import Path
+from typing import Literal, get_args
 
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from aqp.accounts import PASSWORDS, ROLES, create_user, public_user, require_admin
+from aqp.authorization import Category, Operation, grants_for
 from aqp.store import audit, connection
 
 
-class UserCreate(BaseModel):
+class AccountRoles(BaseModel):
+    roles: list[str] = Field(min_length=1, max_length=6)
+    preset: Literal["ordinary", "full"] | None = None
+    college: str = Field(default="", max_length=100)
+
+    @model_validator(mode="after")
+    def resolve_preset(self) -> "AccountRoles":
+        if self.preset:
+            self.college = self.college.strip()
+            if not self.college:
+                raise ValueError("请选择所属学院")
+            self.roles = [
+                "platform_admin" if self.preset == "full" else "college_analyst"
+            ]
+        return self
+
+
+def preset_operations(preset: str) -> tuple[str, ...]:
+    return get_args(Operation) if preset == "full" else ("view", "analyze")
+
+
+def apply_preset(
+    db: sqlite3.Connection, user_id: int, body: AccountRoles
+) -> dict[str, object]:
+    if body.preset is None:
+        return {}
+    before = grants_for(db, user_id)
+    operations = preset_operations(body.preset)
+    db.execute("DELETE FROM grants WHERE user_id=?", (user_id,))
+    db.executemany(
+        "INSERT INTO grants(user_id,category,operation,college,major) VALUES (?,?,?,?,'')",
+        (
+            (user_id, category, operation, body.college)
+            for category in get_args(Category)
+            for operation in operations
+        ),
+    )
+    return {
+        "preset": body.preset,
+        "grants_before": before,
+        "grants_after": grants_for(db, user_id),
+    }
+
+
+class UserCreate(AccountRoles):
     username: str = Field(min_length=3, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
     password: str = Field(min_length=12, max_length=128)
-    roles: list[str] = Field(min_length=1, max_length=6)
     request_id: str = Field(min_length=16, max_length=64)
 
 
-class UserUpdate(BaseModel):
+class UserUpdate(AccountRoles):
     active: bool
-    roles: list[str] = Field(min_length=1, max_length=6)
     expected_version: int = Field(ge=1)
     request_id: str = Field(min_length=16, max_length=64)
 
@@ -60,10 +104,35 @@ def register_management(
         with connection(path) as db:
             user, _ = current(db, request)
             require_admin(user)
-            return [
-                public_user(row)
-                for row in db.execute("SELECT * FROM users ORDER BY id")
-            ]
+            result = []
+            for row in db.execute("SELECT * FROM users ORDER BY id"):
+                account = public_user(row)
+                roles = account["roles"]
+                grants = grants_for(db, row["id"])
+                colleges = {grant["college"] for grant in grants}
+                preset = (
+                    "full"
+                    if roles == ["platform_admin"]
+                    else "ordinary"
+                    if roles == ["college_analyst"]
+                    else None
+                )
+                if (
+                    preset
+                    and len(colleges) == 1
+                    and all(not g["major"] for g in grants)
+                ):
+                    pairs = {(g["category"], g["operation"]) for g in grants}
+                    if pairs == {
+                        (category, operation)
+                        for category in get_args(Category)
+                        for operation in preset_operations(preset)
+                    }:
+                        account.update(
+                            account_preset=preset, preset_college=next(iter(colleges))
+                        )
+                result.append(account)
+            return result
 
     @app.post("/api/users", status_code=201)
     def add_user(body: UserCreate, request: Request) -> dict[str, object]:
@@ -81,6 +150,7 @@ def register_management(
                 raise HTTPException(422, str(error)) from error
             except sqlite3.IntegrityError as error:
                 raise HTTPException(409, "用户名已存在") from error
+            preset_details = apply_preset(db, user_id, body)
             result = public_user(
                 db.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
             )
@@ -89,7 +159,7 @@ def register_management(
                 user["id"],
                 "user.create",
                 str(user_id),
-                details={"roles": body.roles, "version": 1},
+                details={"roles": body.roles, "version": 1, **preset_details},
             )
             remember(db, user["id"], body.request_id, fingerprint, result)
             return result
@@ -132,6 +202,7 @@ def register_management(
                 "UPDATE users SET active=?,roles=?,version=version+1 WHERE id=?",
                 (body.active, roles, user_id),
             )
+            preset_details = apply_preset(db, user_id, body)
             if changed:
                 db.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))
             result = public_user(
@@ -143,6 +214,7 @@ def register_management(
                 "user.update",
                 str(user_id),
                 details={
+                    **preset_details,
                     "before": {
                         "active": bool(target["active"]),
                         "roles": json.loads(target["roles"]),

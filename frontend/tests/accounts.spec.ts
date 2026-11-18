@@ -16,20 +16,26 @@ test("personal account lifecycle through the browser", async ({
   await page.getByRole("button", { name: "个人账号管理" }).click();
   await page.getByLabel("新账号用户名").fill("synthetic-member");
   await page.getByLabel("初始密码").fill("Synthetic-member-password!");
-  await page
-    .getByRole("group", { name: "账号角色" })
-    .getByLabel("学院数据管理员")
-    .check();
-  await page.getByRole("group", { name: "账号角色" }).getByLabel("导师", { exact: true }).check();
+  await page.getByLabel("账号权限").selectOption("ordinary");
+  await page.getByLabel("所属学院", { exact: true }).fill("合成试用学院");
   await page.getByRole("button", { name: "创建账号" }).click();
   const row = page
     .getByRole("row")
     .filter({ has: page.getByText("synthetic-member", { exact: true }) });
   await expect(row).toBeVisible();
-  await expect(row.getByLabel("synthetic-member 学院数据管理员")).toBeChecked();
-  await expect(row.getByLabel("synthetic-member 导师", { exact: true })).toBeChecked();
+  await expect(row.getByText("普通", { exact: true })).toBeVisible();
+  await expect(row.getByText("合成试用学院", { exact: true })).toBeVisible();
   await page.setViewportSize({ width: 1280, height: 1000 });
-  await page.screenshot({ path: "../artifacts/ui-polish/accounts.png" });
+  await page.screenshot({ path: "test-results/accounts.png" });
+  await row.getByRole("button", { name: "更改权限" }).click();
+  await expect(page.getByLabel("所属学院", { exact: true })).toHaveValue("合成试用学院");
+  await page.getByLabel("账号权限").selectOption("full");
+  await page.getByRole("button", { name: "保存权限" }).click();
+  await expect(row.getByText("全权限", { exact: true })).toBeVisible();
+  await row.getByRole("button", { name: "更改权限" }).click();
+  await page.getByLabel("账号权限").selectOption("ordinary");
+  await page.getByRole("button", { name: "保存权限" }).click();
+  await expect(row.getByText("普通", { exact: true })).toBeVisible();
   const memberContext = await browser.newContext();
   const member = await memberContext.newPage();
   await member.goto(page.url());
