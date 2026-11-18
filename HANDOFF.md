@@ -1,4 +1,51 @@
-## 2026-11-18 研究分析重组与交互减负阶段1（最新，仅本地）
+## 2026-11-18 GLM 会话交接：方案六模块补齐进行中（最新）
+
+用户切换到 GPT 继续开发，本节为交接摘要。工作区 D:/AQP-PGS，分支 integration/aqp-trial。
+
+### 本会话已完成（本地提交，验证口径见下）
+
+| 提交 | 内容 |
+|---|---|
+| 8a7ee18 | 研究分析重组阶段1：导航按"数据管理/研究分析/业务规则/系统管理"分组、四成果入口合并标签页（OutputsTabs）、学位论文拆"上传/质量"两页、消灭手输 ID（比较论文/比较快照/候选结果/导师课题组全部下拉，生成比较后候选页自动预选）、删全部"读取XX"按钮改挂载自动加载、规则管理集中新页 BusinessRulesPanel；后端仅新增 GET /api/paper-comparisons、GET /api/candidate-results 两个只读列表端点。任务追踪 .scratch/research-analysis-restructure/（01-06 全 resolved） |
+| 2d3233b | 模块1 补齐：学生档案"查看来源"展示培养时间线（入学/学籍异动/修读学期/选题/中期/盲审答辩按年排序，逐段权限容错）、"仅看有学籍异动记录的学生"筛选、导师课题组页"课题组归属图谱"四层 SVG（仅当前有效关系） |
+| 9fdd17a | 演示数据重灌脚本 .scratch/fresh-demo/refresh_demo.py + patch_citations.py（可复现） |
+| 37947f4 | 图谱折叠区默认展开 |
+| 1bea91f | 模块2 学生通过画像（培养过程分析结果里按学号聚合通过/不通过/未知，按需关注排序）+ 模块3 高被引阈值筛选（引用区输入阈值标记，不发明官方标准） |
+
+### 验证
+
+- 后端：uv run pytest 158 项通过（156 基线+2 新增）、mypy 31 文件、Ruff 全过（对应 8a7ee18 时点；之后后端无改动）。
+- 前端：npm run build 通过；Playwright 全量 25/25 通过两轮（14:0x 时点，当时工作树已含 1bea91f 的画像与阈值改动）。注意：本机 Playwright 浏览器缓存目录被清，需用 `AQP_BROWSER=chrome npx playwright test`（系统 Chrome 频道）。
+- 演示环境实测：8000 服务上浏览器点击"查看来源"时间线正常渲染、图谱默认展开。
+
+### 演示环境与数据（重要）
+
+- 8000 演示服务运行中（Start-Aqp.ps1 后台 + paper worker），业务库 data/aqp.sqlite3。
+- 2026-11-18 下午清空旧学生数据并重灌 8 名真实感模拟学生（两个学院、58 条真实课程名成绩、选题/中期各 8、论文 6+引用 4、专利 2、获奖 2、会议 2、导师 3/课题组 3/关系 9 含转导师前后双关系）。清空前备份：data/aqp.sqlite3.bak-before-fresh-demo；附件备份 .scratch/fresh-demo/backup-attachments/。
+- 临时导入账号 demo-refresh 已停用（active=0，密码哈希合法）；admin 账号与授权、审计未动。
+- 用户报告过两次"看不到新功能"，根因均为浏览器缓存旧 JS，Ctrl+F5 解决；已把图谱改为默认展开。
+
+### 未完成（按方案六模块，接手从这里继续）
+
+详见 .scratch/module-completion/spec.md（含每项设计要点）：
+
+- 模块2 剩余：控制图预警（模型4 SPC，纯统计+局限标注）、工作台预警聚合面板。
+- 模块3 剩余：同届成果排名（成果+入学年份关联）、成果与培养阶段匹配（成果年份 vs 选题/中期时间）。
+- 模块4 剩余：盲审意见关键词统计（设计已定：GET /api/external-assessments/keywords 只读端点，用户输入词表统计评语命中，评语读取需 download 授权、无权行计 skipped 并披露；前端加在 AssessmentPanel 折叠区）、盲审vs答辩一致性（两类评分同挂论文版本，加对比段）。
+- 模块5：导师效能指标——拔尖产出率（模拟评价快照口径）、产出加速度、培养稳定性（跨届方差）；影响力转化缺毕业后数据如实标注不硬算；基准化按同学院。
+- 模块6：识别仪表盘——每生最新模拟评价快照聚合排序页，必须保留"模拟"限定词（平台决策：模拟规则不作正式人才识别），逐生可下钻证据。
+- B/C/D 类不在开发范围：B=等外部数据/标准（期刊分区、专利转化、毕业延期口径、正式权重）；C=等获准模型（论文语义、Agent 问答默认禁用）；D=不做（研究生院直连、外网抓取、毕业后追踪、反事实、真实数据下的训练）。
+
+### 关键决策与环境
+
+- 推进方式：用户已确认按模块逐个做，每完成一个模块验证+本地提交+告知操作方法。
+- 不发明业务阈值：高被引=用户输入阈值筛选、关键词=用户输入词表，均为描述性统计。
+- 所有演示数据来源部门标注"模拟演示数据（××）"。
+- 进程：8000 演示服务运行中；测试服务已结束。未跟踪文件保留不提交：.zcode/、artifacts/、.scratch/patents-void-history.png、research-void-history.png、proposal.txt、read_docx.py、data/*.bak、.scratch/fresh-demo/backup-attachments/。
+- 官方额度：本会话无 get_usage_limits 工具；2026-11-18 12:36 读数短周期剩 4%（单次、非实时）。按 quota-handoff 规则在交接保存后集中推送 integration/aqp-trial 并核实远端。
+- 方案文档原文可在 .scratch/proposal.txt（自用户提供的 docx 提取）。
+
+## 2026-11-18 研究分析重组与交互减负阶段1（历史，已含于上表 8a7ee18）
 
 用户反馈"研究分析"操作太多弄不明白，对照项目方案文档批准的阶段1重组已实现并验证；任务追踪见 `.scratch/research-analysis-restructure/`（spec + issues 01-06 全部 resolved，各含 Answer）。
 
