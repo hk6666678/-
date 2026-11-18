@@ -1,6 +1,7 @@
 import { CollegeSelect } from "./CollegeSelect";
 import { useEffect, useState } from "react";
 import { ProcessAlerts } from "./ProcessAlerts";
+import { TopicCorrelation } from "./TopicCorrelation";
 type Group = {
   group_value: string;
   course_code: string;
@@ -119,6 +120,7 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
   return (
     <section className="card">
       <h2>培养过程分析</h2>
+      <TopicCorrelation />
       <p>
         课程、选题与中期的通过率、分布和分组对比。通过规则与培养要求的业务确认已集中到「业务规则管理」，本页只读引用其版本。
       </p>

@@ -19,6 +19,7 @@ from aqp.courses import visible
 from aqp.exports import excel_report
 from aqp.milestones import masked, reconcile_milestones
 from aqp.store import audit, connection
+from aqp.topic_correlation import OutputCategory, topic_correlation
 
 
 class Scope(BaseModel):
@@ -602,6 +603,17 @@ def register_analysis(
                         raise
             audit(db, actor["id"], "analysis.list", "courses")
             return {"items": items}
+
+    @app.get("/api/analyses/topic-correlation")
+    def correlate_topic(
+        request: Request, college: str, major: str, entry_year: int, category: OutputCategory,
+    ) -> dict[str, Any]:
+        with connection(path) as db:
+            db.execute("BEGIN")
+            actor, _ = current(db, request)
+            result = topic_correlation(db, actor["id"], college, major, entry_year, category)
+            audit(db, actor["id"], "analysis.topic_correlation", category)
+            return result
 
     @app.get("/api/analyses/{sid}")
     @app.get("/api/analyses/{sid}/evidence")

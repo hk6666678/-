@@ -45,7 +45,7 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
                     "college": "合成学院",
                     "major": "合成专业",
                 }
-                for op in ["maintain", "view", "identity", "void"]
+                for op in ["maintain", "view", "identity", "void", "analyze"]
             ]
             + [
                 {
@@ -54,7 +54,7 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
                     "college": "合成学院",
                     "major": "合成专业",
                 }
-                for op in ["maintain", "view"]
+                for op in ["maintain", "view", "analyze"]
             ]
             + [
                 {
@@ -63,7 +63,7 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
                     "college": "合成学院",
                     "major": "合成专业",
                 }
-                for op in ["maintain", "view"]
+                for op in ["maintain", "view", "analyze"]
             ],
         },
     )
@@ -213,6 +213,29 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
     assert (
         next(row["outputs"][0]["topic"] for row in rows if row["outputs"])
         == "同年（先后未知）"
+    )
+    correlation_url = "/api/analyses/topic-correlation"
+    correlation_params = {
+        "college": "合成学院",
+        "major": "合成专业",
+        "entry_year": 2024,
+        "category": "research_papers",
+    }
+    correlation = client.get(correlation_url, params=correlation_params)
+    assert correlation.status_code == 200, correlation.text
+    correlation_result = correlation.json()
+    assert correlation_result["cohort_count"] == 2
+    assert correlation_result["excluded"] == {"缺少有效选题实际日期": 1}
+    assert correlation_result["uncertain_participations"] == 1
+    assert correlation_result["pearson_r"] is None
+    assert len(correlation_result["points"]) == 1
+    assert correlation_result["points"][0]["score"] == 85
+    assert correlation_result["points"][0]["output_count"] == 0
+    assert (
+        client.get(
+            correlation_url, params={**correlation_params, "category": "patents"}
+        ).status_code
+        == 403
     )
     output_id = result["items"][0]["id"]
     citation_template = client.get("/api/research-outputs/citations/template")
