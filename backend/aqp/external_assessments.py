@@ -154,6 +154,34 @@ def register_external_assessments(
                 "template": template(db, "simulation-v1"),
             }
 
+    @app.get("/api/external-assessments/keywords")
+    def keywords(request: Request, terms: str) -> dict[str, Any]:
+        words = list(
+            dict.fromkeys(
+                word.strip().casefold() for word in terms.split(",") if word.strip()
+            )
+        )
+        if not 1 <= len(words) <= 30 or any(len(word) > 50 for word in words):
+            raise HTTPException(422, "请输入 1～30 个关键词，每词最长 50 字")
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            counts = dict.fromkeys(words, 0)
+            scanned = skipped = 0
+            for row in db.execute(
+                "SELECT * FROM external_assessments WHERE category='blind_reviews'"
+            ):
+                if not permitted(db, actor["id"], row, "view"):
+                    continue
+                if not permitted(db, actor["id"], row, "download"):
+                    skipped += 1
+                    continue
+                scanned += 1
+                comment = row["comment"].casefold()
+                for word in words:
+                    counts[word] += comment.count(word)
+            audit(db, actor["id"], "external_assessment.keywords", "blind_reviews")
+            return {"counts": counts, "scanned": scanned, "skipped": skipped}
+
     @app.post("/api/external-assessments")
     def create(body: AssessmentInput, request: Request) -> dict[str, Any]:
         with connection(path) as db:

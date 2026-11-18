@@ -98,6 +98,13 @@ def test_write_duplicate_conflict_and_current_permissions(client):
     item = client.get("/api/external-assessments").json()["items"][0]
     assert item["scores"] == {"quality": 85}
     assert "comment" not in item and "name" not in item
+    assert client.get(
+        "/api/external-assessments/keywords", params={"terms": "原文"}
+    ).json() == {
+        "counts": {"原文": 0},
+        "scanned": 0,
+        "skipped": 1,
+    }
     import io
     import json
 
@@ -179,6 +186,13 @@ def test_write_duplicate_conflict_and_current_permissions(client):
     assert client.get("/api/external-assessments").json()["count"] == 2
     item = client.get("/api/external-assessments").json()["items"][0]
     assert item["comment"] == "原文意见" and "name" not in item
+    assert client.get(
+        "/api/external-assessments/keywords", params={"terms": "原文,缺失,原文"}
+    ).json() == {
+        "counts": {"原文": 2, "缺失": 0},
+        "scanned": 2,
+        "skipped": 0,
+    }
     assert (
         client.post("/api/external-assessments", headers=headers, json=body).status_code
         == 403

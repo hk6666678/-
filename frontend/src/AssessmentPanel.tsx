@@ -31,6 +31,21 @@ export function AssessmentPanel({ csrf }: { csrf: string }) {
     [loaded, setLoaded] = useState(false),
     [notice, setNotice] = useState(""),
     [templates, setTemplates] = useState<Template[]>([]);
+  const [keywordResult, setKeywordResult] = useState<{
+    counts: Record<string, number>; scanned: number; skipped: number;
+  }>();
+  const [keywordBusy, setKeywordBusy] = useState(false);
+  const comparisons = new Map<string, { paper: number; template: string; item: string; blind: number[]; defense: number[] }>();
+  for (const row of items) {
+    for (const [item, score] of Object.entries(row.scores)) {
+      const key = JSON.stringify([row.paper_version_id, row.template_version, item]);
+      const pair = comparisons.get(key) ?? { paper: row.paper_version_id, template: row.template_version, item, blind: [], defense: [] };
+      (row.category === "blind_reviews" ? pair.blind : pair.defense).push(score);
+      comparisons.set(key, pair);
+    }
+  }
+  const pairs = [...comparisons.values()].filter(({ blind, defense }) => blind.length && defense.length);
+  const mean = (scores: number[]) => scores.reduce((sum, score) => sum + score, 0) / scores.length;
   async function call(url: string, init?: RequestInit) {
     const r = await fetch(url, init);
     const v = await r.json();
@@ -62,6 +77,49 @@ export function AssessmentPanel({ csrf }: { csrf: string }) {
           {notice}
         </p>
       )}
+      <details className="card">
+        <summary>盲审意见关键词统计</summary>
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          const terms = String(new FormData(e.currentTarget).get("terms")).replaceAll("，", ",");
+          setKeywordResult(undefined);
+          setError("");
+          setKeywordBusy(true);
+          try {
+            setKeywordResult(await call(`/api/external-assessments/keywords?${new URLSearchParams({ terms })}`));
+          } catch (err) {
+            setError(String(err));
+          } finally {
+            setKeywordBusy(false);
+          }
+        }}>
+          <label>关键词（逗号分隔）<input name="terms" required maxLength={1600} /></label>
+          <button disabled={keywordBusy}>统计关键词</button>
+        </form>
+        {keywordResult && <>
+          <p>已统计 {keywordResult.scanned} 条，因评语下载未授权跳过 {keywordResult.skipped} 条。按字面匹配出现次数。</p>
+          <ul>{Object.entries(keywordResult.counts).map(([word, count]) => <li key={word}>{word} · {count} 次</li>)}</ul>
+        </>}
+      </details>
+      <details className="card">
+        <summary>盲审与答辩评分一致性</summary>
+        <p>按同一论文版本、同一评分模板和评分项对比均值。差值为答辩减盲审。</p>
+        {pairs.length ? (
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>论文版本</th><th>模板与评分项</th><th>盲审均值</th><th>答辩均值</th><th>差值</th></tr></thead>
+              <tbody>{pairs.map(({ paper, template, item, blind, defense }) => (
+                <tr key={JSON.stringify([paper, template, item])}>
+                  <td>{paper}</td><td>{template} · {item}</td>
+                  <td>{mean(blind).toFixed(2)}（{blind.length} 条）</td>
+                  <td>{mean(defense).toFixed(2)}（{defense.length} 条）</td>
+                  <td>{(mean(defense) - mean(blind)).toFixed(2)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        ) : <p>{loaded ? "暂无同模板的可比较评分。" : "正在读取评分。"}</p>}
+      </details>
       <div className="card assessment-import">
         <h3>Excel集中导入</h3>
         <a
