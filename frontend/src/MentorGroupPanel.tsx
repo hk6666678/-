@@ -667,7 +667,7 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
           <button onClick={() => setPreview(null)}>取消导入</button>
         </div>
       )}
-      <details className="card">
+      <details className="card" open>
         <summary>课题组归属图谱（学院 → 课题组 → 导师 → 学生）</summary>
         <p className="muted">
           仅绘制当前有效关系（无结束日期）且在当前授权范围内的归属；身份未授权时导师与课题组以编号显示，学生显示研究编号。每名导师最多直接展示
