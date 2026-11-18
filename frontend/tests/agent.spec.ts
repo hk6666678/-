@@ -7,7 +7,7 @@ test("agent stays read-only and reports disabled model", async ({ page }) => {
     .getByLabel("密码", { exact: true })
     .fill("Synthetic-password-123!");
   await page.getByRole("button", { name: "登录平台" }).click();
-  await page.getByRole("button", { name: "Agent 查询" }).click();
+  await page.getByRole("button", { name: "Agent 智能问答" }).click();
   await expect(
     page.getByRole("heading", { name: "Agent 查询与解释" }),
   ).toBeVisible();

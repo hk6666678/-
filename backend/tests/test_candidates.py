@@ -297,3 +297,59 @@ def test_missing_pages_and_changed_comparison_never_recommend(client, tmp_path):
         ).status_code
         == 409
     )
+
+
+def test_result_listing_scopes_and_summarizes(client, tmp_path):
+    from uuid import uuid4
+
+    headers, ids = candidate_setup(client, tmp_path)
+    comp = client.post(
+        f"/api/papers/{ids[0]}/comparisons", headers=headers, json={}
+    ).json()
+    created = client.post(
+        "/api/candidate-results", headers=headers, json={"comparison_id": comp["id"]}
+    ).json()
+    items = client.get("/api/candidate-results").json()["items"]
+    assert [entry["id"] for entry in items] == [created["id"]]
+    assert set(items[0]) == {
+        "id",
+        "comparison_id",
+        "paper_version_id",
+        "recommended",
+        "created_at",
+        "stale",
+    }
+    assert items[0]["comparison_id"] == comp["id"]
+    assert items[0]["paper_version_id"] == ids[0]
+    assert items[0]["recommended"] is False
+    assert items[0]["stale"] is False
+    me = client.get("/api/me").json()["user"]
+    assert (
+        client.put(
+            f"/api/users/{me['id']}/grants",
+            headers=headers,
+            json={
+                "expected_version": me["version"],
+                "request_id": str(uuid4()),
+                "grants": [
+                    {
+                        "category": category,
+                        "operation": operation,
+                        "college": "示例学院",
+                        "major": "计算机",
+                    }
+                    for category in ["basic", "papers"]
+                    for operation in [
+                        "maintain",
+                        "view",
+                        "analyze",
+                        "labels",
+                        "candidate_rules",
+                        "download",
+                    ]
+                ],
+            },
+        ).status_code
+        == 200
+    )
+    assert client.get("/api/candidate-results").json()["items"] == []

@@ -67,7 +67,8 @@ test("three-level reports with charts drilldown and authorized export", async ({
   await expect(page.getByText("ready: 1 / invalid: 1")).toBeVisible();
   await page.getByRole("button", { name: "确认导入有效行" }).click();
   await expect(page.getByText(/imported: 1/)).toBeVisible();
-  await page.getByRole("button", { name: "专利", exact: true }).click();
+  await page.getByRole("button", { name: "科研成果导入", exact: true }).click();
+  await page.getByRole("tab", { name: "专利", exact: true }).click();
   await page.getByLabel("来源部门", { exact: true }).fill("报告专项合成专利科");
   await page.getByLabel("标准 Excel 文件", { exact: true }).setInputFiles({
     name: "synthetic-patents.xlsx",
@@ -137,8 +138,7 @@ test("three-level reports with charts drilldown and authorized export", async ({
   await page.getByRole("button", { name: "三级报告", exact: true }).click();
   await page
     .getByLabel("学生列表专业筛选", { exact: true })
-    .fill("合成专业");
-  await page.getByRole("button", { name: "读取当前授权学生" }).click();
+    .selectOption("合成专业");
   await page
     .getByLabel("学生研究编号", { exact: true })
     .selectOption(String(mine.id));
@@ -163,7 +163,9 @@ test("three-level reports with charts drilldown and authorized export", async ({
   expect((await studentDownload).suggestedFilename()).toBe(
     `report-student-${mine.id}.xlsx`,
   );
-  await page.getByLabel("导师编号ID（可空）", { exact: true }).fill(String(mentor.id));
+  await page
+    .getByLabel("导师（可空，进入本页自动读取目录）", { exact: true })
+    .selectOption(String(mentor.id));
   await page.getByRole("button", { name: "查看课题组报告" }).click();
   await expect(
     page.getByText(`统计日期 ${new Date().toISOString().slice(0, 10)} · 当前授权范围内学生1人`),

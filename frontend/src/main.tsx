@@ -2,7 +2,9 @@ import { EvaluationPanel } from "./EvaluationPanel";
 import { ReportsPanel } from "./ReportsPanel";
 import { AssessmentPanel } from "./AssessmentPanel";
 import { MentorGroupPanel } from "./MentorGroupPanel";
-import { ResearchOutputs } from "./ResearchOutputs";
+import { OutputsTabs } from "./OutputsTabs";
+import { ThesisQuality } from "./ThesisQuality";
+import { BusinessRulesPanel } from "./BusinessRulesPanel";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { RecordPanel } from "./RecordPanel";
 import React, { useEffect, useRef, useState } from "react";
@@ -13,8 +15,6 @@ import { AgentPanel } from "./AgentPanel";
 import { AuditPanel } from "./AuditPanel";
 import { MilestonePanel } from "./MilestonePanel";
 import { PaperPanel } from "./PaperPanel";
-import { CandidatePanel } from "./CandidatePanel";
-import { ComparisonPanel } from "./ComparisonPanel";
 import { CoursePanel } from "./CoursePanel";
 import { ResolutionPanel } from "./ResolutionPanel";
 import { StudentPanel } from "./StudentPanel";
@@ -288,21 +288,25 @@ function App() {
                 ["courses", "课程导入与待关联"],
                 ["milestones", "选题与中期导入"],
                 ["assessments", "盲审与答辩"],
+                ["outputs", "科研成果导入"],
+                ["thesis_upload", "学位论文上传"],
+                ["mentor_groups", "导师与课题组数据"],
                 ["maintenance", "数据纠错与维护"],
               ],
             },
             {
               label: "研究分析",
               items: [
-                ["evaluation", "人才指标模拟评价"],
+                ["analysis", "培养过程分析"],
+                ["thesis_quality", "学位论文质量"],
+                ["evaluation", "拔尖人才模拟评价"],
                 ["reports", "三级报告"],
-                ["analysis", "课程统计与通过规则"],
-                ["papers", "论文上传与解析"],
-                ["research_outputs", "已发表科研论文"],
-                ["mentor_groups", "导师与课题组"],
-                ["patents", "专利"], ["awards", "获奖项目"], ["conferences", "会议"],
-                ["agent", "Agent 查询"],
+                ["agent", "Agent 智能问答"],
               ],
+            },
+            {
+              label: "业务规则",
+              items: [["rules", "业务规则管理"]],
             },
             {
               label: "系统管理",
@@ -351,14 +355,15 @@ function App() {
                   audit: "审计查询",
                   milestones: "选题与中期导入",
                   assessments: "盲审与答辩",
-                  papers: "论文上传与解析",
-                  research_outputs: "已发表科研论文",
-                  mentor_groups: "导师与课题组",
-                  patents:"专利", awards:"获奖项目", conferences:"会议",
-                  agent: "Agent 查询",
-                  evaluation: "人才指标模拟评价",
+                  outputs: "科研成果导入",
+                  thesis_upload: "学位论文上传",
+                  mentor_groups: "导师与课题组数据",
+                  agent: "Agent 智能问答",
+                  thesis_quality: "学位论文质量",
+                  rules: "业务规则管理",
+                  evaluation: "拔尖人才模拟评价",
                   reports: "三级报告",
-                  analysis: "课程统计与通过规则",
+                  analysis: "培养过程分析",
                   courses: "课程导入与待关联",
                   students: "基础导入与学生档案",
                   model: "获准模型连接",
@@ -402,12 +407,12 @@ function App() {
           <AssessmentPanel csrf={session.csrf_token} />
         ) : page === "milestones" ? (
           <MilestonePanel csrf={session.csrf_token} fetcher={request} />
-        ) : page === "mentor_groups" ? (<MentorGroupPanel csrf={session.csrf_token} />) : ["research_outputs","patents","awards","conferences"].includes(page) ? (<ResearchOutputs key={page} category={page} csrf={session.csrf_token} />) : page === "papers" ? (
-          <>
-            <PaperPanel csrf={session.csrf_token} />
-            <ComparisonPanel csrf={session.csrf_token} />
-            <CandidatePanel csrf={session.csrf_token} />
-          </>
+        ) : page === "mentor_groups" ? (<MentorGroupPanel csrf={session.csrf_token} />) : page === "outputs" ? (<OutputsTabs csrf={session.csrf_token} />) : page === "thesis_upload" ? (
+          <PaperPanel csrf={session.csrf_token} />
+        ) : page === "thesis_quality" ? (
+          <ThesisQuality csrf={session.csrf_token} />
+        ) : page === "rules" ? (
+          <BusinessRulesPanel csrf={session.csrf_token} />
         ) : page === "agent" ? (
           <AgentPanel csrf={session.csrf_token} />
         ) : page === "evaluation" ? (

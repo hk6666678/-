@@ -176,3 +176,31 @@ def test_labels_require_independent_permission(client):
         },
     )
     assert response.status_code == 403
+
+
+def test_comparison_listing_scope_and_target_stale(client):
+    from test_papers import update_grants
+
+    headers = paper_setup(client)
+    item = upload_paper(client, headers, text_pdf()).json()
+    grant_comparison(client, headers)
+    created = client.post(
+        f"/api/papers/{item['id']}/comparisons", headers=headers, json={}
+    ).json()
+    listing = client.get("/api/paper-comparisons").json()["items"]
+    assert [entry["id"] for entry in listing] == [created["id"]]
+    assert set(listing[0]) == {
+        "id",
+        "created_at",
+        "target_version_id",
+        "level",
+        "discipline",
+        "year",
+        "stale",
+    }
+    assert listing[0]["target_version_id"] == item["id"]
+    assert listing[0]["stale"] is False
+    upload_paper(client, headers, text_pdf(), version=1)
+    assert client.get("/api/paper-comparisons").json()["items"][0]["stale"] is True
+    update_grants(client, headers, ["view", "maintain", "identity", "download"])
+    assert client.get("/api/paper-comparisons").json()["items"] == []

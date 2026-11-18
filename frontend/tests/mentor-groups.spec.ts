@@ -59,7 +59,7 @@ test("mentor directories relationships facts and revocation", async ({
   ).toBe(200);
   const student = (await (await page.request.get("/api/students")).json())
     .items[0];
-  await page.getByRole("button", { name: "导师与课题组", exact: true }).click();
+  await page.getByRole("button", { name: "导师与课题组数据", exact: true }).click();
   for (const [kind, number, name] of [
     ["mentors", "SYN-MENTOR-1", "合成导师"],
     ["groups", "SYN-GROUP-1", "合成课题组"],

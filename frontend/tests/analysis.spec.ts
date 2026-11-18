@@ -105,7 +105,7 @@ test("course analysis preserves source evidence and immutable stale history", as
       ).status(),
     ).toBe(200);
     await page
-      .getByRole("button", { name: "课程统计与通过规则", exact: true })
+      .getByRole("button", { name: "培养过程分析", exact: true })
       .click();
     await page.getByLabel("学院", { exact: true }).selectOption("__other_college__");
     await page.getByLabel("其他学院名称", { exact: true }).fill("课程08合成学院");
@@ -125,15 +125,39 @@ test("course analysis preserves source evidence and immutable stale history", as
     const snapshots = await (await page.request.get("/api/analyses")).json();
     const oldId = snapshots.items[0].id;
     await page
-      .getByText("业务确认通过规则（独立授权）", { exact: true })
+      .getByRole("button", { name: "业务规则管理", exact: true })
       .click();
-    await page.getByLabel("课程编号（分析可留空）").fill("SYN-C08");
-    await page.getByLabel("最低通过分数").fill("70");
-    await page.getByLabel("业务确认依据").fill("合成业务确认通过线70");
-    await page.getByLabel("业务人员已确认适用范围及规则").check();
-    await page.getByRole("button", { name: "确认新规则版本" }).click();
+    const passRules = page.locator("article.card", {
+      has: page.getByRole("heading", {
+        name: "课程通过规则与培养要求",
+        exact: true,
+      }),
+    });
+    await passRules
+      .getByLabel("规则环节", { exact: true })
+      .selectOption("courses");
+    await passRules
+      .getByLabel("学院", { exact: true })
+      .selectOption("__other_college__");
+    await passRules
+      .getByLabel("其他学院名称", { exact: true })
+      .fill("课程08合成学院");
+    await passRules
+      .getByLabel("专业（须具体专业）", { exact: true })
+      .fill("课程08合成专业");
+    await passRules.getByLabel("课程编号", { exact: true }).fill("SYN-C08");
+    await passRules.getByLabel("最低通过分数").fill("70");
+    await passRules
+      .getByLabel("业务确认依据")
+      .fill("合成业务确认通过线70");
+    await passRules
+      .getByLabel("业务人员已确认适用范围及规则")
+      .check();
+    await passRules
+      .getByRole("button", { name: "确认新规则版本" })
+      .click();
     await expect(
-      page.locator("pre").filter({ hasText: "version" }).first(),
+      passRules.locator("pre").filter({ hasText: "version" }).first(),
     ).toBeVisible();
     // Simulate an immutable pre-09 snapshot without the optional progress field.
     await page.route(`**/api/analyses/${oldId}`, async (route) => {
@@ -142,7 +166,10 @@ test("course analysis preserves source evidence and immutable stale history", as
       delete legacy.result.credit_progress;
       await route.fulfill({ response, json: legacy });
     });
-    await page.getByRole("button", { name: "读取分析历史" }).click();
+    await page
+      .getByRole("button", { name: "培养过程分析", exact: true })
+      .click();
+    await page.getByText(/分析历史（1，进入本页自动读取）/).click();
     await page
       .getByRole("button", { name: `分析 ${oldId} 过时`, exact: true })
       .click();

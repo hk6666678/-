@@ -1,5 +1,6 @@
 import { CollegeSelect } from "./CollegeSelect";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { tongjiMajors } from "./tongjiMajors";
 
 type Section =
   | { status: "ok"; [key: string]: unknown }
@@ -92,6 +93,15 @@ const categoryNames: Record<string, string> = {
   awards: "获奖项目",
   conferences: "会议",
 };
+const tongjiMajorNames = new Set(tongjiMajors);
+type DirectoryRow = {
+  id: number;
+  mentor_number?: string;
+  group_number?: string;
+  name?: string;
+  college: string;
+  major: string;
+};
 
 function StatusNote({ section }: { section: Section }) {
   if (section.status === "missing") return <p>缺失：{section.reason}，不填零。</p>;
@@ -152,7 +162,9 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
   const [collegeReport, setCollegeReport] = useState<CollegeReport>();
   const [students, setStudents] = useState<{ id: number; research_id: string; name?: string; student_number?: string }[]>([]);
   const [studentMajor, setStudentMajor] = useState("");
-  const [groupMentor, setGroupMentor] = useState("");
+  const [majorFilters, setMajorFilters] = useState<{ majors: string[]; levels: string[] }>({ majors: [], levels: [] });
+  const [mentors, setMentors] = useState<DirectoryRow[]>([]);
+  const [groups, setGroups] = useState<DirectoryRow[]>([]);
   const [groupDate, setGroupDate] = useState(new Date().toISOString().slice(0, 10));
   const [college, setCollege] = useState("");
   const [major, setMajor] = useState("");
@@ -194,6 +206,44 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
     setNotice(`${filename} 已导出`);
   }
 
+  async function fetchStudents(major: string) {
+    const response = await get(
+      `/api/students?limit=200&offset=0&major=${encodeURIComponent(major)}`,
+    );
+    setStudents((await response.json()).items);
+  }
+  const otherMajors = majorFilters.majors.filter(
+    (name) => !tongjiMajorNames.has(name),
+  );
+  useEffect(() => {
+    void (async () => {
+      try {
+        const filters = await (
+          await get("/api/students?include_filters=true&limit=1")
+        ).json();
+        setMajorFilters(filters.filters);
+      } catch {
+        /* 过滤器加载失败不阻塞页面 */
+      }
+      try {
+        // 目录接口返回裸数组（无权行已由服务端过滤）
+        const mentorRows = await (
+          await get("/api/mentor-groups/directory/mentors")
+        ).json();
+        setMentors(mentorRows);
+      } catch {
+        /* 目录加载失败不阻塞页面 */
+      }
+      try {
+        const groupRows = await (
+          await get("/api/mentor-groups/directory/groups")
+        ).json();
+        setGroups(groupRows);
+      } catch {
+        /* 目录加载失败不阻塞页面 */
+      }
+    })();
+  }, []);
   const outputSections = studentReport
     ? (["research_papers", "patents", "awards", "conferences"] as const).map(
         (key) => ({ key, section: studentReport.sections[key] }),
@@ -215,24 +265,32 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
         <h3>学生发展报告</h3>
         <label>
           学生列表专业筛选
-          <input
+          <select
+            aria-label="学生列表专业筛选"
             value={studentMajor}
-            onChange={(e) => setStudentMajor(e.target.value)}
-          />
+            onChange={(e) => {
+              setStudentMajor(e.target.value);
+              void perform(() => fetchStudents(e.target.value));
+            }}
+          >
+            <option value="">全部专业（超过200人时请选择具体专业）</option>
+            <optgroup label="同济大学硕士招生专业">
+              {tongjiMajors.map((option) => (
+                <option key={option}>{option}</option>
+              ))}
+            </optgroup>
+            {otherMajors.length > 0 && (
+              <optgroup label="其他已导入专业">
+                {otherMajors.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </optgroup>
+            )}
+          </select>
         </label>
-        <button
-          type="button"
-          onClick={() =>
-            void perform(async () => {
-              const response = await get(
-                `/api/students?limit=200&offset=0&major=${encodeURIComponent(studentMajor)}`,
-              );
-              setStudents((await response.json()).items);
-            })
-          }
-        >
-          读取当前授权学生
-        </button>
+        <p className="muted">
+          选择专业后自动读取学生列表，无需手动刷新。
+        </p>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -382,12 +440,33 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
           }}
         >
           <label>
-            导师编号ID（可空）
-            <input name="mentor_id" type="number" min="1" />
+            导师（可空，进入本页自动读取目录）
+            <select
+              name="mentor_id"
+              aria-label="导师（可空，进入本页自动读取目录）"
+            >
+              <option value="">全部授权导师</option>
+              {mentors.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name && m.mentor_number
+                    ? `${m.name}（${m.mentor_number}）`
+                    : m.name || `导师 #${m.id}（${m.college}/${m.major}）`}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
-            课题组ID（可空）
-            <input name="group_id" type="number" min="1" />
+            课题组（可空）
+            <select name="group_id" aria-label="课题组（可空）">
+              <option value="">全部授权课题组</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name && g.group_number
+                    ? `${g.name}（${g.group_number}）`
+                    : g.name || `课题组 #${g.id}（${g.college}/${g.major}）`}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             统计日期

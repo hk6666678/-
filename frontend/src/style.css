@@ -216,6 +216,24 @@ header h1 {
   font-size: 13px;
   padding: 9px 14px;
 }
+.outputs-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.outputs-tabs button {
+  background: white;
+  color: #20584d;
+  border: 1px solid #ccd9d4;
+  font-size: 13px;
+  padding: 8px 14px;
+}
+.outputs-tabs button.active {
+  background: #20584d;
+  color: white;
+  border-color: #20584d;
+}
 .welcome {
   background: #e1ede7;
   border: 1px solid #cdddce;

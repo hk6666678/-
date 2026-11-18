@@ -274,6 +274,33 @@ def register_candidates(
             audit(db, actor["id"], "candidate.evaluate", str(cur.lastrowid))
             return {"id": cur.lastrowid, "stale": False, **result}
 
+    @app.get("/api/candidate-results")
+    def result_listing(request: Request) -> dict[str, Any]:
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            items = []
+            for row in db.execute(
+                "SELECT id, comparison_id, result, created_at FROM candidate_results ORDER BY id DESC"
+            ):
+                saved = json.loads(row["result"])
+                try:
+                    _, _, stale = comparison(db, actor["id"], row["comparison_id"])
+                except HTTPException:
+                    continue
+                items.append(
+                    {
+                        "id": row["id"],
+                        "comparison_id": row["comparison_id"],
+                        "paper_version_id": saved["paper_version_id"],
+                        "recommended": saved["recommended"],
+                        "created_at": row["created_at"],
+                        "stale": stale,
+                    }
+                )
+            audit(db, actor["id"], "candidate.results.list", "scoped")
+            db.commit()
+            return {"items": items}
+
     @app.get("/api/candidate-results/{ident}")
     def result_history(ident: int, request: Request) -> dict[str, Any]:
         with connection(path) as db:

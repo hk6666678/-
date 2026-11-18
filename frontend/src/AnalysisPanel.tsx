@@ -1,5 +1,5 @@
 import { CollegeSelect } from "./CollegeSelect";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 type Group = {
   group_value: string;
   course_code: string;
@@ -69,20 +69,14 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
   const [category, setCategory] = useState("courses"),
     [grade, setGrade] = useState(""),
     [level, setLevel] = useState(""),
-    [groupBy, setGroupBy] = useState(""),
-    [requiredCredits, setRequiredCredits] = useState("");
+    [groupBy, setGroupBy] = useState("");
   const [college, setCollege] = useState(""),
     [major, setMajor] = useState(""),
     [course, setCourse] = useState(""),
     [term, setTerm] = useState("");
-  const [grading, setGrading] = useState("百分制"),
-    [condition, setCondition] = useState(""),
-    [reason, setReason] = useState(""),
-    [confirmed, setConfirmed] = useState(false);
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null),
     [history, setHistory] = useState<Snapshot[]>([]),
-    [error, setError] = useState(""),
-    [rules, setRules] = useState("");
+    [error, setError] = useState("");
   async function call(url: string, body?: unknown) {
     setError("");
     try {
@@ -114,9 +108,18 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
     level,
     group_by: groupBy,
   };
+  useEffect(() => {
+    void (async () => {
+      const r = await call("/api/analyses");
+      if (r) setHistory(r.items);
+    })();
+  }, []);
   return (
     <section className="card">
-      <h2>课程分析与通过规则</h2>
+      <h2>培养过程分析</h2>
+      <p>
+        课程、选题与中期的通过率、分布和分组对比。通过规则与培养要求的业务确认已集中到「业务规则管理」，本页只读引用其版本。
+      </p>
       <label>
         分析环节
         <select
@@ -175,119 +178,22 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
       >
         生成新分析版本
       </button>
-      <button
-        onClick={async () => {
-          const r = await call("/api/analyses");
-          if (r) setHistory(r.items);
-        }}
-      >
-        读取分析历史
-      </button>
-      {history.map((h) => (
-        <button
-          key={h.id}
-          onClick={async () => {
-            const r = await call(`/api/analyses/${h.id}`);
-            if (r) setSnapshot(r);
-          }}
-        >
-          分析 {h.id} {h.stale ? "过时" : "有效"}
-        </button>
-      ))}
-      <details>
-        <summary>业务确认通过规则（独立授权）</summary>
-        <p>
-          没有默认分数线。规则按学院、专业、课程、评分制度和可选学期适用；保存生成新版本。
-        </p>
-        <label>
-          评分制度
-          <select value={grading} onChange={(e) => setGrading(e.target.value)}>
-            {["百分制", "五级制", "二级制"].map((g) => (
-              <option key={g}>{g}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          {grading === "百分制" ? "最低通过分数" : "通过等级（逗号分隔）"}
-          <input
-            value={condition}
-            onChange={(e) => setCondition(e.target.value)}
-          />
-        </label>
-        <label>
-          业务确认依据
-          <input value={reason} onChange={(e) => setReason(e.target.value)} />
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={confirmed}
-            onChange={(e) => setConfirmed(e.target.checked)}
-          />
-          业务人员已确认适用范围及规则
-        </label>
-        <button
-          onClick={async () => {
-            const r = await call("/api/pass-rules", {
-              ...scope,
-              grading,
-              threshold:
-                grading === "百分制" && condition.trim()
-                  ? Number(condition)
-                  : null,
-              passing_values:
-                grading === "百分制"
-                  ? []
-                  : condition.split(/[,，]/).map((v) => v.trim()),
-              reason,
-              confirmed,
-            });
-            if (r) setRules(JSON.stringify(r));
-          }}
-        >
-          确认新规则版本
-        </button>
-        <button
-          onClick={async () => {
-            const r = await call(
-              `/api/pass-rules?category=${category}&college=${encodeURIComponent(college)}&major=${encodeURIComponent(major)}`,
-            );
-            if (r) setRules(JSON.stringify(r, null, 2));
-          }}
-        >
-          查看规则历史
-        </button>
-        {category === "courses" && (
-          <>
-            <label>
-              培养要求总学分
-              <input
-                type="number"
-                value={requiredCredits}
-                onChange={(e) => setRequiredCredits(e.target.value)}
-              />
-            </label>
-            <p>
-              适用于本学院、专业所有年级与培养层次。重复修读计入规则：每门课程只计一次，通过考核中取最大学分。仅业务确认此规则适用时保存。
-            </p>
+      {history.length > 0 && (
+        <details>
+          <summary>分析历史（{history.length}，进入本页自动读取）</summary>
+          {history.map((h) => (
             <button
+              key={h.id}
               onClick={async () => {
-                const r = await call("/api/training-requirements", {
-                  ...scope,
-                  required_credits: Number(requiredCredits),
-                  repeat_policy: "max_passed_credits",
-                  reason,
-                  confirmed,
-                });
-                if (r) setRules(JSON.stringify(r));
+                const r = await call(`/api/analyses/${h.id}`);
+                if (r) setSnapshot(r);
               }}
             >
-              确认培养要求版本
+              分析 {h.id} {h.stale ? "过时" : "有效"}
             </button>
-          </>
-        )}
-        <pre>{rules}</pre>
-      </details>
+          ))}
+        </details>
+      )}
       {error && <p role="alert">{error}</p>}
       {snapshot && (
         <>

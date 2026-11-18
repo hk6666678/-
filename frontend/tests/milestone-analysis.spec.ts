@@ -105,7 +105,7 @@ test("milestone analysis preserves distribution and immutable evidence", async (
       ).status(),
     ).toBe(200);
     await page
-      .getByRole("button", { name: "课程统计与通过规则", exact: true })
+      .getByRole("button", { name: "培养过程分析", exact: true })
       .click();
     await page.getByLabel("分析环节", { exact: true }).selectOption("topic");
     await page.getByLabel("年级（入学年份）").fill("2025");
@@ -130,17 +130,44 @@ test("milestone analysis preserves distribution and immutable evidence", async (
     const snapshots = await (await page.request.get("/api/analyses")).json();
     const oldId = snapshots.items[0].id;
     await page
-      .getByText("业务确认通过规则（独立授权）", { exact: true })
+      .getByRole("button", { name: "业务规则管理", exact: true })
       .click();
-    await page.getByLabel("考核批次（分析可留空）").fill("SYN-T09-0");
-    await page.getByLabel("最低通过分数").fill("70");
-    await page.getByLabel("业务确认依据").fill("合成业务确认通过线70");
-    await page.getByLabel("业务人员已确认适用范围及规则").check();
-    await page.getByRole("button", { name: "确认新规则版本" }).click();
+    const passRules = page.locator("article.card", {
+      has: page.getByRole("heading", {
+        name: "课程通过规则与培养要求",
+        exact: true,
+      }),
+    });
+    await passRules
+      .getByLabel("规则环节", { exact: true })
+      .selectOption("topic");
+    await passRules
+      .getByLabel("学院", { exact: true })
+      .selectOption("__other_college__");
+    await passRules
+      .getByLabel("其他学院名称", { exact: true })
+      .fill("培养09合成学院");
+    await passRules
+      .getByLabel("专业（须具体专业）", { exact: true })
+      .fill("培养09合成专业");
+    await passRules.getByLabel("考核批次", { exact: true }).fill("SYN-T09-0");
+    await passRules.getByLabel("最低通过分数").fill("70");
+    await passRules
+      .getByLabel("业务确认依据")
+      .fill("合成业务确认通过线70");
+    await passRules
+      .getByLabel("业务人员已确认适用范围及规则")
+      .check();
+    await passRules
+      .getByRole("button", { name: "确认新规则版本" })
+      .click();
     await expect(
-      page.locator("pre").filter({ hasText: "version" }).first(),
+      passRules.locator("pre").filter({ hasText: "version" }).first(),
     ).toBeVisible();
-    await page.getByRole("button", { name: "读取分析历史" }).click();
+    await page
+      .getByRole("button", { name: "培养过程分析", exact: true })
+      .click();
+    await page.getByText(/分析历史（1，进入本页自动读取）/).click();
     await page
       .getByRole("button", { name: `分析 ${oldId} 过时`, exact: true })
       .click();

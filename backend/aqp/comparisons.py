@@ -229,6 +229,41 @@ def register_comparisons(
         audit(db, actor, "paper.comparison.read", str(ident))
         return {"id": ident, "stale": stale, "created_at": row["created_at"], **saved}
 
+    @app.get("/api/paper-comparisons")
+    def comparison_listing(request: Request) -> dict[str, Any]:
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            items = []
+            for row in db.execute(
+                "SELECT c.id, c.target_id, c.year, c.created_at, p.level, p.discipline, p.student_id "
+                "FROM paper_comparisons c JOIN paper_versions p ON p.id=c.target_id "
+                "ORDER BY c.id DESC"
+            ):
+                try:
+                    paper(db, actor["id"], row["target_id"], ("view", "analyze"))
+                except HTTPException:
+                    continue
+                # 列表仅快速检测目标论文是否被新版本替换；对照成员变化的
+                # 完整过时判断由详情接口复核。
+                newest = db.execute(
+                    "SELECT MAX(id) FROM paper_versions WHERE student_id=?",
+                    (row["student_id"],),
+                ).fetchone()[0]
+                items.append(
+                    {
+                        "id": row["id"],
+                        "created_at": row["created_at"],
+                        "target_version_id": row["target_id"],
+                        "level": row["level"],
+                        "discipline": row["discipline"],
+                        "year": row["year"],
+                        "stale": newest != row["target_id"],
+                    }
+                )
+            audit(db, actor["id"], "paper.comparisons.list", "scoped")
+            db.commit()
+            return {"items": items}
+
     @app.get("/api/paper-comparisons/{ident}")
     def comparison(ident: int, request: Request) -> dict[str, Any]:
         with connection(path) as db:

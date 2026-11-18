@@ -1,5 +1,5 @@
-import { CollegeSelect } from "./CollegeSelect";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { tongjiMajors } from "./tongjiMajors";
 type Rule = {
   id: number;
   version: number;
@@ -198,6 +198,7 @@ function Growth({ snapshots }: { snapshots: SnapshotItem[] }) {
     </div>
   );
 }
+const tongjiMajorNames = new Set(tongjiMajors);
 export function EvaluationPanel({ csrf }: { csrf: string }) {
   const [rules, setRules] = useState<Rule[]>([]),
     [selected, setSelected] = useState<number>(),
@@ -210,9 +211,10 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
   const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
   const [studentTotal, setStudentTotal] = useState<number>();
   const [studentMajor, setStudentMajor] = useState("");
-  const [metrics, setMetrics] = useState([
-    { feature: "patent_count", weight: 1, minimum: 0, maximum: 10 },
-  ]);
+  const [majorFilters, setMajorFilters] = useState<{
+    majors: string[];
+    levels: string[];
+  }>({ majors: [], levels: [] });
   async function call(url: string, body?: unknown) {
     const response = await fetch(
       url,
@@ -246,11 +248,35 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
     }
   }
   async function load() {
-    setRules((await call("/api/evaluation-rules")).items);
+    const items = (await call("/api/evaluation-rules")).items;
+    setRules(items);
+    // 默认选中已启用规则，评分无需再手动选一遍
+    setSelected((prev) => prev ?? items.find((r: Rule) => r.enabled)?.id);
   }
   async function loadSnapshots() {
     setSnapshots((await call("/api/evaluation-snapshots")).items);
   }
+  async function fetchStudents(major: string) {
+    setStudents([]);
+    setStudentTotal(undefined);
+    const data = await call(
+      `/api/students?limit=200&offset=0&major=${encodeURIComponent(major)}`,
+    );
+    setStudents(data.items);
+    setStudentTotal(data.total);
+  }
+  const otherMajors = majorFilters.majors.filter(
+    (name) => !tongjiMajorNames.has(name),
+  );
+  useEffect(() => {
+    void perform(load);
+    void perform(loadSnapshots);
+    void call("/api/students?include_filters=true&limit=1")
+      .then((value: { filters: { majors: string[]; levels: string[] } }) =>
+        setMajorFilters(value.filters),
+      )
+      .catch(() => {});
+  }, []);
   const rule = rules.find((r) => r.id === selected);
   return (
     <section className="evaluation-panel">
@@ -261,8 +287,10 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
       {error && <p role="alert">{error}</p>}
       {notice && <p className="notice compact-notice" role="status">{notice}</p>}
       <article className="card">
-        <h3>规则版本</h3>
-        <button onClick={() => void perform(load)}>读取当前授权规则</button>
+        <h3>规则版本（进入本页自动读取）</h3>
+        <p>
+          规则草稿与独立授权启用已集中到「业务规则管理」；本页选择已授权规则进行评分。
+        </p>
         <div className="evaluation-table"><p className="table-hint">可左右滑动查看完整表格</p><div className="table-wrap"><table>
           <thead>
             <tr>
@@ -301,196 +329,35 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
         </table></div></div>
       </article>
       <article className="card">
-        <details><summary>新建不可覆盖的规则草稿</summary>
-        <p>
-          选择已有规则后可另存下一版本；原版本保持不变。课程比例使用0—1，其他指标使用原始数量。
-        </p>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const f = new FormData(e.currentTarget);
-            void perform(async () => {
-              const saved = await call("/api/evaluation-rules", {
-                name: f.get("name"),
-                college: f.get("college"),
-                major: f.get("major"),
-                mode: "simulation",
-                metrics,
-                expected_version: f.get("revise") && rule ? rule.version : 0,
-                previous_id: f.get("revise") && rule ? rule.id : null,
-              });
-              await load();
-              setSelected(saved.id);
-              setNotice(`模拟草稿 #${saved.id} 已保存，尚未启用`);
-            });
-          }}
-        >
-          <label>
-            规则名称
-            <input name="name" required />
-          </label>
-          <CollegeSelect label="学院" name="college" required />
-          <label>
-            专业
-            <input name="major" required />
-          </label>
-          <label>
-            <input type="checkbox" name="revise" disabled={!rule} />
-            基于选中规则创建下一版本
-          </label>
-          <div className="evaluation-table"><p className="table-hint">可左右滑动查看完整表格</p><div className="table-wrap"><table>
-            <thead>
-              <tr>
-                <th>指标</th>
-                <th>权重</th>
-                <th>归一化下限</th>
-                <th>归一化上限</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {metrics.map((m, i) => (
-                <tr key={i}>
-                  <td>
-                    <select
-                      aria-label={`指标 ${i + 1}`}
-                      value={m.feature}
-                      onChange={(e) =>
-                        setMetrics(
-                          metrics.map((v, j) =>
-                            j === i ? { ...v, feature: e.target.value } : v,
-                          ),
-                        )
-                      }
-                    >
-                      {Object.entries(features).map(([v, label]) => (
-                        <option key={v} value={v}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  {(["weight", "minimum", "maximum"] as const).map((key) => (
-                    <td key={key}>
-                      <input
-                        aria-label={`${key} ${i + 1}`}
-                        type="number"
-                        step="any"
-                        required
-                        value={m[key]}
-                        onChange={(e) =>
-                          setMetrics(
-                            metrics.map((v, j) =>
-                              j === i
-                                ? { ...v, [key]: Number(e.target.value) }
-                                : v,
-                            ),
-                          )
-                        }
-                      />
-                    </td>
-                  ))}
-                  <td>
-                    <button
-                      type="button"
-                      disabled={metrics.length === 1}
-                      onClick={() =>
-                        setMetrics(metrics.filter((_, j) => i !== j))
-                      }
-                    >
-                      移除
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table></div></div>
-          <button
-            type="button"
-            disabled={metrics.length >= 6}
-            onClick={() =>
-              setMetrics([
-                ...metrics,
-                {
-                  feature: "research_paper_count",
-                  weight: 1,
-                  minimum: 0,
-                  maximum: 10,
-                },
-              ])
-            }
-          >
-            添加指标
-          </button>
-          <button>保存模拟草稿</button>
-        </form>
-        </details>
-      </article>
-      <article className="card">
-        <h3>独立授权确认启用</h3>
-        <p>
-          当前选择：{rule ? `#${rule.id} / v${rule.version}` : "尚未选择"}
-          。启用需要独立权限，填写业务确认人和依据。
-        </p>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const f = new FormData(e.currentTarget);
-            void perform(async () => {
-              await call(`/api/evaluation-rules/${selected}/activate`, {
-                expected_version: rule?.version,
-                confirmed_by: f.get("confirmed_by"),
-                basis: f.get("basis"),
-                acknowledge_simulation: true,
-              });
-              await load();
-              setNotice("已启用模拟版本；不构成正式人才识别");
-            });
-          }}
-        >
-          <label>
-            业务确认人
-            <input name="confirmed_by" required />
-          </label>
-          <label>
-            确认依据
-            <textarea name="basis" required />
-          </label>
-          <label>
-            <input type="checkbox" required />
-            确认仅用于模拟演示
-          </label>
-          <button disabled={!rule || !!rule.enabled}>确认启用模拟规则</button>
-        </form>
-      </article>
-      <article className="card">
         <h3>按真实数据版本评分</h3>
         <label>
           学生列表专业筛选
-          <input
+          <select
+            aria-label="学生列表专业筛选"
             value={studentMajor}
-            onChange={(e) => setStudentMajor(e.target.value)}
-          />
+            onChange={(e) => {
+              setStudentMajor(e.target.value);
+              void perform(() => fetchStudents(e.target.value));
+            }}
+          >
+            <option value="">全部专业（超过200人时请选择具体专业）</option>
+            <optgroup label="同济大学硕士招生专业">
+              {tongjiMajors.map((option) => (
+                <option key={option}>{option}</option>
+              ))}
+            </optgroup>
+            {otherMajors.length > 0 && (
+              <optgroup label="其他已导入专业">
+                {otherMajors.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </optgroup>
+            )}
+          </select>
         </label>
-        <button
-          type="button"
-          onClick={() =>
-            void perform(async () => {
-              setStudents([]);
-              setStudentTotal(undefined);
-              const data = await call(
-                `/api/students?limit=200&offset=0&major=${encodeURIComponent(studentMajor)}`,
-              );
-              setStudents(data.items);
-              setStudentTotal(data.total);
-            })
-          }
-        >
-          读取当前授权学生
-        </button>
         <p>
           {studentTotal === undefined
-            ? "尚未读取学生列表"
+            ? "选择专业后自动读取学生列表"
             : `当前授权和专业筛选下共${studentTotal}人，仅显示前${students.length}人；超过200人请按专业缩小范围`}
           。列表沿用档案脱敏边界，评分时重新核验当前身份和数据权限。
         </p>
@@ -522,36 +389,31 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
           </label>
           <button disabled={!rule || !rule.enabled}>保存新评分快照</button>
         </form>
-        <button type="button" onClick={() => void perform(loadSnapshots)}>
-          读取历史快照列表
-        </button>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const f = new FormData(e.currentTarget);
-            setSnapshot(undefined);
-            void perform(async () =>
-              setSnapshot(
-                await call(`/api/evaluation-snapshots/${f.get("snapshot_id")}`),
-              ),
-            );
-          }}
-        >
-          <label>
-            历史快照
-            <select aria-label="历史快照" name="snapshot_id" required defaultValue="">
-              <option value="">请选择已读取的历史快照</option>
-              {snapshots.map((s) => (
-                <option key={s.id} value={s.id}>
-                  #{s.id} · {s.research_id} ·{" "}
-                  {s.total === null ? "未形成总分" : s.total.toFixed(2)} ·{" "}
-                  {new Date(s.as_of * 1000).toLocaleDateString()}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button disabled={!snapshots.length}>读取快照并重查当前授权</button>
-        </form>
+        <label>
+          历史快照（进入本页自动读取，选中即重查当前授权）
+          <select
+            aria-label="历史快照"
+            value={snapshot?.id ?? ""}
+            onChange={(e) => {
+              if (!e.target.value) return;
+              setSnapshot(undefined);
+              void perform(async () =>
+                setSnapshot(
+                  await call(`/api/evaluation-snapshots/${e.target.value}`),
+                ),
+              );
+            }}
+          >
+            <option value="">请选择历史快照</option>
+            {snapshots.map((s) => (
+              <option key={s.id} value={s.id}>
+                #{s.id} · {s.research_id} ·{" "}
+                {s.total === null ? "未形成总分" : s.total.toFixed(2)} ·{" "}
+                {new Date(s.as_of * 1000).toLocaleDateString()}
+              </option>
+            ))}
+          </select>
+        </label>
       </article>
       {snapshot && (
         <article className="card">
