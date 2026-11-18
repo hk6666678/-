@@ -1019,9 +1019,21 @@ def register_agent(
                 details={"analysis_id": plan.analysis_id, "student_id": plan.student_id},
             )
 
+        def recheck_result(db: sqlite3.Connection, actor_id: int) -> None:
+            refreshed_result, refreshed_links = execute_plan(db, actor_id, plan, loaders)
+            if (
+                json.dumps(refreshed_result, sort_keys=True, ensure_ascii=False)
+                != json.dumps(tool_result, sort_keys=True, ensure_ascii=False)
+                or refreshed_links != links
+            ):
+                audit(db, actor_id, "agent.answer", plan.tool, "changed")
+                db.commit()
+                raise HTTPException(409, "授权或数据已变化，请重新提问")
+
         with connection(path) as db:
             actor, _ = current(db, request)
             deny_unauthorized_question(db, actor["id"], body.question)
+            recheck_result(db, actor["id"])
         summary_text = invoke_model(
             path,
             "agent",
@@ -1058,16 +1070,7 @@ def register_agent(
         )
         with connection(path) as db:
             actor, _ = current(db, request)
-            refreshed_result, refreshed_links = execute_plan(
-                db, actor["id"], plan, loaders
-            )
-            if (
-                json.dumps(refreshed_result, sort_keys=True, ensure_ascii=False)
-                != json.dumps(tool_result, sort_keys=True, ensure_ascii=False)
-                or refreshed_links != links
-            ):
-                audit(db, actor["id"], "agent.answer", plan.tool, "changed")
-                raise HTTPException(409, "授权或数据已变化，请重新提问")
+            recheck_result(db, actor["id"])
             audit(db, actor["id"], "agent.answer", plan.tool)
         assert tool_result is not None
         return {

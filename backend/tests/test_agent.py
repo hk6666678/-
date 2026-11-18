@@ -126,6 +126,44 @@ def test_agent_counts_students_from_controlled_tool(
     assert '"total": 1' in prompts[1]
 
 
+def test_agent_does_not_send_summary_after_tool_scope_revoked(client, monkeypatch):  # noqa: F811
+    from aqp import agent
+
+    headers = login_admin(client)
+    synthetic_student_and_analysis(client, headers)
+    enable_agent(client, headers, monkeypatch)
+    original = agent.execute_plan
+    reads = []
+    model_calls = []
+
+    def revoke_after_read(*args):
+        result = original(*args)
+        if not reads:
+            assert result[0]["total"] == 1
+            reads.append(result)
+            replace_grants(client, headers, [])
+        return result
+
+    def runner(config, text):
+        model_calls.append(text)
+        if len(model_calls) == 1:
+            return json.dumps(
+                {"tool": "student_counts", "college": "示例学院", "major": "计算机"}
+            )
+        return "模拟摘要"
+
+    monkeypatch.setattr(agent, "execute_plan", revoke_after_read)
+    monkeypatch.setattr(model_connection, "default_runner", runner)
+    response = client.post(
+        "/api/agent/query",
+        headers=headers,
+        json={"question": "统计示例学院计算机专业学生人数"},
+    )
+    assert response.status_code == 403
+    assert len(reads) == 1
+    assert len(model_calls) == 1
+
+
 def test_agent_explains_snapshot_with_version_and_drilldown(
     client: TestClient,  # noqa: F811
     monkeypatch: pytest.MonkeyPatch
