@@ -52,5 +52,5 @@ test("workbench shows current control limits and date-based reminders", async ({
   await alerts.getByText("查看来源记录（1 条）").last().click();
   await expect(alerts.getByText("记录 #4 v1 · 批次 #8 · 合成来源 · 考核 第 4 行")).toBeVisible();
   await page.getByRole("button", { name: "进入培养过程分析" }).click();
-  await expect(page.getByRole("button", { name: "生成新分析版本" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "查看培养概况" })).toBeVisible();
 });

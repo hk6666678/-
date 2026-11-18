@@ -118,6 +118,7 @@ test("synthetic Excel report and originals use independent current grants", asyn
     await page
       .getByRole("button", { name: "培养过程分析", exact: true })
       .click();
+    await page.getByText("单环节分析与历史", { exact: true }).click();
     const scope = page.locator("section").filter({
       has: page.getByRole("heading", {
         name: "培养过程分析",

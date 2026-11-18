@@ -297,6 +297,26 @@ header h1 {
   grid-template-columns: 1fr 1fr;
   gap: 24px;
 }
+.cultivation-scope fieldset,
+.cultivation-stages {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.cultivation-scope button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.cultivation-stages .card {
+  padding: 16px;
+  margin-bottom: 0;
+  height: 100%;
+  box-sizing: border-box;
+}
+.cultivation-stages h4 {
+  margin: 0 0 10px;
+}
 .card {
   background: white;
   border: 1px solid #e1e8e4;

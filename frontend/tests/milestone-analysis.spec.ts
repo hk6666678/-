@@ -107,6 +107,7 @@ test("milestone analysis preserves distribution and immutable evidence", async (
     await page
       .getByRole("button", { name: "培养过程分析", exact: true })
       .click();
+    await page.getByText("单环节分析与历史", { exact: true }).click();
     await page.getByLabel("分析环节", { exact: true }).selectOption("topic");
     await page.getByText("更多筛选条件", { exact: true }).click();
     await page.getByLabel("年级（入学年份）").fill("2025");
@@ -168,6 +169,7 @@ test("milestone analysis preserves distribution and immutable evidence", async (
     await page
       .getByRole("button", { name: "培养过程分析", exact: true })
       .click();
+    await page.getByText("单环节分析与历史", { exact: true }).click();
     await page.getByText(/分析历史（1，进入本页自动读取）/).click();
     await page
       .getByRole("button", { name: `分析 ${oldId} 过时`, exact: true })

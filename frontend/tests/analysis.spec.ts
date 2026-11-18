@@ -107,6 +107,7 @@ test("course analysis preserves source evidence and immutable stale history", as
     await page
       .getByRole("button", { name: "培养过程分析", exact: true })
       .click();
+    await page.getByText("单环节分析与历史", { exact: true }).click();
     await page.getByRole("button", { name: "生成新分析版本" }).click();
     await expect(page.getByRole("alert")).toHaveText("请先选择学院。");
     await page.getByLabel("学院", { exact: true }).selectOption("__other_college__");
@@ -171,6 +172,7 @@ test("course analysis preserves source evidence and immutable stale history", as
     await page
       .getByRole("button", { name: "培养过程分析", exact: true })
       .click();
+    await page.getByText("单环节分析与历史", { exact: true }).click();
     await page.getByText(/分析历史（1，进入本页自动读取）/).click();
     await page
       .getByRole("button", { name: `分析 ${oldId} 过时`, exact: true })

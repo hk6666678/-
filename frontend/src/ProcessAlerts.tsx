@@ -75,8 +75,8 @@ export function ProcessAlerts({ snapshot }: { snapshot: Snapshot }) {
   );
 }
 
-function StudentAlerts({ snapshots }: { snapshots: Snapshot[] }) {
-  type Signal = { label: string; snapshot: number; evidence: Evidence[] };
+export function StudentAlerts({ snapshots }: { snapshots: Snapshot[] }) {
+  type Signal = { label: string; snapshot: number; category: string; evidence: Evidence[] };
   const students = new Map<number, Signal[]>();
   function add(student: number, signal: Signal) {
     const signals = students.get(student) ?? [];
@@ -88,23 +88,23 @@ function StudentAlerts({ snapshots }: { snapshots: Snapshot[] }) {
     if (snapshot.category === "courses") {
       for (const chart of courseCharts(snapshot)) {
         const direction = chart.latest < chart.lower ? "低于下限" : chart.latest > chart.upper ? "高于上限" : "";
-        if (direction) add(chart.student, { label: `课程均分${direction}`, snapshot: snapshot.id, evidence: chart.evidence });
+        if (direction) add(chart.student, { label: `课程均分${direction}`, snapshot: snapshot.id, category: snapshot.category, evidence: chart.evidence });
       }
       continue;
     }
     const overdue = new Set((snapshot.result.reminders ?? []).filter((row) => row.overdue === true).map((row) => row.record_id));
     for (const row of snapshot.evidence) {
       if (overdue.has(row.id))
-        add(row.student_id, { label: snapshot.category === "topic" ? "选题超期" : "中期超期", snapshot: snapshot.id, evidence: [row] });
+        add(row.student_id, { label: snapshot.category === "topic" ? "选题超期" : "中期超期", snapshot: snapshot.id, category: snapshot.category, evidence: [row] });
       if (snapshot.category === "midterm" && row.status === "不通过")
-        add(row.student_id, { label: "中期未通过", snapshot: snapshot.id, evidence: [row] });
+        add(row.student_id, { label: "中期未通过", snapshot: snapshot.id, category: snapshot.category, evidence: [row] });
     }
   }
   const ordered = [...students].sort(([a, left], [b, right]) => right.length - left.length || a - b);
   return (
     <section aria-label="逐生预警清单">
       <h4>逐生预警清单（{ordered.length} 人）</h4>
-      <p>按学生合并下方有效分析中的信号。超期以生成分析当天的判断为准，未知状态不计入预警。</p>
+      <p>按学生合并本次所列分析中的信号。超期以生成分析当天的判断为准，未知状态不计入预警。</p>
       {ordered.length === 0 && <p>所列分析未发现已确认的预警信号。</p>}
       {ordered.map(([student, signals]) => (
         <details key={student}>
@@ -115,7 +115,10 @@ function StudentAlerts({ snapshots }: { snapshots: Snapshot[] }) {
               <details>
                 <summary>查看来源记录（{signal.evidence.length} 条）</summary>
                 <ul>{signal.evidence.map((row) => (
-                  <li key={row.id}>记录 #{row.id} v{row.version} · 批次 #{row.source.batch_id} · {row.source.source_department} · {row.source.sheet} 第 {row.source.row_number} 行</li>
+                  <li key={row.id}>
+                    <a href={`/api/records/${signal.category}/${row.id}`} target="_blank" rel="noreferrer">记录 #{row.id} v{row.version}</a>
+                    {" · "}批次 #{row.source.batch_id} · {row.source.source_department} · {row.source.sheet} 第 {row.source.row_number} 行
+                  </li>
                 ))}</ul>
               </details>
             </li>

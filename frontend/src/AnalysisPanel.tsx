@@ -2,6 +2,7 @@ import { CollegeSelect } from "./CollegeSelect";
 import { useEffect, useRef, useState } from "react";
 import { ProcessAlerts } from "./ProcessAlerts";
 import { TopicCorrelation } from "./TopicCorrelation";
+import { CultivationOverview } from "./CultivationOverview";
 type Group = {
   group_value: string;
   course_code: string;
@@ -82,6 +83,13 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
     [error, setError] = useState("");
   const [running, setRunning] = useState(false);
   const resultHeading = useRef<HTMLHeadingElement>(null);
+  const details = useRef<HTMLDetailsElement>(null);
+  function remember(snapshots: Snapshot[]) {
+    setHistory((previous) => [
+      ...snapshots.filter((item) => !previous.some((other) => other.id === item.id)),
+      ...previous,
+    ].sort((a, b) => b.id - a.id));
+  }
   async function call(url: string, body?: unknown) {
     setError("");
     try {
@@ -119,7 +127,7 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
   useEffect(() => {
     void (async () => {
       const r = await call("/api/analyses");
-      if (r) setHistory(r.items);
+      if (r) remember(r.items);
     })();
   }, []);
   useEffect(() => {
@@ -128,6 +136,17 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
   return (
     <section className="card">
       <h2>培养过程分析</h2>
+      <CultivationOverview
+        csrf={csrf}
+        onSnapshots={remember}
+        showSnapshot={(item) => {
+          if (details.current) details.current.open = true;
+          setSnapshot(item);
+          if (item === snapshot) resultHeading.current?.focus();
+        }}
+      />
+      <details ref={details}>
+        <summary>单环节分析与历史</summary>
       <p>
         先选分析环节和学院，再点「生成新分析版本」。首次查看可将专业和其他筛选留空。
       </p>
@@ -198,7 +217,7 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
               ...scope, college: college.trim(), major: major.trim(),
             });
             if (r) {
-              setHistory((previous) => [r, ...previous.filter((item) => item.id !== r.id)]);
+              remember([r]);
               setSnapshot(r);
             }
           } finally {
@@ -441,6 +460,7 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
           </details>
         </>
       )}
+      </details>
       <TopicCorrelation />
     </section>
   );
