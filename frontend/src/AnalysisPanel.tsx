@@ -241,6 +241,62 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
             </p>
           ))}
           <details>
+            <summary>
+              学生通过画像（按学号聚合本快照证据，
+              {snapshot.evidence.length} 条）
+            </summary>
+            <p className="muted">
+              学号来自导入的业务字段；身份信息不在分析口径内。排序按"不通过＋未知"记录数从多到少，便于先看需要关注的学生。
+            </p>
+            {(() => {
+              const rows = new Map<
+                string,
+                { passed: number; failed: number; unknown: number }
+              >();
+              for (const e of snapshot.evidence) {
+                const key = e.payload["学号"] || `记录 ${e.id}`;
+                const row =
+                  rows.get(key) ?? { passed: 0, failed: 0, unknown: 0 };
+                if (e.status === "通过") row.passed += 1;
+                else if (e.status === "不通过") row.failed += 1;
+                else row.unknown += 1;
+                rows.set(key, row);
+              }
+              const sorted = [...rows.entries()].sort(
+                (a, b) =>
+                  b[1].failed +
+                  b[1].unknown -
+                  (a[1].failed + a[1].unknown),
+              );
+              return (
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>学号</th>
+                        <th>记录数</th>
+                        <th>通过</th>
+                        <th>不通过</th>
+                        <th>未知</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sorted.map(([key, row]) => (
+                        <tr key={key}>
+                          <td>{key}</td>
+                          <td>{row.passed + row.failed + row.unknown}</td>
+                          <td>{row.passed}</td>
+                          <td>{row.failed}</td>
+                          <td>{row.unknown}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+          </details>
+          <details>
             <summary>数据与规则版本</summary>
             <p>数据 {snapshot.data_version}</p>
             <p>规则 {snapshot.rule_version}</p>
