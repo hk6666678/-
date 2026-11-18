@@ -47,6 +47,172 @@ const labels: Record<string, string> = {
   awards: "获奖项目",
   conferences: "会议",
 };
+function GroupGraph({
+  mentors,
+  groups,
+  relations,
+  students,
+}: {
+  mentors: Directory[];
+  groups: Directory[];
+  relations: Relation[];
+  students: { id: number; label: string }[];
+}) {
+  const active = relations.filter((r) => !r.end_date);
+  const studentLabel = (id?: number) =>
+    id == null
+      ? "未知学生"
+      : students.find((s) => s.id === id)?.label ?? `学生 ${id}`;
+  const mentorLabel = (id: number) =>
+    mentors.find((m) => m.id === id)?.name ?? `导师 ${id}`;
+  const groupLabel = (id: number) =>
+    groups.find((g) => g.id === id)?.name ?? `课题组 ${id}`;
+  const collegeOf = (r: Relation) =>
+    groups.find((g) => g.id === r.group_id)?.college ||
+    mentors.find((m) => m.id === r.mentor_id)?.college ||
+    "学院缺失";
+  type MentorMap = Map<number, Set<number>>;
+  type GroupMap = Map<number, MentorMap>;
+  const tree = new Map<string, GroupMap>();
+  for (const r of active) {
+    const college = collegeOf(r);
+    const byGroup = tree.get(college) ?? new Map<number, MentorMap>();
+    tree.set(college, byGroup);
+    const byMentor = byGroup.get(r.group_id) ?? new Map<number, Set<number>>();
+    byGroup.set(r.group_id, byMentor);
+    const studentIds = byMentor.get(r.mentor_id) ?? new Set<number>();
+    byMentor.set(r.mentor_id, studentIds);
+    if (r.student_id != null) studentIds.add(r.student_id);
+  }
+  const leafWidth = 94,
+    rowGap = 80,
+    left = 16,
+    yCollege = 26,
+    yGroup = yCollege + rowGap,
+    yMentor = yGroup + rowGap,
+    yStudent = yMentor + rowGap;
+  const nodes: { x: number; y: number; label: string; kind: string }[] = [];
+  const links: { x1: number; y1: number; x2: number; y2: number }[] = [];
+  let cursor = left;
+  for (const [college, byGroup] of tree) {
+    const groupCenters: number[] = [];
+    for (const [groupId, byMentor] of byGroup) {
+      const mentorCenters: number[] = [];
+      for (const [mentorId, studentIds] of byMentor) {
+        const ids = [...studentIds];
+        const shown = ids.slice(0, 8);
+        const centers: number[] = [];
+        if (!ids.length) {
+          const x = cursor + leafWidth / 2;
+          nodes.push({ x, y: yStudent, label: "暂无学生", kind: "student" });
+          centers.push(x);
+          cursor += leafWidth;
+        }
+        for (const id of shown) {
+          const x = cursor + leafWidth / 2;
+          nodes.push({
+            x,
+            y: yStudent,
+            label: studentLabel(id),
+            kind: "student",
+          });
+          centers.push(x);
+          cursor += leafWidth;
+        }
+        if (ids.length > shown.length) {
+          const x = cursor + leafWidth / 2;
+          nodes.push({
+            x,
+            y: yStudent,
+            label: `…共${ids.length}人`,
+            kind: "student",
+          });
+          centers.push(x);
+          cursor += leafWidth;
+        }
+        const mx = (centers[0] + centers[centers.length - 1]) / 2;
+        nodes.push({
+          x: mx,
+          y: yMentor,
+          label: mentorLabel(mentorId),
+          kind: "mentor",
+        });
+        mentorCenters.push(mx);
+        for (const sx of centers)
+          links.push({ x1: mx, y1: yMentor + 13, x2: sx, y2: yStudent - 13 });
+      }
+      const gx =
+        (mentorCenters[0] + mentorCenters[mentorCenters.length - 1]) / 2;
+      nodes.push({
+        x: gx,
+        y: yGroup,
+        label: groupLabel(groupId),
+        kind: "group",
+      });
+      groupCenters.push(gx);
+      for (const mx of mentorCenters)
+        links.push({ x1: gx, y1: yGroup + 13, x2: mx, y2: yMentor - 13 });
+    }
+    const cx = (groupCenters[0] + groupCenters[groupCenters.length - 1]) / 2;
+    nodes.push({ x: cx, y: yCollege, label: college, kind: "college" });
+    for (const gx of groupCenters)
+      links.push({ x1: cx, y1: yCollege + 13, x2: gx, y2: yGroup - 13 });
+  }
+  const width = Math.max(cursor + left, 320),
+    height = yStudent + 46;
+  const colors: Record<string, string> = {
+    college: "#20584d",
+    group: "#2563eb",
+    mentor: "#7c3aed",
+    student: "#475569",
+  };
+  const short = (s: string) => (s.length > 9 ? `${s.slice(0, 8)}…` : s);
+  return (
+    <div className="graph-wrap">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        width={width}
+        height={height}
+        role="img"
+        aria-label="课题组归属图谱"
+        className="group-graph"
+      >
+        {links.map((l, i) => (
+          <line
+            key={i}
+            x1={l.x1}
+            y1={l.y1}
+            x2={l.x2}
+            y2={l.y2}
+            stroke="#cdddce"
+          />
+        ))}
+        {nodes.map((n, i) => (
+          <g key={i}>
+            <rect
+              x={n.x - 43}
+              y={n.y - 13}
+              width={86}
+              height={26}
+              rx={6}
+              fill={n.kind === "student" ? "#f2f7f5" : "#ffffff"}
+              stroke={colors[n.kind]}
+            />
+            <text
+              x={n.x}
+              y={n.y + 4}
+              textAnchor="middle"
+              fontSize={n.kind === "student" ? 10 : 11}
+              fill={colors[n.kind]}
+            >
+              {short(n.label)}
+            </text>
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
 export function MentorGroupPanel({ csrf }: { csrf: string }) {
   const [mentors, setMentors] = useState<Directory[]>([]),
     [groups, setGroups] = useState<Directory[]>([]),
@@ -501,6 +667,38 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
           <button onClick={() => setPreview(null)}>取消导入</button>
         </div>
       )}
+      <details className="card">
+        <summary>课题组归属图谱（学院 → 课题组 → 导师 → 学生）</summary>
+        <p className="muted">
+          仅绘制当前有效关系（无结束日期）且在当前授权范围内的归属；身份未授权时导师与课题组以编号显示，学生显示研究编号。每名导师最多直接展示
+          8 名学生，超出以"…共N人"汇总。
+        </p>
+        {relations.filter((r) => !r.end_date).length === 0 ? (
+          <p>暂无当前有效关系，图谱为空。可先在上方维护导师课题组关系。</p>
+        ) : (
+          <GroupGraph
+            mentors={mentors}
+            groups={groups}
+            relations={relations}
+            students={students}
+          />
+        )}
+        <p className="muted">
+          未入图目录：导师{" "}
+          {
+            mentors.filter(
+              (m) => !relations.some((r) => !r.end_date && r.mentor_id === m.id),
+            ).length
+          }{" "}
+          位、课题组{" "}
+          {
+            groups.filter(
+              (g) => !relations.some((r) => !r.end_date && r.group_id === g.id),
+            ).length
+          }{" "}
+          个（无当前有效关系，不在图中）。
+        </p>
+      </details>
       <h3>事实统计与下钻</h3>
       <form
         onSubmit={(e) => {

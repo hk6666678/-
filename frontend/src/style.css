@@ -234,6 +234,38 @@ header h1 {
   color: white;
   border-color: #20584d;
 }
+.timeline {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+  display: grid;
+  gap: 10px;
+}
+.timeline li {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  border-left: 3px solid #cdddce;
+  padding: 6px 0 6px 12px;
+}
+.timeline-year {
+  min-width: 52px;
+  font-weight: 600;
+  color: #20584d;
+}
+.timeline .muted {
+  margin: 2px 0 0;
+}
+.graph-wrap {
+  overflow-x: auto;
+  border: 1px solid #e3ece7;
+  border-radius: 8px;
+  padding: 8px;
+  background: #fbfdfc;
+}
+.group-graph text {
+  font-family: inherit;
+}
 .welcome {
   background: #e1ede7;
   border: 1px solid #cdddce;
