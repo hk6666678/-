@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { tongjiMajors } from "./tongjiMajors";
 type Props = {
   csrf: string;
   fetcher: (
@@ -26,7 +27,8 @@ type Batch = {
     data: Record<string, unknown>;
   }[];
 };
-type Filters = { majors: string[]; entry_years: number[]; levels: string[] };
+type Filters = { majors: string[]; levels: string[] };
+const tongjiMajorNames = new Set(tongjiMajors);
 export function StudentPanel({ csrf, fetcher }: Props) {
   const [error, setError] = useState(""),
     [department, setDepartment] = useState(""),
@@ -38,7 +40,10 @@ export function StudentPanel({ csrf, fetcher }: Props) {
     [major, setMajor] = useState(""),
     [year, setYear] = useState(""),
     [level, setLevel] = useState(""),
-    [filters, setFilters] = useState<Filters>({ majors: [], entry_years: [], levels: [] });
+    [filters, setFilters] = useState<Filters>({ majors: [], levels: [] });
+  const currentYear = new Date().getFullYear();
+  const recentYears = Array.from({ length: 10 }, (_, index) => currentYear - index);
+  const otherMajors = filters.majors.filter((name) => !tongjiMajorNames.has(name));
   const refreshFilters = useCallback(async () => {
     const result = (await fetcher("/api/students?include_filters=true&limit=1")) as { filters: Filters };
     setFilters(result.filters);
@@ -190,20 +195,27 @@ export function StudentPanel({ csrf, fetcher }: Props) {
       </section>
       <section className="card">
         <h2>统一学生档案</h2>
-        <p className="muted">下拉选项来自你有权查看的学生档案，导入新数据后会更新。</p>
+        <p className="muted">专业选项包含同济大学招生专业和你有权查看的已导入专业。</p>
         <div className="account-form">
           <label>
             专业筛选
             <select aria-label="专业筛选" value={major} onChange={(e) => setMajor(e.target.value)}>
               <option value="">全部专业</option>
-              {filters.majors.map((option) => <option key={option}>{option}</option>)}
+              <optgroup label="同济大学硕士招生专业">
+                {tongjiMajors.map((option) => <option key={option}>{option}</option>)}
+              </optgroup>
+              {otherMajors.length > 0 && (
+                <optgroup label="其他已导入专业">
+                  {otherMajors.map((option) => <option key={option}>{option}</option>)}
+                </optgroup>
+              )}
             </select>
           </label>
           <label>
             入学年份筛选
             <select aria-label="入学年份筛选" value={year} onChange={(e) => setYear(e.target.value)}>
               <option value="">全部年份</option>
-              {filters.entry_years.map((option) => <option key={option}>{option}</option>)}
+              {recentYears.map((option) => <option key={option}>{option}</option>)}
             </select>
           </label>
           <label>
