@@ -134,6 +134,7 @@ def register_records(
             "version": r["version"],
             "dependency_token": f"{c}:{r['id']}:{r['version']}:{r['active']}",
             "active": bool(r["active"]),
+            "can_void": bool(r["active"]) and permit(db, aid, c, p, "void"),
             "current": mask(db, aid, c, p),
             "revisions": revisions,
         }

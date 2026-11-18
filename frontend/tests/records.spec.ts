@@ -84,6 +84,11 @@ test("synthetic formal correction and void preserve history", async ({
     await page.getByLabel("更正或作废依据").fill("合成作废依据");
     await page.getByRole("button", { name: "确认按原因作废" }).click();
     await expect(page.getByText(/版本3 · void/)).toBeVisible();
+    await expect(page.getByRole("status")).toContainText("记录已作废");
+    const voided = page.getByRole("button", { name: `记录${own.id} · 版本3 · 已作废`, exact: true });
+    await expect(voided).toHaveCount(0);
+    await page.getByLabel("显示已作废记录").check();
+    await expect(voided).toBeVisible();
   } finally {
     const c = await (await page.request.get("/api/me")).json();
     await page.request.put(url, {

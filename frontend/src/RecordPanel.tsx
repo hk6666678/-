@@ -4,6 +4,7 @@ type Entry = {
   category: string;
   version: number;
   active: boolean;
+  can_void: boolean;
   dependency_token: string;
   current: Record<string, string>;
   revisions: {
@@ -23,6 +24,9 @@ export function RecordPanel({ csrf }: { csrf: string }) {
     [values, V] = useState<Record<string, string>>({}),
     [reason, R] = useState(""),
     [identity, H] = useState(false),
+    [showVoided, setShowVoided] = useState(false),
+    [notice, setNotice] = useState(""),
+    [busy, setBusy] = useState(false),
     [error, E] = useState(""),
     [proposal, P] = useState<{ proposal_id: string; changes: unknown } | null>(
       null,
@@ -40,10 +44,14 @@ export function RecordPanel({ csrf }: { csrf: string }) {
   }
   async function run(f: () => Promise<void>) {
     E("");
+    setNotice("");
+    setBusy(true);
     try {
       await f();
     } catch (e) {
       E(String(e));
+    } finally {
+      setBusy(false);
     }
   }
   function choose(x: Entry) {
@@ -53,9 +61,9 @@ export function RecordPanel({ csrf }: { csrf: string }) {
     R("");
     H(false);
   }
-  async function refresh() {
+  async function refresh(includeVoided = showVoided) {
     I(
-      (await call(`/api/records/${category}?include_void=true&limit=200`))
+      (await call(`/api/records/${category}?include_void=${includeVoided}&limit=200`))
         .items,
     );
   }
@@ -73,6 +81,7 @@ export function RecordPanel({ csrf }: { csrf: string }) {
     const next = await call(`/api/records/${category}/${selected.id}`);
     choose(next);
     await refresh();
+    if (op === "void") setNotice("记录已作废，已从有效记录列表移除。");
   }
   return (
     <section className="card">
@@ -81,6 +90,7 @@ export function RecordPanel({ csrf }: { csrf: string }) {
         核对新旧差异后确认更正；身份变更须填写人工核实依据。作废保留原始内容和历史。
       </p>
       {error && <p role="alert">{error}</p>}
+      {notice && <p role="status">{notice}</p>}
       <label>
         记录类别
         <select
@@ -104,7 +114,20 @@ export function RecordPanel({ csrf }: { csrf: string }) {
           ))}
         </select>
       </label>
-      <button onClick={() => void run(refresh)}>加载正式记录</button>
+      <label>
+        <input
+          type="checkbox"
+          checked={showVoided}
+          disabled={busy}
+          onChange={(e) => {
+            const checked = e.target.checked;
+            setShowVoided(checked);
+            void run(() => refresh(checked));
+          }}
+        />
+        显示已作废记录
+      </label>
+      <button disabled={busy} onClick={() => void run(refresh)}>加载正式记录</button>
       {items.map((x) => (
         <button key={x.id} className="secondary" onClick={() => choose(x)}>
           记录{x.id} · 版本{x.version} · {x.active ? "有效" : "已作废"}
@@ -143,6 +166,7 @@ export function RecordPanel({ csrf }: { csrf: string }) {
           <label>
             更正或作废依据
             <textarea
+              maxLength={2000}
               value={reason}
               onChange={(e) => {
                 R(e.target.value);
@@ -161,8 +185,10 @@ export function RecordPanel({ csrf }: { csrf: string }) {
             />
             已人工核实身份变更，并在依据中记录证据
           </label>
+          {selected.active && !selected.can_void && <p>此账号没有作废这条记录的权限。</p>}
+          {selected.can_void && !reason.trim() && <p>先填写上方的更正或作废依据，再点作废。</p>}
           <button
-            disabled={!selected.active || !reason.trim()}
+            disabled={busy || !selected.can_void || !reason.trim()}
             onClick={() =>
               void run(async () =>
                 P(

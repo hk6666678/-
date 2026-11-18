@@ -33,6 +33,7 @@ def test_record_preview_confirm_conflict_history_and_void(client):  # noqa: F811
     ).json()
     client.post(f"/api/imports/{b['id']}/confirm", headers=h)
     rows = client.get("/api/records/basic").json()
+    assert rows["items"][0]["can_void"] is False
     rid = rows["items"][0]["id"]
     url = f"/api/records/basic/{rid}"
     p = client.post(
