@@ -149,4 +149,9 @@ def effectiveness(
             "mean": mean(peers) if peers else None,
             "count": len(peers),
         }
+        value = result[metric]
+        if peers and value is not None:
+            benchmark[metric]["rank"] = 1 + sum(
+                peer < value if metric == "stability" else peer > value for peer in peers
+            )
     return {**result, "benchmark": benchmark}

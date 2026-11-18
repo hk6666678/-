@@ -48,7 +48,7 @@ type Facts = {
     students: number;
     cohorts: number;
     annual_counts: Record<string, number>;
-    benchmark: Record<string, { mean: number | null; count: number }>;
+    benchmark: Record<string, { mean: number | null; count: number; rank?: number }>;
   };
 };
 const labels: Record<string, string> = {
@@ -418,7 +418,7 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
               <p>评分覆盖 {facts.effectiveness.scored}/{facts.effectiveness.students} 人，涉及 {facts.effectiveness.cohorts} 届。按方案 85 分口径统计模拟评价，混用规则版本时暂停分数比较。</p>
               <p>前三个完整年度的授权可见成果数 · {Object.entries(facts.effectiveness.annual_counts).map(([year, count]) => `${year} 年 ${count} 项`).join(" · ")}。仅计可确认发生于指导关系期间的成果。</p>
               <table>
-                <thead><tr><th>指标</th><th>当前值</th><th>同学院同类单位均值</th></tr></thead>
+                <thead><tr><th>指标</th><th>当前值</th><th>同学院同类单位均值</th><th>可比单位排名</th></tr></thead>
                 <tbody>
                   {(["rate", "acceleration", "stability"] as const).map((key) => {
                     const value = facts.effectiveness?.[key];
@@ -428,10 +428,12 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
                       <td>{{rate: "模拟拔尖产出率", acceleration: "成果增量变化", stability: "培养稳定性（各届平均分方差）"}[key]}</td>
                       <td>{value == null ? "条件不足" : value.toFixed(2) + unit}</td>
                       <td>{peer?.mean == null ? "暂无可比单位" : `${peer.mean.toFixed(2)}${unit}（${peer.count} 个）`}</td>
+                      <td>{peer?.rank == null || value == null || peer.mean == null ? "—" : `第 ${peer.rank} / ${peer.count + 1} · ${value === peer.mean ? "等于" : value > peer.mean ? "高于" : "低于"}均值`}</td>
                     </tr>;
                   })}
                 </tbody>
               </table>
+              <p>仅在有可比数据时排名。同值并列，跨届均分方差越小排名越靠前。</p>
             </>
           ) : <p>请选择一名导师或一个课题组，并确认所选日期有授权可见的有效指导关系。</p>}
           <p>影响力转化缺少毕业后跟踪数据。</p>

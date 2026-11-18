@@ -3,6 +3,10 @@ import { expect, test } from "@playwright/test";
 test("selecting a student loads their cultivation stages and evidence", async ({ page }) => {
   const scope = { college: "合成试用学院", major: "合成专业", student_id: 42 };
   const stages: string[] = [];
+  await page.route("**/api/cultivation/students/42/signals", (route) => route.fulfill({ json: {
+    mobility: { type: "转导师", date: "2025-06-01" },
+    peer_outputs: { count: 0, peer_median: 2, peer_count: 4, below: true, sources: [] },
+  }}));
   await page.route("**/api/students?limit=50&offset=0", (route) => route.fulfill({ json: {
     items: [{ id: 42, research_id: "R42", data: { 所属学院: scope.college, 专业: "合成专业" } }],
     total: 1,
@@ -33,6 +37,8 @@ test("selecting a student loads their cultivation stages and evidence", async ({
   await expect(page.getByRole("button", { name: "按范围查看" })).toHaveCount(0);
   expect(stages.sort()).toEqual(["courses", "midterm", "topic"]);
   await expect(page.getByText("通过率 100%")).toBeVisible();
+  await expect(page.getByText(/学籍异动 · 转导师/)).toBeVisible();
+  await expect(page.getByText(/低于同届中位数/)).toBeVisible();
   await expect(page.getByText("此范围操作未授权")).toBeVisible();
   await page.getByText("研究记录 42 · 1 条信号").click();
   await expect(page.getByText("中期未通过 · 分析 #3")).toBeVisible();

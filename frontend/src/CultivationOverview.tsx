@@ -11,6 +11,11 @@ const stages = [
 type Outcome = { snapshot: Snapshot } | { error: string };
 type Scope = { college: string; major: string; student_id: number };
 type Student = { id: number; research_id: string; name?: string; data: Record<string, string> };
+type Signals = {
+  mobility?: { type: string; date?: string } | null;
+  peer_outputs?: { count: number; peer_median: number; peer_count: number; below: boolean; sources: string[] };
+  notice?: string;
+};
 const pageSize = 50;
 
 function studentLabel(student: Student) {
@@ -26,7 +31,7 @@ export function CultivationOverview({ csrf, showSnapshot }: {
   const [rosterError, setRosterError] = useState(false);
   const [studentId, setStudentId] = useState("");
   const [running, setRunning] = useState(false);
-  const [result, setResult] = useState<{ student: Student; outcomes: Outcome[] }>();
+  const [result, setResult] = useState<{ student: Student; outcomes: Outcome[]; signals: Signals }>();
   const heading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => { if (result) heading.current?.focus(); }, [result]);
@@ -48,6 +53,12 @@ export function CultivationOverview({ csrf, showSnapshot }: {
     setRunning(true);
     setResult(undefined);
     showSnapshot(null);
+    const signalsRequest = fetch(`/api/cultivation/students/${student.id}/signals`)
+      .then(async (response) => {
+        if (!response.ok) throw Error();
+        return await response.json() as Signals;
+      })
+      .catch(() => ({ notice: "暂时无法读取补充预警信号。" }));
     const outcomes: Outcome[] = [];
     for (const stage of stages) {
       try {
@@ -66,7 +77,7 @@ export function CultivationOverview({ csrf, showSnapshot }: {
         outcomes.push({ error: "加载失败，请稍后重试。" });
       }
     }
-    setResult({ student, outcomes });
+    setResult({ student, outcomes, signals: await signalsRequest });
     setRunning(false);
   }
 
@@ -146,6 +157,23 @@ export function CultivationOverview({ csrf, showSnapshot }: {
               <StudentAlerts snapshots={snapshots} />
             </>
           )}
+          <details className="task-details" open={Boolean(result.signals.mobility || result.signals.peer_outputs?.below)}>
+            <summary>学籍与成果关注信号</summary>
+            {result.signals.mobility ? <p>学籍异动 · {result.signals.mobility.type}
+              {result.signals.mobility.date ? ` · ${result.signals.mobility.date}` : ""} ·
+              <a href={`/api/students/${result.student.id}`} target="_blank" rel="noreferrer">查看档案来源</a>
+            </p> : result.signals.mobility === null && <p>当前档案未记录学籍异动。</p>}
+            {result.signals.peer_outputs ? (
+              <>
+                <p>已登记成果 {result.signals.peer_outputs.count} 项 · 同届同专业中位数 {result.signals.peer_outputs.peer_median} 项（{result.signals.peer_outputs.peer_count} 人）
+                  {result.signals.peer_outputs.below ? " · 低于同届中位数" : ""}</p>
+                <p>按当前授权可见的四类有效成果统计，供人工核查。</p>
+                {result.signals.peer_outputs.sources.map((source, index) => (
+                  <span key={source}><a href={source} target="_blank" rel="noreferrer">成果来源 {index + 1}</a>{" "}</span>
+                ))}
+              </>
+            ) : <p>{result.signals.notice}</p>}
+          </details>
         </>
       )}
     </>

@@ -206,6 +206,9 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         review=review_history,
     )
     register_agent(app, path, current, agent_loaders)
+    from aqp.cultivation_models import register_cultivation_models
+
+    register_cultivation_models(app, path, current, snapshot_loader)
     register_original_downloads(app, path, current)
     from aqp.external_assessments import register_external_assessments
     register_external_assessments(app, path, current)

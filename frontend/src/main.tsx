@@ -6,6 +6,7 @@ import { OutputsTabs } from "./OutputsTabs";
 import { ThesisQuality } from "./ThesisQuality";
 import { BusinessRulesPanel } from "./BusinessRulesPanel";
 import { AnalysisPanel } from "./AnalysisPanel";
+import { CultivationFactors } from "./CultivationFactors";
 import { WorkbenchAlerts } from "./ProcessAlerts";
 import { RecordPanel } from "./RecordPanel";
 import React, { useEffect, useRef, useState } from "react";
@@ -286,6 +287,7 @@ function App() {
               label: "研究分析",
               items: [
                 ["analysis", "培养过程分析"],
+                ["factors", "培养影响因素"],
                 ["thesis_quality", "学位论文质量"],
                 ["evaluation", "拔尖人才模拟评价"],
                 ["reports", "三级报告"],
@@ -362,6 +364,7 @@ function App() {
                   evaluation: "拔尖人才模拟评价",
                   reports: "三级报告",
                   analysis: "培养过程分析",
+                  factors: "培养影响因素",
                   courses: "课程导入与待关联",
                   students: "基础导入与学生档案",
                   model: "获准模型连接",
@@ -411,6 +414,8 @@ function App() {
           <ThesisQuality csrf={session.csrf_token} />
         ) : page === "rules" ? (
           <BusinessRulesPanel csrf={session.csrf_token} />
+        ) : page === "factors" ? (
+          <CultivationFactors />
         ) : page === "agent" ? (
           <AgentPanel csrf={session.csrf_token} />
         ) : page === "evaluation" ? (
