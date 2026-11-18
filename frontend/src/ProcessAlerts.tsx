@@ -129,7 +129,7 @@ export function StudentAlerts({ snapshots }: { snapshots: Snapshot[] }) {
   );
 }
 
-export function WorkbenchAlerts({ openAnalysis }: { openAnalysis: () => void }) {
+export function ProcessAlertSummary() {
   const [snapshots, setSnapshots] = useState<Snapshot[] | null>(null);
   const [error, setError] = useState(false);
   useEffect(() => {
@@ -164,7 +164,6 @@ export function WorkbenchAlerts({ openAnalysis }: { openAnalysis: () => void }) 
             <ProcessAlerts snapshot={snapshot} />
           </details>
         ))}
-      <button onClick={openAnalysis}>进入培养过程分析</button>
     </section>
   );
 }

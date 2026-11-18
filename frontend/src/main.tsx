@@ -7,7 +7,6 @@ import { ThesisQuality } from "./ThesisQuality";
 import { BusinessRulesPanel } from "./BusinessRulesPanel";
 import { AnalysisPanel } from "./AnalysisPanel";
 import { CultivationFactors } from "./CultivationFactors";
-import { WorkbenchAlerts } from "./ProcessAlerts";
 import { RecordPanel } from "./RecordPanel";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -284,7 +283,7 @@ function App() {
         <button className="mobile-nav-toggle" aria-expanded={navOpen} aria-controls="workspace-navigation" onClick={() => setNavOpen(!navOpen)}>{navLabel} · {navOpen ? "收起导航" : "展开导航"}</button>
         <nav id="workspace-navigation" className={navOpen ? "is-open" : ""} aria-label="主导航">
           {[
-            { label: "工作台", items: [["overview", "Agent 智能问答"], ["alerts", "培养预警"]] },
+            { label: "工作台", items: [["overview", "Agent 智能问答"]] },
             {
               label: "研究分析",
               items: [
@@ -352,7 +351,6 @@ function App() {
                 {
                   maintenance: "数据纠错与维护",
                   overview: "Agent 智能问答",
-                  alerts: "培养预警",
                   accounts: "个人账号管理",
                   audit: "审计查询",
                   milestones: "选题与中期导入",
@@ -374,7 +372,7 @@ function App() {
             </h1>
           </div>
           <div className="user-menu">
-            <span title={session.user.username}>{session.user.username}</span>
+            <span title={session.user.school_view ? "全校查看和分析" : "按授权范围访问"}>{session.user.username}</span>
             <button
               className="secondary"
               disabled={busy}
@@ -435,36 +433,8 @@ function App() {
           <StudentPanel csrf={session.csrf_token} fetcher={request} />
         ) : page === "model" && admin ? (
           <ModelPanel csrf={session.csrf_token} fetcher={request} />
-        ) : page === "alerts" || !admin ? (
-          <>
-            <section className="welcome">
-              <p>当前账号：{session.user.username}</p>
-              <div className="tags">
-                {session.user.roles.map((role) => (
-                  <span key={role}>{roleNames[role]}</span>
-                ))}
-                <span>{session.user.account_scope === "school" && session.user.account_preset === "full"
-                  ? "全校全权限"
-                  : session.user.school_view ? "全校查看和分析" : "按授权范围访问"}</span>
-              </div>
-            </section>
-            <div className="workbench-actions" role="group" aria-label="常用操作">
-              {[
-                ["students", "基础导入与学生档案", "查学生档案"],
-                ["analysis", "培养过程分析", "查学生培养过程"],
-                ["reports", "三级报告", "看学生报告"],
-              ].map(([key, label, action]) => (
-                <button key={key} type="button" className="secondary" onClick={() => {
-                  setPage(key);
-                  setNavLabel(label);
-                }}>{action}</button>
-              ))}
-            </div>
-            <WorkbenchAlerts openAnalysis={() => {
-              setPage("analysis");
-              setNavLabel("培养过程分析");
-            }} />
-          </>
+        ) : !admin ? (
+          <AgentPanel csrf={session.csrf_token} />
         ) : (
           <>
             <section className="card" ref={accountFormRef}>

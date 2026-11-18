@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ProcessAlerts } from "./ProcessAlerts";
+import { ProcessAlerts, ProcessAlertSummary } from "./ProcessAlerts";
 import { CultivationOverview } from "./CultivationOverview";
 type Group = {
   group_value: string;
@@ -70,6 +70,7 @@ export type Snapshot = {
 };
 export function AnalysisPanel({ csrf }: { csrf: string }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
+  const [showAlertSummary, setShowAlertSummary] = useState(false);
   const resultHeading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
@@ -80,6 +81,12 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
     <section className="card">
       <h2>培养过程分析</h2>
       <CultivationOverview csrf={csrf} showSnapshot={setSnapshot} />
+      <details className="task-details" onToggle={(event) => {
+        setShowAlertSummary(event.currentTarget.open);
+      }}>
+        <summary>培养预警汇总</summary>
+        {showAlertSummary && <ProcessAlertSummary />}
+      </details>
       {snapshot && (
         <>
           <h3 tabIndex={-1} ref={resultHeading}>

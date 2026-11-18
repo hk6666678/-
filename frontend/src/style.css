@@ -700,7 +700,6 @@ summary { cursor: pointer; font-weight: 600; color: #20584d; }
 .task-details[open] > summary { margin-bottom: 10px; }
 .check-option { display: flex; align-items: center; gap: 8px; }
 .check-option input { width: auto; }
-.workbench-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
 .agent-home {
   width: min(100%, 740px);
   margin-inline: auto;

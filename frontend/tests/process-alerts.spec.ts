@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("workbench shows current control limits and date-based reminders", async ({ page }) => {
+test("cultivation analysis contains current control limits and reminders", async ({ page }) => {
   const source = { batch_id: 8, source_department: "合成来源", sheet: "考核", row_number: 4 };
   const courses = {
     id: 10, category: "courses", stale: false, scope: { college: "合成学院" },
@@ -41,7 +41,10 @@ test("workbench shows current control limits and date-based reminders", async ({
   await page.getByLabel("用户名", { exact: true }).fill("synthetic-admin");
   await page.getByLabel("密码", { exact: true }).fill("Synthetic-password-123!");
   await page.getByRole("button", { name: "登录平台" }).click();
-  await page.getByRole("button", { name: "培养预警", exact: true }).click();
+  await expect(page.getByRole("button", { name: "培养预警", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "培养过程分析", exact: true }).click();
+  await expect(page.getByRole("button", { name: "查看培养过程" })).toBeVisible();
+  await page.getByText("培养预警汇总", { exact: true }).click();
   await expect(page.getByText("课程控制图越界 1 人，可计算 1 人。")).toBeVisible();
   await expect(page.getByText("有明确日期依据的超期记录 1 条（记录 2）")).toBeVisible();
   await page.getByText("研究记录 1 · 低于下限").click();
@@ -55,6 +58,4 @@ test("workbench shows current control limits and date-based reminders", async ({
   await expect(alerts.getByText("中期未通过 · 分析 #13")).toBeVisible();
   await alerts.getByText("查看来源记录（1 条）").last().click();
   await expect(alerts.getByText("记录 #4 v1 · 批次 #8 · 合成来源 · 考核 第 4 行")).toBeVisible();
-  await page.getByRole("button", { name: "进入培养过程分析" }).click();
-  await expect(page.getByRole("button", { name: "查看培养过程" })).toBeVisible();
 });
