@@ -18,18 +18,22 @@ from test_papers import paper_setup, text_pdf, update_grants, upload_paper
 
 def synthetic_paper_pdf():
     writer = PdfWriter()
-    page = writer.add_page(PdfReader(BytesIO(text_pdf())).pages[0])
-    stream = DecodedStreamObject()
-    lines = [
-        "SYNTHETIC DEMONSTRATION ONLY",
-        "Research question: Does synthetic method A improve learning?",
-        "Method: We compare two synthetic teaching methods.",
-        "Author claim: We propose a synthetic feedback framework.",
-        "Outcome: Synthetic group A has a mean score of 80.",
-    ]
-    commands = " 0 -20 Td ".join(f"({line}) Tj" for line in lines)
-    stream.set_data(f"BT /F1 10 Tf 10 250 Td {commands} ET".encode("ascii"))
-    page[NameObject("/Contents")] = writer._add_object(stream)
+    for lines in (
+        (
+            "SYNTHETIC DEMONSTRATION ONLY",
+            "Research question: Does synthetic method A improve learning?",
+        ),
+        (
+            "Method: We compare two synthetic teaching methods.",
+            "Author claim: We propose a synthetic feedback framework.",
+            "Outcome: Synthetic group A has a mean score of 80.",
+        ),
+    ):
+        page = writer.add_page(PdfReader(BytesIO(text_pdf())).pages[0])
+        stream = DecodedStreamObject()
+        commands = " 0 -20 Td ".join(f"({line}) Tj" for line in lines)
+        stream.set_data(f"BT /F1 10 Tf 10 250 Td {commands} ET".encode("ascii"))
+        page[NameObject("/Contents")] = writer._add_object(stream)
     out = BytesIO()
     writer.write(out)
     return out.getvalue()
@@ -123,7 +127,8 @@ def test_live_synthetic_flow(client, tmp_path, monkeypatch, caplog):
 
         headers = paper_setup(client)
         pdf = synthetic_paper_pdf()
-        source = PdfReader(BytesIO(pdf)).pages[0].extract_text()
+        sources = [page.extract_text() for page in PdfReader(BytesIO(pdf)).pages]
+        assert len(sources) == 2
         paper = upload_paper(client, headers, pdf).json()
         assert run_once(tmp_path / "accounts.sqlite3")
         update_grants(
@@ -134,13 +139,19 @@ def test_live_synthetic_flow(client, tmp_path, monkeypatch, caplog):
         features = response.json()
         print(f"Paper extraction status: {features['status']}")
         assert features["status"] in {"partial", "succeeded"}
-        for key in ["research_question", "method"]:
-            assert features["features"][key]["status"] == "available"
+        for key, expected_page, evidence in (
+            ("research_question", 1, "Does synthetic method A improve learning"),
+            ("method", 2, "We compare two synthetic teaching methods"),
+        ):
+            feature = features["features"][key]
+            assert feature["status"] == "available"
+            assert feature["page"] == expected_page
+            assert evidence in feature["quote"]
         for feature in features["features"].values():
             assert feature["status"] in {"available", "missing"}
             if feature["status"] == "available":
-                assert feature["page"] == 1
-                assert feature["quote"] in source
+                assert 1 <= feature["page"] <= len(sources)
+                assert feature["quote"] in sources[feature["page"] - 1]
         before = len(calls)
         update_grants(client, headers, ["view"])
         assert (

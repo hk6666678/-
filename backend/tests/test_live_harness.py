@@ -25,7 +25,7 @@ def test_live_harness_offline(client, tmp_path, monkeypatch, caplog):
                     },
                     "method": {
                         "text": "Synthetic comparison",
-                        "page": 1,
+                        "page": 2,
                         "quote": "We compare two synthetic teaching methods.",
                     },
                     "author_innovation_claim": None,
@@ -45,3 +45,7 @@ def test_live_harness_offline(client, tmp_path, monkeypatch, caplog):
     monkeypatch.setattr(model_connection, "default_runner", fake)
     run_flow(client, tmp_path, monkeypatch, caplog)
     assert len(calls) == 4
+    pages = json.loads(calls[-1].split("SOURCE JSON: ", 1)[1])
+    assert [page["page"] for page in pages] == [1, 2]
+    assert "Does synthetic method A improve learning?" in pages[0]["text"]
+    assert "We compare two synthetic teaching methods." in pages[1]["text"]
