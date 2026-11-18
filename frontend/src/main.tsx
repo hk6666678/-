@@ -306,10 +306,6 @@ function App() {
               ],
             },
             {
-              label: "业务规则",
-              items: [["rules", "业务规则管理"]],
-            },
-            {
               label: "系统管理",
               items: [
                 ...(admin
@@ -319,6 +315,7 @@ function App() {
                       ["audit", "审计查询"],
                     ]
                   : []),
+                ["rules", "业务规则管理"],
               ],
             },
           ].map((group) => (
