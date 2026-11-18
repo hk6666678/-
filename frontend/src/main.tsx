@@ -102,7 +102,7 @@ function App() {
   const [editingAccount, setEditingAccount] = useState<User | null>(null);
   const accountFormRef = useRef<HTMLElement>(null);
   const [navOpen, setNavOpen] = useState(false);
-  const [navLabel, setNavLabel] = useState("工作台概览");
+  const [navLabel, setNavLabel] = useState("Agent 智能问答");
   const [page, setPage] = useState("overview");
   const contentRef = useRef<HTMLElement>(null);
   useEffect(() => { contentRef.current?.scrollTo(0, 0); }, [page]);
@@ -113,6 +113,7 @@ function App() {
       setPassword("");
       setUsername("");
       setPage("overview");
+      setNavLabel("Agent 智能问答");
       setEditingAccount(null);
     };
     window.addEventListener("session-expired", expired);
@@ -153,6 +154,7 @@ function App() {
       setPassword("");
       setUsername("");
       setPage("overview");
+      setNavLabel("Agent 智能问答");
     });
   }
   async function create(event: React.FormEvent) {
@@ -282,7 +284,7 @@ function App() {
         <button className="mobile-nav-toggle" aria-expanded={navOpen} aria-controls="workspace-navigation" onClick={() => setNavOpen(!navOpen)}>{navLabel} · {navOpen ? "收起导航" : "展开导航"}</button>
         <nav id="workspace-navigation" className={navOpen ? "is-open" : ""} aria-label="主导航">
           {[
-            { label: "工作台", items: [["overview", "工作台概览"]] },
+            { label: "工作台", items: [["overview", "Agent 智能问答"], ["alerts", "培养预警"]] },
             {
               label: "研究分析",
               items: [
@@ -291,7 +293,6 @@ function App() {
                 ["thesis_quality", "学位论文质量"],
                 ["evaluation", "拔尖人才模拟评价"],
                 ["reports", "三级报告"],
-                ["agent", "Agent 智能问答"],
               ],
             },
             {
@@ -350,7 +351,8 @@ function App() {
               {
                 {
                   maintenance: "数据纠错与维护",
-                  overview: "欢迎回到工作台",
+                  overview: "Agent 智能问答",
+                  alerts: "培养预警",
                   accounts: "个人账号管理",
                   audit: "审计查询",
                   milestones: "选题与中期导入",
@@ -358,7 +360,6 @@ function App() {
                   outputs: "科研成果导入",
                   thesis_upload: "学位论文上传",
                   mentor_groups: "导师与课题组数据",
-                  agent: "Agent 智能问答",
                   thesis_quality: "学位论文质量",
                   rules: "业务规则管理",
                   evaluation: "拔尖人才模拟评价",
@@ -388,6 +389,7 @@ function App() {
                   setSession(null);
                   setUsers([]);
                   setPage("overview");
+                  setNavLabel("Agent 智能问答");
                   setUsername("");
                   setPassword("");
                 })
@@ -416,8 +418,11 @@ function App() {
           <BusinessRulesPanel csrf={session.csrf_token} />
         ) : page === "factors" ? (
           <CultivationFactors />
-        ) : page === "agent" ? (
-          <AgentPanel csrf={session.csrf_token} />
+        ) : page === "overview" ? (
+          <AgentPanel csrf={session.csrf_token} openSettings={admin ? () => {
+            setPage("model");
+            setNavLabel("获准模型连接");
+          } : undefined} />
         ) : page === "evaluation" ? (
           <EvaluationPanel csrf={session.csrf_token} />
         ) : page === "reports" ? (
@@ -430,7 +435,7 @@ function App() {
           <StudentPanel csrf={session.csrf_token} fetcher={request} />
         ) : page === "model" && admin ? (
           <ModelPanel csrf={session.csrf_token} fetcher={request} />
-        ) : page === "overview" || !admin ? (
+        ) : page === "alerts" || !admin ? (
           <>
             <section className="welcome">
               <p>当前账号：{session.user.username}</p>

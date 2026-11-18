@@ -1,129 +1,113 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-type ModelStatus = {
-  enabled: boolean;
-  approved: boolean;
-  version: number;
-  available: boolean;
-  message: string;
+type ModelStatus = { available: boolean; message: string };
+type Turn = {
+  question: string;
+  result?: {
+    answer: string;
+    evidence_links: { label: string; url: string }[];
+    tool_result: unknown;
+  };
+  error?: string;
 };
 
-type AgentResult = {
-  answer: string;
-  plan: unknown;
-  tool_result: unknown;
-  evidence_links: { label: string; url: string }[];
-  model_version: number;
-  generated_at: number;
-};
-
-export function AgentPanel({ csrf }: { csrf: string }) {
-  const [status, setStatus] = useState<ModelStatus | null>(null);
+export function AgentPanel({ csrf, openSettings }: { csrf: string; openSettings?: () => void }) {
+  const [status, setStatus] = useState<ModelStatus>();
   const [question, setQuestion] = useState("");
-  const [result, setResult] = useState<AgentResult | null>(null);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [pending, setPending] = useState("");
+  const latest = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch("/api/model/status", { credentials: "same-origin" })
+    const controller = new AbortController();
+    void fetch("/api/model/status", { signal: controller.signal })
       .then(async (response) => {
-        if (!response.ok) throw new Error("模型状态读取失败");
-        return (await response.json()) as ModelStatus;
+        if (!response.ok) throw Error();
+        return await response.json() as ModelStatus;
       })
       .then(setStatus)
-      .catch((err: unknown) => setError(String(err)));
+      .catch(() => {
+        if (!controller.signal.aborted) setStatus({ available: false, message: "暂时无法读取 Agent 状态，请刷新重试。" });
+      });
+    return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    if (turns.length || pending) latest.current?.scrollIntoView({ block: "end" });
+  }, [turns, pending]);
+
   async function ask() {
-    setBusy(true);
-    setError("");
-    setResult(null);
+    const prompt = question.trim();
+    if (!status?.available || pending || prompt.length < 2) return;
+    setPending(prompt);
+    setQuestion("");
     try {
       const response = await fetch("/api/agent/query", {
         method: "POST",
-        credentials: "same-origin",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": csrf,
-        },
-        body: JSON.stringify({ question }),
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        body: JSON.stringify({ question: prompt }),
       });
       const value = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(
-          value && typeof value.detail === "string"
-            ? value.detail
-            : "Agent 查询失败",
-        );
-      }
-      setResult(value as AgentResult);
+      if (!response.ok) throw Error(typeof value?.detail === "string" ? value.detail : "暂时无法完成查询。");
+      setTurns((previous) => [...previous, { question: prompt, result: value }]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setTurns((previous) => [...previous, { question: prompt, error: err instanceof Error ? err.message : String(err) }]);
     } finally {
-      setBusy(false);
+      setPending("");
     }
   }
 
   return (
-    <section className="card">
-      <h2>Agent 查询与解释</h2>
-      <p>
-        只读查询学生档案、人数统计、培养统计、成果统计、导师课题组事实、最新模拟评分、论文特征、同类比较、候选依据和人工复核历史。数字由系统工具计算；
-        写操作、任意SQL和任意文件访问不可用；论文回答区分作者主张、专家评价与系统推荐，不输出优秀概率。
-      </p>
-      <p>
-        相关与回归分析也由系统工具计算：结果必须披露样本量、被排除的缺失样本与局限声明，只描述关联，不表示因果或预测。
-      </p>
-      <p role="status">{status ? status.message : "模型状态读取中…"}</p>
-      {status && !status.available && (
-        <p className="muted">
-          未配置获准模型时默认禁用Agent：不会发送业务数据，也不会用固定回答冒充模型结果。
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="error">
-          {error}
-        </p>
-      )}
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          void ask();
-        }}
-      >
-        <label>
-          问题
-          <textarea
-            value={question}
-            rows={3}
-            maxLength={2000}
-            required
-            onChange={(event) => setQuestion(event.target.value)}
-          />
-        </label>
-        <button disabled={busy || question.trim().length < 2}>
-          {busy ? "查询中…" : "发送只读问题"}
-        </button>
-      </form>
-      {result && (
-        <article>
-          <h3>Agent 回答</h3>
-          <p>{result.answer}</p>
-          <p>
-            模型配置版本 {result.model_version} · 生成时间{" "}
-            {new Date(result.generated_at * 1000).toLocaleString()}
-          </p>
-          {result.evidence_links.map((link) => (
-            <a key={link.url} href={link.url}>
-              {link.label}
-            </a>
+    <section className="agent-home" aria-label="Agent 对话">
+      {!turns.length && !pending ? (
+        <header className="agent-home-intro">
+          <img src="/tongji-emblem.png" width="82" height="82" alt="同济大学校标" />
+          <h2>今天想了解什么培养问题？</h2>
+          <p>查询学生档案、培养过程、科研成果与研究分析。</p>
+        </header>
+      ) : (
+        <div className="agent-thread" aria-live="polite">
+          {turns.map((turn, index) => (
+            <article key={index} className="agent-turn">
+              <p className="agent-question">{turn.question}</p>
+              {turn.error && <p role="alert">{turn.error}</p>}
+              {turn.result && (
+                <div className="agent-answer">
+                  <h3>Agent 回答</h3>
+                  <p>{turn.result.answer}</p>
+                  <div className="agent-evidence">
+                    {turn.result.evidence_links.map((link) => <a key={link.url} href={link.url}>{link.label}</a>)}
+                  </div>
+                  <details>
+                    <summary>查看计算依据</summary>
+                    <pre>{JSON.stringify(turn.result.tool_result, null, 2)}</pre>
+                  </details>
+                </div>
+              )}
+            </article>
           ))}
-          <details>
-            <summary>工具结果与口径</summary>
-            <pre>{JSON.stringify(result.tool_result, null, 2)}</pre>
-          </details>
-        </article>
+          {pending && <article className="agent-turn">
+            <p className="agent-question">{pending}</p>
+            <p role="status">正在查询…</p>
+          </article>}
+        </div>
       )}
+      <form className="agent-composer" onSubmit={(event) => {
+        event.preventDefault();
+        void ask();
+      }}>
+        <textarea aria-label="问题" placeholder="输入你想查询的问题" rows={3} maxLength={2000}
+          value={question} onChange={(event) => setQuestion(event.target.value)} />
+        <div className="agent-composer-actions">
+          <span>只读查询 · 每条问题独立计算</span>
+          <button disabled={!status?.available || !!pending || question.trim().length < 2}>发送问题</button>
+        </div>
+      </form>
+      {!status?.available && <div className="agent-connection" role="status">
+        <span>{status?.message ?? "正在检查 Agent 连接…"}</span>
+        {status && openSettings && <button className="secondary" type="button" onClick={openSettings}>查看模型设置</button>}
+      </div>}
+      <div ref={latest} />
     </section>
   );
 }

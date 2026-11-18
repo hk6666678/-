@@ -186,17 +186,22 @@ def register_model_connection(
         with connection(path) as db:
             current(db, request)
             config, version = config_from(db)
-            permitted = config.enabled and model_target_allowed(path, config)
+            if not config.enabled or not config.approved:
+                blocker = "Agent 未启用"
+            elif "agent" not in config.allowed_purposes:
+                blocker = "当前模型配置未授权 Agent 用途"
+            elif not model_target_allowed(path, config):
+                blocker = "当前配置指向外部模型。业务环境需使用获准的本机模型。"
+            elif not os.environ.get(config.key_env):
+                blocker = "模型凭证尚未配置"
+            else:
+                blocker = ""
             return {
                 "enabled": config.enabled,
                 "approved": config.approved,
                 "version": version,
-                "available": permitted and bool(os.environ.get(config.key_env)),
-                "message": (
-                    "已配置，需连接验证"
-                    if permitted
-                    else "Agent 未启用或外部模型仅供隔离验证"
-                ),
+                "available": not blocker,
+                "message": blocker or "模型已配置，可发送问题",
             }
 
     @app.put("/api/model/config")

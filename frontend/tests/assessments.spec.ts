@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test';
 import {execFileSync} from 'node:child_process';
 const python='D:/AQP-PGS/.venv/Scripts/python.exe';
 test('assessment Excel error correction and confirmation',async({page})=>{
- await page.goto('/');await page.getByLabel('用户名',{exact:true}).fill('synthetic-admin');await page.getByLabel('密码',{exact:true}).fill('Synthetic-password-123!');await page.getByRole('button',{name:'登录平台'}).click();await expect(page.getByRole('heading',{name:'欢迎回到工作台'})).toBeVisible();
+ await page.goto('/');await page.getByLabel('用户名',{exact:true}).fill('synthetic-admin');await page.getByLabel('密码',{exact:true}).fill('Synthetic-password-123!');await page.getByRole('button',{name:'登录平台'}).click();await expect(page.getByRole('heading',{name:'Agent 智能问答'})).toBeVisible();
  const session=await(await page.request.get('/api/me')).json();const headers={'X-CSRF-Token':session.csrf_token};
  const originalGrants=await(await page.request.get('/api/access/grants')).json();
  try {

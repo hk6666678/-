@@ -41,6 +41,7 @@ test("workbench shows current control limits and date-based reminders", async ({
   await page.getByLabel("用户名", { exact: true }).fill("synthetic-admin");
   await page.getByLabel("密码", { exact: true }).fill("Synthetic-password-123!");
   await page.getByRole("button", { name: "登录平台" }).click();
+  await page.getByRole("button", { name: "培养预警", exact: true }).click();
   await expect(page.getByText("课程控制图越界 1 人，可计算 1 人。")).toBeVisible();
   await expect(page.getByText("有明确日期依据的超期记录 1 条（记录 2）")).toBeVisible();
   await page.getByText("研究记录 1 · 低于下限").click();

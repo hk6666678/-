@@ -6,7 +6,7 @@ test("all navigation states and independent scroll", async ({ page }) => {
     .getByLabel("密码", { exact: true })
     .fill("Synthetic-password-123!");
   await page.getByRole("button", { name: "登录平台" }).click();
-  await expect(page.getByRole("heading", { name: "欢迎回到工作台" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Agent 智能问答" })).toBeVisible();
   await page.screenshot({ path: "../artifacts/ui-polish/overview.png" });
   const nav = page.getByRole("navigation");
   await expect(nav).toBeVisible();

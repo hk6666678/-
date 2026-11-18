@@ -701,6 +701,82 @@ summary { cursor: pointer; font-weight: 600; color: #20584d; }
 .check-option { display: flex; align-items: center; gap: 8px; }
 .check-option input { width: auto; }
 .workbench-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.agent-home {
+  width: min(100%, 740px);
+  margin-inline: auto;
+  padding: clamp(44px, 12vh, 126px) 0 32px;
+  color: #16343e;
+}
+.agent-home:has(.agent-thread) { padding-top: 16px; }
+.agent-home-intro {
+  display: block;
+  text-align: center;
+  margin-bottom: 28px;
+  padding: 0;
+  border: 0;
+}
+.agent-home-intro img {
+  display: block;
+  width: 120px;
+  height: 108px;
+  object-fit: contain;
+  margin: 0 auto 14px;
+  mix-blend-mode: multiply;
+}
+.agent-home-intro h2 { font-size: clamp(1.4rem, 4.1vw, 2rem); margin: 0; }
+.agent-home-intro p { color: #496169; margin: 10px 0 0; }
+.agent-composer {
+  display: block;
+  padding: 12px;
+  background: #fff;
+  border: 1px solid #c6d3d8;
+  border-radius: 14px;
+}
+.agent-composer textarea {
+  display: block;
+  resize: vertical;
+  width: 100%;
+  min-height: 80px;
+  padding: 10px;
+  border: 0;
+  background: #fff;
+}
+.agent-composer textarea:focus-visible { outline: 2px solid #086079; outline-offset: 1px; }
+.agent-composer-actions,
+.agent-connection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.agent-composer-actions { padding: 8px 2px 0; color: #496169; font-size: 13px; }
+.agent-composer-actions button { background: #075978; margin: 0; }
+.agent-connection {
+  margin-top: 12px;
+  background: #e6eef1;
+  border-left: 3px solid #6d8e9b;
+  color: #244653;
+  padding: 10px 14px;
+  font-size: 14px;
+}
+.agent-thread { display: grid; gap: 18px; margin-bottom: 22px; }
+.agent-turn { min-width: 0; }
+.agent-question {
+  width: fit-content;
+  max-width: min(90%, 580px);
+  margin: 0 0 12px auto;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #dbeaf0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.agent-answer { padding: 14px 16px; border-left: 3px solid #8aafbb; overflow-wrap: anywhere; }
+.agent-answer h3 { font-size: 1rem; margin: 0; }
+.agent-answer p { white-space: pre-wrap; }
+.agent-evidence { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.agent-answer pre { white-space: pre-wrap; }
 details > p { margin-top: 14px; }
 .report-guidance { margin-bottom: 18px; }
 @media (max-width: 550px) {

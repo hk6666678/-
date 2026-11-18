@@ -52,6 +52,7 @@ test("personal account lifecycle through the browser", async ({
     .getByLabel("密码", { exact: true })
     .fill("Synthetic-member-password!");
   await member.getByRole("button", { name: "登录平台" }).click();
+  await member.getByRole("button", { name: "培养预警", exact: true }).click();
   await expect(
     member.getByText("全校查看和分析"),
   ).toBeVisible();
