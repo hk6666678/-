@@ -120,3 +120,17 @@ def test_external_config_cannot_send_from_ordinary_app(client, tmp_path, monkeyp
     assert result.status_code == 200
     assert result.json()["status"] == "failed"
     assert sent == []
+
+    database = tmp_path / "accounts.sqlite3"
+    monkeypatch.setenv("AQP_BAILIAN_AGENT_DB", str(tmp_path / "different.sqlite3"))
+    assert client.get("/api/model/status").json()["available"] is False
+    monkeypatch.setenv("AQP_BAILIAN_AGENT_DB", str(database))
+    assert client.get("/api/model/status").json()["available"] is True
+    assert client.post("/api/model/check", headers=headers).status_code == 200
+    assert len(sent) == 1
+    result = client.post(f"/api/papers/{paper['id']}/semantic", headers=headers)
+    assert result.status_code == 200
+    assert result.json()["status"] == "failed"
+    assert len(sent) == 1
+    monkeypatch.delenv("AQP_MODEL_KEY_BAILIAN")
+    assert client.get("/api/model/status").json()["message"] == "模型凭证尚未配置"

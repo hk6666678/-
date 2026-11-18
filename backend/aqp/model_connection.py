@@ -29,14 +29,20 @@ synthetic_fixture_db: ContextVar[Path | None] = ContextVar(
 LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 
-def model_target_allowed(path: Path, config: "ModelConfig") -> bool:
+def model_target_allowed(path: Path, config: "ModelConfig", purpose: str) -> bool:
     if urlsplit(config.endpoint).hostname in LOOPBACK_HOSTS:
         return True
-    return (
-        synthetic_fixture_db.get() == path.resolve()
-        and config.endpoint == "https://dashscope.aliyuncs.com/compatible-mode/v1"
-        and config.model == "qwen3.8-max-0902"
-    )
+    if (
+        not config.external_authorized
+        or config.endpoint != "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        or config.model != "qwen3.8-max-0902"
+    ):
+        return False
+    target_db = path.resolve()
+    if synthetic_fixture_db.get() == target_db:
+        return True
+    business_db = os.environ.get("AQP_BAILIAN_AGENT_DB")
+    return purpose == "agent" and bool(business_db and Path(business_db).resolve() == target_db)
 
 
 class ModelConfig(BaseModel):
@@ -140,8 +146,8 @@ def invoke_model(path: Path, purpose: str, text: str) -> str:
         or purpose not in config.allowed_purposes
     ):
         raise HTTPException(503, "模型未启用或用途未获准")
-    if not model_target_allowed(path, config):
-        raise HTTPException(403, "外部模型仅允许处理隔离验证生成的模拟材料")
+    if not model_target_allowed(path, config, purpose):
+        raise HTTPException(403, "当前部署未授权此外部模型或用途")
     try:
         return default_runner(config, text)
     except HTTPException:
@@ -190,8 +196,8 @@ def register_model_connection(
                 blocker = "Agent 未启用"
             elif "agent" not in config.allowed_purposes:
                 blocker = "当前模型配置未授权 Agent 用途"
-            elif not model_target_allowed(path, config):
-                blocker = "当前配置指向外部模型。业务环境需使用获准的本机模型。"
+            elif not model_target_allowed(path, config, "agent"):
+                blocker = "当前部署未授权此外部模型用于 Agent。"
             elif not os.environ.get(config.key_env):
                 blocker = "模型凭证尚未配置"
             else:
