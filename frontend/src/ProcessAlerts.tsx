@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import type { Snapshot } from "./AnalysisPanel";
 
-export function ProcessAlerts({ snapshot }: { snapshot: Snapshot }) {
-  if (snapshot.stale) return <p>分析已过时，重新生成后查看预警。</p>;
-  const students = new Map<number, Map<string, number[]>>();
+type Evidence = Snapshot["evidence"][number];
+
+function courseCharts(snapshot: Snapshot) {
+  const students = new Map<number, Map<string, { score: number; evidence: Evidence }[]>>();
   if (snapshot.category === "courses") {
     for (const row of snapshot.evidence) {
       const term = /^(\d{4})(春|秋)$/.exec(row.payload["修读学期"]);
@@ -12,16 +13,16 @@ export function ProcessAlerts({ snapshot }: { snapshot: Snapshot }) {
       const score = Number(raw);
       if (!Number.isFinite(score)) continue;
       const label = term[1] + (term[2] === "春" ? "1" : "2");
-      const terms = students.get(row.student_id) ?? new Map<string, number[]>();
+      const terms = students.get(row.student_id) ?? new Map<string, { score: number; evidence: Evidence }[]>();
       const scores = terms.get(label) ?? [];
-      scores.push(score);
+      scores.push({ score, evidence: row });
       terms.set(label, scores);
       students.set(row.student_id, terms);
     }
   }
-  const charts = [...students].flatMap(([student, terms]) => {
+  return [...students].flatMap(([student, terms]) => {
     const points = [...terms].sort(([a], [b]) => a.localeCompare(b)).map(
-      ([term, scores]) => ({ term, score: scores.reduce((a, b) => a + b, 0) / scores.length }),
+      ([term, scores]) => ({ term, score: scores.reduce((a, b) => a + b.score, 0) / scores.length }),
     );
     if (points.length < 6) return [];
     const baseline = points.slice(0, -1);
@@ -33,8 +34,13 @@ export function ProcessAlerts({ snapshot }: { snapshot: Snapshot }) {
     const lower = Math.max(0, center - 2.66 * movingRange);
     const upper = Math.min(100, center + 2.66 * movingRange);
     const latest = points[points.length - 1].score;
-    return [{ student, points, center, lower, upper, latest }];
+    return [{ student, points, center, lower, upper, latest, evidence: [...terms.values()].flat().map((row) => row.evidence) }];
   });
+}
+
+export function ProcessAlerts({ snapshot }: { snapshot: Snapshot }) {
+  if (snapshot.stale) return <p>分析已过时，重新生成后查看预警。</p>;
+  const charts = courseCharts(snapshot);
   const overdue = (snapshot.result.reminders ?? []).filter((row) => row.overdue === true);
   const outside = charts.filter(({ latest, lower, upper }) => latest < lower || latest > upper);
   return (
@@ -69,6 +75,57 @@ export function ProcessAlerts({ snapshot }: { snapshot: Snapshot }) {
   );
 }
 
+function StudentAlerts({ snapshots }: { snapshots: Snapshot[] }) {
+  type Signal = { label: string; snapshot: number; evidence: Evidence[] };
+  const students = new Map<number, Signal[]>();
+  function add(student: number, signal: Signal) {
+    const signals = students.get(student) ?? [];
+    signals.push(signal);
+    students.set(student, signals);
+  }
+  for (const snapshot of snapshots) {
+    if (snapshot.stale) continue;
+    if (snapshot.category === "courses") {
+      for (const chart of courseCharts(snapshot)) {
+        const direction = chart.latest < chart.lower ? "低于下限" : chart.latest > chart.upper ? "高于上限" : "";
+        if (direction) add(chart.student, { label: `课程均分${direction}`, snapshot: snapshot.id, evidence: chart.evidence });
+      }
+      continue;
+    }
+    const overdue = new Set((snapshot.result.reminders ?? []).filter((row) => row.overdue === true).map((row) => row.record_id));
+    for (const row of snapshot.evidence) {
+      if (overdue.has(row.id))
+        add(row.student_id, { label: snapshot.category === "topic" ? "选题超期" : "中期超期", snapshot: snapshot.id, evidence: [row] });
+      if (snapshot.category === "midterm" && row.status === "不通过")
+        add(row.student_id, { label: "中期未通过", snapshot: snapshot.id, evidence: [row] });
+    }
+  }
+  const ordered = [...students].sort(([a, left], [b, right]) => right.length - left.length || a - b);
+  return (
+    <section aria-label="逐生预警清单">
+      <h4>逐生预警清单（{ordered.length} 人）</h4>
+      <p>按学生合并下方有效分析中的信号。超期以生成分析当天的判断为准，未知状态不计入预警。</p>
+      {ordered.length === 0 && <p>所列分析未发现已确认的预警信号。</p>}
+      {ordered.map(([student, signals]) => (
+        <details key={student}>
+          <summary>研究记录 {student} · {signals.length} 条信号</summary>
+          <ul>{signals.map((signal) => (
+            <li key={JSON.stringify([signal.snapshot, signal.label, signal.evidence.map((row) => row.id)])}>
+              {signal.label} · 分析 #{signal.snapshot}
+              <details>
+                <summary>查看来源记录（{signal.evidence.length} 条）</summary>
+                <ul>{signal.evidence.map((row) => (
+                  <li key={row.id}>记录 #{row.id} v{row.version} · 批次 #{row.source.batch_id} · {row.source.source_department} · {row.source.sheet} 第 {row.source.row_number} 行</li>
+                ))}</ul>
+              </details>
+            </li>
+          ))}</ul>
+        </details>
+      ))}
+    </section>
+  );
+}
+
 export function WorkbenchAlerts({ openAnalysis }: { openAnalysis: () => void }) {
   const [snapshots, setSnapshots] = useState<Snapshot[] | null>(null);
   const [error, setError] = useState(false);
@@ -94,6 +151,7 @@ export function WorkbenchAlerts({ openAnalysis }: { openAnalysis: () => void }) 
     <section className="card">
       <h3>培养过程预警</h3>
       <p>每个环节显示当前授权范围内最新的有效分析。各分析范围可能不同。</p>
+      {snapshots && snapshots.length > 0 && <StudentAlerts snapshots={snapshots} />}
       {error ? <p role="alert">预警加载失败，请刷新重试。</p>
         : snapshots === null ? <p>正在读取分析</p>
         : snapshots.length === 0 ? <p>暂无有效分析，请先生成分析。</p>
