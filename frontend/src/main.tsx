@@ -6,6 +6,7 @@ import { OutputsTabs } from "./OutputsTabs";
 import { ThesisQuality } from "./ThesisQuality";
 import { BusinessRulesPanel } from "./BusinessRulesPanel";
 import { AnalysisPanel } from "./AnalysisPanel";
+import { WorkbenchAlerts } from "./ProcessAlerts";
 import { RecordPanel } from "./RecordPanel";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -439,6 +440,10 @@ function App() {
                 ))}
               </div>
             </section>
+            <WorkbenchAlerts openAnalysis={() => {
+              setPage("analysis");
+              setNavLabel("培养过程分析");
+            }} />
             <div className="cards">
               <section className="card">
                 <h3>个人账号</h3>

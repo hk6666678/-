@@ -1,5 +1,6 @@
 import { CollegeSelect } from "./CollegeSelect";
 import { useEffect, useState } from "react";
+import { ProcessAlerts } from "./ProcessAlerts";
 type Group = {
   group_value: string;
   course_code: string;
@@ -15,7 +16,7 @@ type Group = {
   mean: number | null;
   values: Record<string, number>;
 };
-type Snapshot = {
+export type Snapshot = {
   id: number;
   category: string;
   scope: {
@@ -51,6 +52,7 @@ type Snapshot = {
   };
   evidence: {
     id: number;
+    student_id: number;
     version: number;
     dependency_token: string;
     status: string;
@@ -218,6 +220,7 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
               ? "不可计算"
               : `${snapshot.result.pass_rate}%`}
           </p>
+          <ProcessAlerts snapshot={snapshot} />
           <h3>学分进度与条件提醒</h3>
           <p>
             {snapshot.result.credit_progress?.value == null
