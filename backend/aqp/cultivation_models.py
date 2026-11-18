@@ -1,9 +1,10 @@
 import json
 import sqlite3
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Callable
+from datetime import date
 from pathlib import Path
-from statistics import median
+from statistics import mean, median, pstdev
 from typing import Any
 
 import numpy as np
@@ -220,6 +221,180 @@ def student_signals(db: sqlite3.Connection, aid: int, student_id: int) -> dict[s
     return result
 
 
+def course_control_chart(
+    db: sqlite3.Connection, aid: int, college: str, major: str
+) -> dict[str, Any]:
+    """课程学期均分控制图：按学生均分计算 x̄±3σ，越限仅作统计信号。"""
+    if not all(
+        allowed(db, aid, "courses", op, college, major) for op in ("view", "analyze")
+    ):
+        raise HTTPException(403, "需具有该范围的课程查看及分析权限")
+    students = {
+        row["id"]: row["research_id"]
+        for row in agent_scope_students(db, aid, college, major)
+    }
+    scores: dict[tuple[int, str, str], list[float]] = defaultdict(list)
+    skipped = 0
+    for row in db.execute(
+        "SELECT student_id,payload FROM course_records WHERE state='linked' AND active=1"
+    ):
+        if row["student_id"] not in students:
+            continue
+        payload = json.loads(row["payload"])
+        if payload.get("评分制度") != "百分制":
+            continue
+        try:
+            value = float(payload.get("原始成绩") or "")
+        except ValueError:
+            skipped += 1
+            continue
+        if not 0 <= value <= 100:
+            continue
+        scores[
+            (row["student_id"], payload.get("课程编号", ""), payload.get("修读学期", ""))
+        ].append(value)
+    per_course: dict[tuple[str, str], list[tuple[int, float]]] = defaultdict(list)
+    for (student_id, code, term), values in scores.items():
+        per_course[(code, term)].append((student_id, mean(values)))
+    items = []
+    insufficient = 0
+    for (code, term), entries in sorted(per_course.items()):
+        if len(entries) < 5:
+            insufficient += 1
+            continue
+        values = [value for _, value in entries]
+        center = mean(values)
+        deviation = pstdev(values)
+        lower, upper = center - 3 * deviation, center + 3 * deviation
+        below = sorted(students[sid] for sid, value in entries if value < lower)
+        above = sorted(students[sid] for sid, value in entries if value > upper)
+        if below or above:
+            items.append(
+                {
+                    "course_code": code,
+                    "term": term,
+                    "students": len(entries),
+                    "mean": round(center, 2),
+                    "limits": [round(lower, 2), round(upper, 2)],
+                    "below": below,
+                    "above": above,
+                }
+            )
+    audit(db, aid, "cultivation.control_chart", "scoped")
+    return {
+        "items": items,
+        "courses_evaluated": len(per_course),
+        "insufficient_baseline": insufficient,
+        "skipped_non_numeric": skipped,
+        "note": "控制限为均值±3倍标准差的统计信号，不作优劣判定；不足5人的课程不计算。",
+    }
+
+
+def milestone_alerts(
+    db: sqlite3.Connection, aid: int, college: str, major: str
+) -> dict[str, Any]:
+    """选题与中期的明确超期、未完成逾期和业务未通过清单，口径与分析快照一致。"""
+    if not all(
+        allowed(db, aid, category, op, college, major)
+        for category in ("topic", "midterm")
+        for op in ("view", "analyze")
+    ):
+        raise HTTPException(403, "需具有该范围的选题与中期查看及分析权限")
+    students = {
+        row["id"]: row["research_id"]
+        for row in agent_scope_students(db, aid, college, major)
+    }
+    today = date.today()
+    latest: set[tuple[int, str]] = set()
+    summary = {
+        category: {
+            "explicit_overdue": 0,
+            "pending_overdue": 0,
+            "failed": 0,
+            "unknown_status": 0,
+            "records": 0,
+        }
+        for category in ("topic", "midterm")
+    }
+    alerts: list[dict[str, Any]] = []
+    for row in db.execute(
+        "SELECT id,student_id,category,payload FROM milestone_records WHERE active=1 ORDER BY id DESC"
+    ):
+        if row["student_id"] not in students or row["category"] not in summary:
+            continue
+        payload = json.loads(row["payload"])
+        if (payload.get("所属学院"), payload.get("专业")) != (college, major):
+            continue
+        key = (row["student_id"], row["category"])
+        if key in latest:
+            continue
+        latest.add(key)
+        counts = summary[row["category"]]
+        counts["records"] += 1
+        try:
+            planned = (
+                date.fromisoformat(str(payload.get("计划日期") or ""))
+                if payload.get("计划日期")
+                else None
+            )
+        except ValueError:
+            planned = None
+        actual = None
+        if payload.get("实际日期"):
+            try:
+                actual = date.fromisoformat(str(payload.get("实际日期")))
+            except ValueError:
+                actual = None
+        failed = payload.get("业务通过结果") == "不通过"
+        if failed:
+            counts["failed"] += 1
+            alerts.append(
+                {
+                    "research_id": students[row["student_id"]],
+                    "student_id": row["student_id"],
+                    "category": row["category"],
+                    "kind": "业务未通过",
+                }
+            )
+        if actual is not None and planned is not None and actual > planned:
+            counts["explicit_overdue"] += 1
+            alerts.append(
+                {
+                    "research_id": students[row["student_id"]],
+                    "student_id": row["student_id"],
+                    "category": row["category"],
+                    "kind": "明确超期",
+                    "plan": planned.isoformat(),
+                    "actual": actual.isoformat(),
+                }
+            )
+        elif (
+            actual is None
+            and payload.get("完成状态") == "未完成"
+            and planned is not None
+            and today > planned
+        ):
+            counts["pending_overdue"] += 1
+            alerts.append(
+                {
+                    "research_id": students[row["student_id"]],
+                    "student_id": row["student_id"],
+                    "category": row["category"],
+                    "kind": "未完成且已逾期",
+                    "plan": planned.isoformat(),
+                }
+            )
+        elif actual is None and payload.get("完成状态") != "未完成":
+            counts["unknown_status"] += 1
+    audit(db, aid, "cultivation.milestone_alerts", "scoped")
+    return {
+        "summary": summary,
+        "alerts": alerts[:20],
+        "alerts_truncated": len(alerts) > 20,
+        "note": "超期口径与分析快照一致：双日期明确超期或未完成且已过计划日期；无日期依据的只计入未知，不推断。",
+    }
+
+
 def register_cultivation_models(
     app: FastAPI,
     path: Path,
@@ -242,3 +417,23 @@ def register_cultivation_models(
         with connection(path) as db:
             actor, _ = current(db, request)
             return student_signals(db, actor["id"], student_id)
+
+    @app.get("/api/cultivation/course-control-chart")
+    def control_chart(
+        request: Request,
+        college: str = Query(min_length=1),
+        major: str = Query(min_length=1),
+    ) -> dict[str, Any]:
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            return course_control_chart(db, actor["id"], college, major)
+
+    @app.get("/api/cultivation/milestone-alerts")
+    def alerts(
+        request: Request,
+        college: str = Query(min_length=1),
+        major: str = Query(min_length=1),
+    ) -> dict[str, Any]:
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            return milestone_alerts(db, actor["id"], college, major)

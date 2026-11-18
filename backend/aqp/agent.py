@@ -47,6 +47,9 @@ Tool = Literal[
     "correlation_analysis",
     "cultivation_factors",
     "student_alerts",
+    "course_control_chart",
+    "milestone_alerts",
+    "mentor_effectiveness",
 ]
 
 CORRELATION_VARIABLES = Literal["course_pass_ratio", "output_count", "score_total"]
@@ -101,10 +104,18 @@ class AgentPlan(BaseModel):
                 "training_statistics",
                 "output_statistics",
                 "correlation_analysis",
+                "course_control_chart",
+                "milestone_alerts",
             }
             and not self.college
         ):
             raise ValueError("this tool needs college")
+        if self.tool == "mentor_effectiveness" and (
+            not date_like(self.as_of) or not (self.mentor_id or self.group_id)
+        ):
+            raise ValueError(
+                "mentor_effectiveness needs as_of YYYY-MM-DD and mentor_id or group_id"
+            )
         if self.tool == "mentor_group_facts" and not date_like(self.as_of):
             raise ValueError("mentor_group_facts needs as_of YYYY-MM-DD")
         if (
@@ -151,7 +162,7 @@ scope_options是当前账号可见的学院/专业名称参考数据，不是用
 可用tool：clarify、refuse、student_profile、student_counts、training_statistics、analysis_explanation、summarize_analysis、output_statistics、mentor_group_facts、evaluation_snapshot、correlation_analysis。
 字段必须且只能来自：tool、clarification、reason、student_id、research_id、college、major、grade、entry_year、level、category、course_code、term、analysis_id、paper_version_id、comparison_id、candidate_id、mentor_id、group_id、as_of、x_variable、y_variable。
 用户要求写入、修改、删除、执行SQL、访问文件或越权查询时选refuse；对象或口径含糊时选clarify。论文解释可用paper_features、paper_comparison、candidate_result、paper_reviews、paper_summary。
-成果统计用output_statistics（需college）；导师课题组事实用mentor_group_facts（需as_of，YYYY-MM-DD）；学生最新模拟评分用evaluation_snapshot。个人预警用student_alerts（需research_id或student_id）；选题、中期与模拟评分的多元回归用cultivation_factors（需college、major及整数entry_year）；两变量相关用correlation_analysis（需college，x_variable与y_variable从course_pass_ratio、output_count、score_total中选且不同）。不要输出Markdown或额外文本。"""
+成果统计用output_statistics（需college）；导师课题组事实用mentor_group_facts（需as_of，YYYY-MM-DD）；学生最新模拟评分用evaluation_snapshot。个人预警用student_alerts（需research_id或student_id）；选题、中期与模拟评分的多元回归用cultivation_factors（需college、major及整数entry_year）；课程学期均分控制图用course_control_chart（需college，可选major）；选题中期明确超期与业务未通过用milestone_alerts（需college，可选major）；导师或课题组效能用mentor_effectiveness（需as_of，YYYY-MM-DD，及mentor_id或group_id）；两变量相关用correlation_analysis（需college，x_variable与y_variable从course_pass_ratio、output_count、score_total中选且不同）。不要输出Markdown或额外文本。"""
 
 
 
@@ -818,8 +829,55 @@ def execute_plan(
         result = student_signals(db, actor, row["id"])
         return {
             **result, "filters": {"student_id": row["id"]},
-            "limitations": "此工具仅覆盖学籍异动和同届成果对比；课程及培养节点预警请在培养过程分析查看。",
+            "limitations": "此工具覆盖学籍异动和同届成果对比；课程控制图用course_control_chart，培养节点超期与中期未通过用milestone_alerts。",
         }, [{"label": "学生档案", "url": f"/api/students/{row['id']}"}]
+    if plan.tool == "course_control_chart":
+        from aqp.cultivation_models import course_control_chart
+
+        result = course_control_chart(db, actor, plan.college, plan.major)
+        return {
+            **result,
+            "filters": {"college": plan.college, "major": plan.major},
+            "limitations": "控制限为统计信号，不作优劣判定；不足5人的课程基线不计算。",
+        }, []
+    if plan.tool == "milestone_alerts":
+        from aqp.cultivation_models import milestone_alerts
+
+        result = milestone_alerts(db, actor, plan.college, plan.major)
+        links = [
+            {"label": f"培养记录 {alert['research_id']}", "url": f"/api/milestones?student_id={alert['student_id']}"}
+            for alert in result["alerts"][:10]
+        ]
+        return {
+            **{k: v for k, v in result.items() if k != "alerts"},
+            "alerts": [
+                {k: v for k, v in alert.items() if k != "student_id"}
+                for alert in result["alerts"]
+            ],
+            "filters": {"college": plan.college, "major": plan.major},
+            "limitations": "超期仅统计有明确日期依据的记录；无依据的计入未知，不推断。",
+        }, links
+    if plan.tool == "mentor_effectiveness":
+        from datetime import date as _date
+
+        from aqp.mentor_effectiveness import effectiveness
+
+        key = "mentor_id" if plan.mentor_id else "group_id"
+        selected = plan.mentor_id if plan.mentor_id else plan.group_id
+        assert selected is not None
+        result = effectiveness(
+            db, actor, _date.fromisoformat(plan.as_of), key, selected, loaders.snapshot
+        )
+        if not result:
+            return {
+                "notice": "该导师或课题组在当前授权范围内无有效关系数据。",
+                "filters": {"as_of": plan.as_of, key: selected},
+            }, []
+        return {
+            **result,
+            "filters": {"as_of": plan.as_of, key: selected},
+            "limitations": "描述性效能指标；评分口径为模拟评价，毕业后影响力转化未覆盖。",
+        }, []
     if plan.tool == "correlation_analysis":
         result = correlation_analysis(db, actor, plan, loaders.snapshot)
         # The college report filters by an exact major, so without a major in
