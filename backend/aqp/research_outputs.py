@@ -59,6 +59,121 @@ def register_research_outputs(
         "conferences": ("业务编号", "会议名称", ("报告类型", "会议日期")),
     }[category]
     tables = "research" if category == "research_papers" else category
+    year_field = {
+        "research_papers": "发表年份",
+        "patents": "申请日期",
+        "awards": "获奖年份",
+        "conferences": "会议日期",
+    }[category]
+
+    @app.get(f"/api/{endpoint}/cohort")
+    def cohort(request: Request) -> dict[str, Any]:
+        with connection(path) as db:
+            user, _ = current(db, request)
+            actor = user["id"]
+            students = {
+                row["id"]: dict(row)
+                for row in db.execute(
+                    "SELECT id,research_id,college,major,entry_year FROM students WHERE active=1"
+                )
+                if student_allowed(db, actor, row["id"])
+                and allowed(db, actor, "basic", "view", row["college"], row["major"])
+                and allowed(db, actor, category, "view", row["college"], row["major"])
+            }
+            dates: dict[tuple[int, str], list[str]] = {}
+            for row in db.execute("SELECT * FROM milestone_records WHERE active=1"):
+                if row["student_id"] not in students:
+                    continue
+                student = students[row["student_id"]]
+                payload = json.loads(row["payload"])
+                if not (
+                    allowed(
+                        db,
+                        actor,
+                        row["category"],
+                        "view",
+                        student["college"],
+                        student["major"],
+                    )
+                    and allowed(
+                        db,
+                        actor,
+                        row["category"],
+                        "view",
+                        payload["所属学院"],
+                        payload["专业"],
+                    )
+                ):
+                    continue
+                actual = payload.get("实际日期", "")
+                if re.fullmatch(r"\d{4}-\d{2}-\d{2}", actual):
+                    dates.setdefault((row["student_id"], row["category"]), []).append(
+                        actual
+                    )
+
+            outputs: dict[int, list[dict[str, Any]]] = {}
+            for row in db.execute(f"SELECT * FROM {tables}_outputs WHERE active=1"):
+                payload = json.loads(row["payload"])
+                raw = str(payload.get("details", {}).get(year_field, ""))
+                year = (
+                    int(raw[:4])
+                    if re.fullmatch(r"\d{4}(?:-\d{2}-\d{2})?", raw)
+                    else None
+                )
+                seen = set()
+                for participant in payload["participants"]:
+                    permitted, linked_student = current_participant(
+                        db, actor, category, "view", participant
+                    )
+                    if not permitted or linked_student is None:
+                        continue
+                    sid = linked_student["id"]
+                    if sid not in students or sid in seen:
+                        continue
+                    seen.add(sid)
+                    match = {}
+                    for stage in ("topic", "midterm"):
+                        actuals = dates.get((sid, stage))
+                        if year is None or not actuals:
+                            match[stage] = "无法比较"
+                            continue
+                        first = min(actuals)
+                        if len(raw) == 10:
+                            match[stage] = (
+                                "之前"
+                                if raw < first
+                                else "之后"
+                                if raw > first
+                                else "同日"
+                            )
+                        else:
+                            stage_year = int(first[:4])
+                            match[stage] = (
+                                "之前"
+                                if year < stage_year
+                                else "之后"
+                                if year > stage_year
+                                else "同年（先后未知）"
+                            )
+                    outputs.setdefault(sid, []).append(
+                        {
+                            "id": row["id"],
+                            "title": payload["title"],
+                            "date": raw,
+                            **match,
+                        }
+                    )
+            rows = [
+                {
+                    **{
+                        key: student[key]
+                        for key in ("research_id", "college", "major", "entry_year")
+                    },
+                    "outputs": outputs.get(sid, []),
+                }
+                for sid, student in students.items()
+            ]
+            return {"items": rows}
 
     @app.get(f"/api/{endpoint}")
     def listing(request: Request, voided: bool = False) -> dict[str, Any]:

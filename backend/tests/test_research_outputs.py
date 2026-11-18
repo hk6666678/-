@@ -46,6 +46,15 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
                     "major": "合成专业",
                 }
                 for op in ["maintain", "view", "identity", "void"]
+            ]
+            + [
+                {
+                    "category": "basic",
+                    "operation": op,
+                    "college": "合成学院",
+                    "major": "合成专业",
+                }
+                for op in ["maintain", "view"]
             ],
         },
     )
@@ -124,6 +133,41 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
         {"year": "2025", "distinct_outputs": 1, "personal_participations": 1}
     ]
     assert result["items"][0]["title"] == "合成科研论文更正"
+    assert client.get("/api/research-outputs/cohort").json() == {"items": []}
+    from openpyxl import Workbook
+
+    basic = Workbook()
+    basic.active.append(["AQP-PGS", "basic", "1"])
+    basic.active.append(["学号", "姓名", "所属学院", "专业", "培养层次", "入学年份"])
+    basic.active.append(["001", "合成人员", "合成学院", "合成专业", "硕士", 2024])
+    basic.active.append(["002", "合成同届", "合成学院", "合成专业", "硕士", 2024])
+    basic_stream = BytesIO()
+    basic.save(basic_stream)
+    submitted = client.post(
+        "/api/imports/basic/preview",
+        headers=headers,
+        data={"source_department": "合成来源"},
+        files={"file": ("basic.xlsx", basic_stream.getvalue())},
+    )
+    assert submitted.status_code == 200, submitted.text
+    assert (
+        client.post(
+            f"/api/imports/{submitted.json()['id']}/confirm", headers=headers
+        ).status_code
+        == 200
+    )
+    cohort = client.get("/api/research-outputs/cohort").json()["items"]
+    assert len(cohort) == 2
+    assert all(
+        row["entry_year"] == 2024 and "student_number" not in row for row in cohort
+    )
+    assert sorted(len(row["outputs"]) for row in cohort) == [0, 1]
+    output = next(row["outputs"][0] for row in cohort if row["outputs"])
+    assert (output["date"], output["topic"], output["midterm"]) == (
+        "2025",
+        "无法比较",
+        "无法比较",
+    )
     output_id = result["items"][0]["id"]
     citation_template = client.get("/api/research-outputs/citations/template")
     assert citation_template.status_code == 200
