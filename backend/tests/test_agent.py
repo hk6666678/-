@@ -126,7 +126,13 @@ def test_agent_counts_students_from_controlled_tool(
     assert '"total": 1' in prompts[1]
 
 
-def test_agent_does_not_send_summary_after_tool_scope_revoked(client, monkeypatch):  # noqa: F811
+@pytest.mark.parametrize("remaining_major, expected_status", [(None, 403), ("数学", 409)])
+def test_agent_does_not_send_summary_after_tool_scope_changes(
+    client: TestClient,  # noqa: F811
+    monkeypatch,
+    remaining_major,
+    expected_status,
+):
     from aqp import agent
 
     headers = login_admin(client)
@@ -141,15 +147,29 @@ def test_agent_does_not_send_summary_after_tool_scope_revoked(client, monkeypatc
         if not reads:
             assert result[0]["total"] == 1
             reads.append(result)
-            replace_grants(client, headers, [])
+            replace_grants(
+                client,
+                headers,
+                [
+                    {
+                        "category": "basic",
+                        "operation": "view",
+                        "college": "示例学院",
+                        "major": remaining_major,
+                    }
+                ]
+                if remaining_major
+                else [],
+            )
         return result
 
     def runner(config, text):
         model_calls.append(text)
         if len(model_calls) == 1:
-            return json.dumps(
-                {"tool": "student_counts", "college": "示例学院", "major": "计算机"}
-            )
+            plan = {"tool": "student_counts", "college": "示例学院"}
+            if remaining_major is None:
+                plan["major"] = "计算机"
+            return json.dumps(plan)
         return "模拟摘要"
 
     monkeypatch.setattr(agent, "execute_plan", revoke_after_read)
@@ -157,11 +177,15 @@ def test_agent_does_not_send_summary_after_tool_scope_revoked(client, monkeypatc
     response = client.post(
         "/api/agent/query",
         headers=headers,
-        json={"question": "统计示例学院计算机专业学生人数"},
+        json={"question": "统计示例学院授权范围内的学生人数"},
     )
-    assert response.status_code == 403
+    assert response.status_code == expected_status
     assert len(reads) == 1
     assert len(model_calls) == 1
+    if expected_status == 409:
+        events = client.get("/api/audit", params={"action": "agent.answer"})
+        assert events.status_code == 200
+        assert [row["outcome"] for row in events.json()["items"]] == ["changed"]
 
 
 def test_agent_explains_snapshot_with_version_and_drilldown(

@@ -26,6 +26,14 @@ $env:PYTHONUTF8 = '1'
 
 ## 开发与验证
 
+涉及模型调用、Agent 权限或论文引文的改动，先运行离线验收：
+
+```powershell
+.\tools\Test-ModelAcceptance.ps1
+```
+
+该入口使用模型替身和临时资料，检查普通业务库的外发拦截、Agent 摘要前撤权及 409 审计、双页 PDF 页序与引文，无需百炼密钥。审查时参阅[模型相关改动的审查规则](docs/agents/model-review.md)。
+
 ```powershell
 .venv\Scripts\python -m pytest
 .venv\Scripts\python -m mypy
