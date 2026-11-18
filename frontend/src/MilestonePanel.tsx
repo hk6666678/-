@@ -1,3 +1,4 @@
+import { CollegeSelect } from "./CollegeSelect";
 import { AttachmentPanel } from "./AttachmentPanel";
 import { useState } from "react";
 type Props = {
@@ -102,14 +103,7 @@ export function MilestonePanel({ csrf, fetcher }: Props) {
             void upload();
           }}
         >
-          <label>
-            来源学院
-            <input
-              list="tongji-colleges"
-              value={college}
-              onChange={(e) => setCollege(e.target.value)}
-            />
-          </label>
+          <CollegeSelect label="来源学院" value={college} onChange={setCollege} />
           <label>
             来源专业
             <input

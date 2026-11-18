@@ -177,7 +177,8 @@ test("three-level reports with charts drilldown and authorized export", async ({
   expect((await groupDownload).suggestedFilename()).toBe(
     `report-group-${mentor.id}.xlsx`,
   );
-  await page.getByLabel("学院", { exact: true }).fill("合成学院");
+  await page.getByLabel("学院", { exact: true }).selectOption("__other_college__");
+  await page.getByLabel("其他学院名称", { exact: true }).fill("合成学院");
   await page.getByLabel("专业", { exact: true }).fill("合成专业");
   await page.getByRole("button", { name: "查看学院报告" }).click();
   await expect(page.getByText(/当前授权可见\d+人/).first()).toBeVisible();

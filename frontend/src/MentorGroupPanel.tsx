@@ -1,3 +1,4 @@
+import { CollegeSelect } from "./CollegeSelect";
 import { useEffect, useState } from "react";
 type Directory = {
   id: number;
@@ -254,10 +255,7 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
           目录名称
           <input name="name" required defaultValue={edit?.name} />
         </label>
-        <label>
-          目录学院
-          <input list="tongji-colleges" name="college" required defaultValue={edit?.college} />
-        </label>
+        <CollegeSelect label="目录学院" name="college" required defaultValue={edit?.college} />
         <label>
           目录专业
           <input name="major" required defaultValue={edit?.major} />

@@ -1,3 +1,4 @@
+import { CollegeSelect } from "./CollegeSelect";
 import { useState } from "react";
 type Rule = {
   id: number;
@@ -328,10 +329,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
             规则名称
             <input name="name" required />
           </label>
-          <label>
-            学院
-            <input list="tongji-colleges" name="college" required />
-          </label>
+          <CollegeSelect label="学院" name="college" required />
           <label>
             专业
             <input name="major" required />

@@ -111,7 +111,8 @@ test("milestone analysis preserves distribution and immutable evidence", async (
     await page.getByLabel("年级（入学年份）").fill("2025");
     await page.getByLabel("培养层次", { exact: true }).fill("硕士");
     await page.getByLabel("对比分组").selectOption("level");
-    await page.getByLabel("学院", { exact: true }).fill("培养09合成学院");
+    await page.getByLabel("学院", { exact: true }).selectOption("__other_college__");
+    await page.getByLabel("其他学院名称", { exact: true }).fill("培养09合成学院");
     await page.getByLabel("专业", { exact: true }).fill("培养09合成专业");
     await page.getByRole("button", { name: "生成新分析版本" }).click();
     await expect(page.getByText(/考核记录 8 · 去重学生 1/)).toContainText(

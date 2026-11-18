@@ -1,3 +1,4 @@
+import { CollegeSelect } from "./CollegeSelect";
 import { useEffect, useState } from "react";
 type Batch = {
   id: string;
@@ -212,10 +213,7 @@ export function AssessmentPanel({ csrf }: { csrf: string }) {
               <option value="defenses">答辩</option>
             </select>
           </label>
-          <label>
-            学院
-            <input list="tongji-colleges" name="college" required />
-          </label>
+          <CollegeSelect label="学院" name="college" required />
           <label>
             专业
             <input name="major" required />

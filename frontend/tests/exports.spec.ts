@@ -124,7 +124,8 @@ test("synthetic Excel report and originals use independent current grants", asyn
         exact: true,
       }),
     });
-    await scope.getByLabel("学院", { exact: true }).fill("导出19合成学院");
+    await scope.getByLabel("学院", { exact: true }).selectOption("__other_college__");
+    await scope.getByLabel("其他学院名称", { exact: true }).fill("导出19合成学院");
     await scope.getByLabel("专业", { exact: true }).fill("导出19合成专业");
     await scope.getByRole("button", { name: "生成新分析版本" }).click();
     const link = scope.getByRole("link", {

@@ -17,9 +17,7 @@ test("personal account lifecycle through the browser", async ({
   await page.getByLabel("新账号用户名").fill("synthetic-member");
   await page.getByLabel("初始密码").fill("Synthetic-member-password!");
   await page.getByLabel("账号权限").selectOption("ordinary");
-  await expect(page.getByLabel("所属学院", { exact: true })).toHaveAttribute("list", "tongji-colleges");
-  await expect(page.locator('#tongji-colleges option[value="计算机科学与技术学院（软件学院）"]')).toHaveCount(1);
-  await page.getByLabel("所属学院", { exact: true }).fill("合成试用学院");
+  await page.getByLabel("所属学院", { exact: true }).selectOption("合成试用学院");
   await page.getByRole("button", { name: "创建账号" }).click();
   const row = page
     .getByRole("row")
@@ -31,9 +29,11 @@ test("personal account lifecycle through the browser", async ({
   await page.screenshot({ path: "test-results/accounts.png" });
   await row.getByRole("button", { name: "更改权限" }).click();
   await expect(page.getByLabel("所属学院", { exact: true })).toHaveValue("合成试用学院");
+  await page.getByLabel("所属学院", { exact: true }).selectOption("计算机科学与技术学院（软件学院）", { timeout: 2000 });
   await page.getByLabel("账号权限").selectOption("full");
   await page.getByRole("button", { name: "保存权限" }).click();
   await expect(row.getByText("全权限", { exact: true })).toBeVisible();
+  await expect(row.getByText("计算机科学与技术学院（软件学院）", { exact: true })).toBeVisible();
   await row.getByRole("button", { name: "更改权限" }).click();
   await page.getByLabel("账号权限").selectOption("ordinary");
   await page.getByRole("button", { name: "保存权限" }).click();

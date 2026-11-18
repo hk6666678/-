@@ -183,7 +183,8 @@ test("simulation rule, scoring, history, charts and authorized export", async ({
     .click();
   await page.getByText("新建不可覆盖的规则草稿", { exact: true }).click();
   await page.getByLabel("规则名称", { exact: true }).fill("合成演示规则");
-  await page.getByLabel("学院", { exact: true }).fill("合成学院");
+  await page.getByLabel("学院", { exact: true }).selectOption("__other_college__");
+  await page.getByLabel("其他学院名称", { exact: true }).fill("合成学院");
   await page.getByLabel("专业", { exact: true }).fill("合成专业");
   await page.getByRole("button", { name: "添加指标" }).click();
   await page.getByRole("button", { name: "添加指标" }).click();

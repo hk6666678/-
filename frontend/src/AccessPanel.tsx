@@ -1,3 +1,4 @@
+import { CollegeSelect } from "./CollegeSelect";
 import { useState, useRef } from "react";
 type Grant = {
   category: string;
@@ -243,15 +244,7 @@ export function AccessPanel({ admin, csrf, users, fetcher }: Props) {
                       ))}
                     </select>
                   </label>
-                  <label>
-                    所属学院
-                    <input
-                      list="tongji-colleges"
-                      required
-                      value={college}
-                      onChange={(e) => setCollege(e.target.value)}
-                    />
-                  </label>
+                  <CollegeSelect label="所属学院" required value={college} onChange={setCollege} />
                   <label>
                     专业范围
                     <input

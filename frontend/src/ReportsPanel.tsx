@@ -1,3 +1,4 @@
+import { CollegeSelect } from "./CollegeSelect";
 import { useState } from "react";
 
 type Section =
@@ -471,16 +472,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
             });
           }}
         >
-          <label>
-            学院
-            <input
-              list="tongji-colleges"
-              name="college"
-              required
-              value={college}
-              onChange={(e) => setCollege(e.target.value)}
-            />
-          </label>
+          <CollegeSelect label="学院" name="college" required value={college} onChange={setCollege} />
           <label>
             专业
             <input

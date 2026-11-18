@@ -33,7 +33,8 @@ test("milestone pending import with missing score and attachment", async ({
   expect(template.status()).toBe(200);
   await page.getByRole("button", { name: "选题与中期导入" }).click();
   await page.getByLabel("来源部门").fill("合成数据源");
-  await page.getByLabel("来源学院").fill("合成学院");
+  await page.getByLabel("来源学院", { exact: true }).selectOption("__other_college__");
+  await page.getByLabel("其他学院名称", { exact: true }).fill("合成学院");
   await page.getByLabel("来源专业").fill("合成专业");
   await page.getByLabel("选题与中期 Excel").setInputFiles({
     name: "synthetic-basic.xlsx",

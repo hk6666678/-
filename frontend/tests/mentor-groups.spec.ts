@@ -69,7 +69,8 @@ test("mentor directories relationships facts and revocation", async ({
       .selectOption(kind);
     await page.getByLabel("目录业务编号", { exact: true }).fill(number);
     await page.getByLabel("目录名称", { exact: true }).fill(name);
-    await page.getByLabel("目录学院", { exact: true }).fill("合成学院");
+    await page.getByLabel("目录学院", { exact: true }).selectOption("__other_college__");
+    await page.getByLabel("其他学院名称", { exact: true }).fill("合成学院");
     await page.getByLabel("目录专业", { exact: true }).fill("合成专业");
     await page.getByRole("button", { name: "保存目录", exact: true }).click();
     await expect(page.getByRole("status")).toContainText("目录已保存");

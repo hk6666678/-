@@ -1,3 +1,4 @@
+import { CollegeSelect } from "./CollegeSelect";
 import { useState } from "react";
 type Group = {
   group_value: string;
@@ -151,10 +152,7 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
       <p>
         通过率＝通过考核记录／已知状态考核记录。未知不进入分母，空成绩不计零；学生人数去重。仅同课程、同学期、同评分制度展示均值和分布。
       </p>
-      <label>
-        学院
-        <input list="tongji-colleges" value={college} onChange={(e) => setCollege(e.target.value)} />
-      </label>
+      <CollegeSelect label="学院" value={college} onChange={setCollege} />
       <label>
         专业
         <input value={major} placeholder="分析留空表示当前授权专业；规则须具体专业" onChange={(e) => setMajor(e.target.value)} />

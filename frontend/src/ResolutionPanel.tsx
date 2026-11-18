@@ -87,7 +87,14 @@ export function ResolutionPanel({ csrf }: { csrf: string }) {
           <h3>原始行（只读）</h3>
           <pre>{JSON.stringify(selected.original, null, 2)}</pre>
           <h3>修正值</h3>
-          {Object.entries(values).map(([key, value]) => (
+          {Object.entries(values).map(([key, value]) => key === "所属学院" ? (
+            <CollegeSelect
+              key={key}
+              label={key}
+              value={value}
+              onChange={(college) => setValues({ ...values, [key]: college })}
+            />
+          ) : (
             <label key={key}>
               {key}
               <input
@@ -151,3 +158,4 @@ export function ResolutionPanel({ csrf }: { csrf: string }) {
     </section>
   );
 }
+import { CollegeSelect } from "./CollegeSelect";

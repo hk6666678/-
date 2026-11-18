@@ -116,7 +116,18 @@ export function RecordPanel({ csrf }: { csrf: string }) {
             记录{selected.id} · 版本{selected.version}
           </h3>
           <p>数据修订标识：{selected.dependency_token}</p>
-          {Object.entries(values).map(([k, v]) => (
+          {Object.entries(values).map(([k, v]) => k === "所属学院" ? (
+            <CollegeSelect
+              key={k}
+              label={k}
+              value={v}
+              disabled={!selected.active}
+              onChange={(college) => {
+                V({ ...values, [k]: college });
+                P(null);
+              }}
+            />
+          ) : (
             <label key={k}>
               {k}
               <input
@@ -207,3 +218,4 @@ export function RecordPanel({ csrf }: { csrf: string }) {
     </section>
   );
 }
+import { CollegeSelect } from "./CollegeSelect";

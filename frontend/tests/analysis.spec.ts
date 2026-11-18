@@ -107,7 +107,8 @@ test("course analysis preserves source evidence and immutable stale history", as
     await page
       .getByRole("button", { name: "课程统计与通过规则", exact: true })
       .click();
-    await page.getByLabel("学院", { exact: true }).fill("课程08合成学院");
+    await page.getByLabel("学院", { exact: true }).selectOption("__other_college__");
+    await page.getByLabel("其他学院名称", { exact: true }).fill("课程08合成学院");
     await page.getByLabel("专业", { exact: true }).fill("课程08合成专业");
     await page.getByRole("button", { name: "生成新分析版本" }).click();
     await expect(page.getByText(/考核记录 8 · 去重学生 1/)).toContainText(

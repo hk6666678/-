@@ -1,3 +1,4 @@
+import { CollegeSelect } from "./CollegeSelect";
 import { useState } from "react";
 type Batch = {
   id: number;
@@ -64,10 +65,7 @@ export function CoursePanel({ csrf }: { csrf: string }) {
           课程来源部门
           <input name="source_department" required maxLength={100} />
         </label>
-        <label>
-          来源学院
-          <input list="tongji-colleges" name="college" />
-        </label>
+        <CollegeSelect label="来源学院" name="college" />
         <label>
           来源专业
           <input name="major" />
