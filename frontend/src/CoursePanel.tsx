@@ -66,7 +66,7 @@ export function CoursePanel({ csrf }: { csrf: string }) {
         </label>
         <label>
           来源学院
-          <input name="college" />
+          <input list="tongji-colleges" name="college" />
         </label>
         <label>
           来源专业

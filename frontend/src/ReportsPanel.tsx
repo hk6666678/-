@@ -474,6 +474,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
           <label>
             学院
             <input
+              list="tongji-colleges"
               name="college"
               required
               value={college}

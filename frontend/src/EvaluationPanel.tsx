@@ -330,7 +330,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
           </label>
           <label>
             学院
-            <input name="college" required />
+            <input list="tongji-colleges" name="college" required />
           </label>
           <label>
             专业

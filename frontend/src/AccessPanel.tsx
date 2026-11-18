@@ -246,6 +246,7 @@ export function AccessPanel({ admin, csrf, users, fetcher }: Props) {
                   <label>
                     所属学院
                     <input
+                      list="tongji-colleges"
                       required
                       value={college}
                       onChange={(e) => setCollege(e.target.value)}

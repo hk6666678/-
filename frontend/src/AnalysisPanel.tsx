@@ -153,7 +153,7 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
       </p>
       <label>
         学院
-        <input value={college} onChange={(e) => setCollege(e.target.value)} />
+        <input list="tongji-colleges" value={college} onChange={(e) => setCollege(e.target.value)} />
       </label>
       <label>
         专业

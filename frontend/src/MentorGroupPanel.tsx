@@ -256,7 +256,7 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
         </label>
         <label>
           目录学院
-          <input name="college" required defaultValue={edit?.college} />
+          <input list="tongji-colleges" name="college" required defaultValue={edit?.college} />
         </label>
         <label>
           目录专业

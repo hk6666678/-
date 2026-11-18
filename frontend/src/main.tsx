@@ -19,6 +19,7 @@ import { CoursePanel } from "./CoursePanel";
 import { ResolutionPanel } from "./ResolutionPanel";
 import { StudentPanel } from "./StudentPanel";
 import { ModelPanel } from "./ModelPanel";
+import { tongjiColleges } from "./tongjiColleges";
 
 type Role =
   | "mentor"
@@ -331,6 +332,9 @@ function App() {
         </div>
       </aside>
       <main className="content" ref={contentRef}>
+        <datalist id="tongji-colleges">
+          {tongjiColleges.map((college) => <option key={college} value={college} />)}
+        </datalist>
         <header>
           <div>
             <span className="eyebrow">研究生培养质量研究 / 工作平台</span>
@@ -498,7 +502,7 @@ function App() {
                 </label>
                 <label>
                   所属学院
-                  <input required maxLength={100} value={accountCollege} placeholder="例如：合成试用学院" onChange={(e) => setAccountCollege(e.target.value)} />
+                  <input required maxLength={100} list="tongji-colleges" value={accountCollege} placeholder="输入或选择同济大学院系" onChange={(e) => setAccountCollege(e.target.value)} />
                 </label>
                 <p className="muted">
                   {preset === "ordinary" ? "普通可查看和分析所选学院的数据，学生姓名和学号会隐藏。" : "全权限可管理账号，并查看、导入、维护和导出所选学院的数据，包括学生身份与原件。"}

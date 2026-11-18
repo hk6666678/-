@@ -105,6 +105,7 @@ export function MilestonePanel({ csrf, fetcher }: Props) {
           <label>
             来源学院
             <input
+              list="tongji-colleges"
               value={college}
               onChange={(e) => setCollege(e.target.value)}
             />

@@ -17,6 +17,8 @@ test("personal account lifecycle through the browser", async ({
   await page.getByLabel("新账号用户名").fill("synthetic-member");
   await page.getByLabel("初始密码").fill("Synthetic-member-password!");
   await page.getByLabel("账号权限").selectOption("ordinary");
+  await expect(page.getByLabel("所属学院", { exact: true })).toHaveAttribute("list", "tongji-colleges");
+  await expect(page.locator('#tongji-colleges option[value="计算机科学与技术学院（软件学院）"]')).toHaveCount(1);
   await page.getByLabel("所属学院", { exact: true }).fill("合成试用学院");
   await page.getByRole("button", { name: "创建账号" }).click();
   const row = page
