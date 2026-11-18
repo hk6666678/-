@@ -192,8 +192,10 @@ def group_facts(
 
 
 def register_mentor_groups(
-    app: FastAPI, path: Path, current: Callable[..., Any]
+    app: FastAPI, path: Path, current: Callable[..., Any],
+    snapshot_loader: Callable[..., dict[str, Any]],
 ) -> None:
+    from aqp.mentor_effectiveness import effectiveness
     tables = {
         "mentors": ("mentor_directory", "mentor_number"),
         "groups": ("research_groups", "group_number"),
@@ -433,9 +435,14 @@ def register_mentor_groups(
     ) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
-            return group_facts(
+            result = group_facts(
                 db, actor["id"], as_of.isoformat(), mentor_id, group_id
             )
+            if mentor_id is not None and group_id is None:
+                result["effectiveness"] = effectiveness(db, actor["id"], as_of, "mentor_id", mentor_id, snapshot_loader)
+            elif group_id is not None and mentor_id is None:
+                result["effectiveness"] = effectiveness(db, actor["id"], as_of, "group_id", group_id, snapshot_loader)
+            return result
 
     @app.put("/api/mentor-groups/directory/{kind}/{entry_id}")
     def update_entry(

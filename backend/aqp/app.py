@@ -159,8 +159,6 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     register_courses(app, path, current)
 
     from aqp.mentor_groups import register_mentor_groups
-
-    register_mentor_groups(app, path, current)
     from aqp.model_connection import register_model_connection
     from aqp.reports import register_reports
 
@@ -176,6 +174,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     from aqp.evaluation import register_evaluation
 
     snapshot_loader = register_evaluation(app, path, current)
+    register_mentor_groups(app, path, current, snapshot_loader)
     register_reports(app, path, current, snapshot_loader)
     from aqp.candidates import register_candidates
 

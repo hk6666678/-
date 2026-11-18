@@ -155,6 +155,16 @@ def test_relation_dates_history_conflicts_and_current_revocation(client):
     assert facts["student_count"] == 1
     assert facts["graduation"]["status"] == "missing"
     assert facts["delay"]["status"] == "missing"
+    effectiveness = client.get(
+        "/api/mentor-groups/facts",
+        params={"as_of": "2026-01-01", "mentor_id": directories[0]},
+    ).json()["effectiveness"]
+    assert effectiveness["students"] == 1
+    assert effectiveness["scored"] == 0
+    assert effectiveness["rate"] is None
+    assert effectiveness["stability"] is None
+    assert effectiveness["acceleration"] is None
+    assert effectiveness["benchmark"]["rate"] == {"count": 0, "mean": None}
     from io import BytesIO
 
     from openpyxl import load_workbook
