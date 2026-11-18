@@ -1,5 +1,5 @@
 import { CollegeSelect } from "./CollegeSelect";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ProcessAlerts } from "./ProcessAlerts";
 import { TopicCorrelation } from "./TopicCorrelation";
 type Group = {
@@ -80,6 +80,8 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null),
     [history, setHistory] = useState<Snapshot[]>([]),
     [error, setError] = useState("");
+  const [running, setRunning] = useState(false);
+  const resultHeading = useRef<HTMLHeadingElement>(null);
   async function call(url: string, body?: unknown) {
     setError("");
     try {
@@ -89,6 +91,9 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
         body: body ? JSON.stringify(body) : undefined,
       });
       const data = await r.json();
+      if (r.status === 403 && body && data.detail === "此范围操作未授权") {
+        throw new Error("当前账号缺少所选范围的查看或分析权限，请选择已授权的学院和专业。");
+      }
       if (!r.ok)
         throw new Error(
           typeof data.detail === "string"
@@ -117,12 +122,14 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
       if (r) setHistory(r.items);
     })();
   }, []);
+  useEffect(() => {
+    if (snapshot) resultHeading.current?.focus();
+  }, [snapshot]);
   return (
     <section className="card">
       <h2>培养过程分析</h2>
-      <TopicCorrelation />
       <p>
-        课程、选题与中期的通过率、分布和分组对比。通过规则与培养要求的业务确认已集中到「业务规则管理」，本页只读引用其版本。
+        先选分析环节和学院，再点「生成新分析版本」。首次查看可将专业和其他筛选留空。
       </p>
       <label>
         分析环节
@@ -139,49 +146,70 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
           <option value="midterm">中期</option>
         </select>
       </label>
-      <label>
-        年级（入学年份）
-        <input value={grade} onChange={(e) => setGrade(e.target.value)} />
-      </label>
-      <label>
-        培养层次
-        <input value={level} onChange={(e) => setLevel(e.target.value)} />
-      </label>
-      <label>
-        对比分组
-        <select value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
-          <option value="">不分组</option>
-          <option value="grade">年级</option>
-          <option value="major">专业</option>
-          <option value="level">培养层次</option>
-        </select>
-      </label>
-      <p>
-        通过率＝通过考核记录／已知状态考核记录。未知不进入分母，空成绩不计零；学生人数去重。仅同课程、同学期、同评分制度展示均值和分布。
-      </p>
-      <CollegeSelect label="学院" value={college} onChange={setCollege} />
+      <CollegeSelect label="学院" value={college} onChange={(value) => {
+        setCollege(value);
+        setError("");
+      }} required />
       <label>
         专业
-        <input value={major} placeholder="分析留空表示当前授权专业；规则须具体专业" onChange={(e) => setMajor(e.target.value)} />
+        <input value={major} placeholder="留空查看授权范围内的全部专业" onChange={(e) => setMajor(e.target.value)} />
       </label>
-      <label>
-        {category === "courses"
-          ? "课程编号（分析可留空）"
-          : "考核批次（分析可留空）"}
-        <input value={course} onChange={(e) => setCourse(e.target.value)} />
-      </label>
-      <label>
-        学期（留空表示全部）
-        <input value={term} onChange={(e) => setTerm(e.target.value)} />
-      </label>
+      <details>
+        <summary>更多筛选条件</summary>
+        <label>
+          年级（入学年份）
+          <input value={grade} onChange={(e) => setGrade(e.target.value)} />
+        </label>
+        <label>
+          培养层次
+          <input value={level} onChange={(e) => setLevel(e.target.value)} />
+        </label>
+        <label>
+          对比分组
+          <select value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
+            <option value="">不分组</option>
+            <option value="grade">年级</option>
+            <option value="major">专业</option>
+            <option value="level">培养层次</option>
+          </select>
+        </label>
+        <label>
+          {category === "courses"
+            ? "课程编号（分析可留空）"
+            : "考核批次（分析可留空）"}
+          <input value={course} onChange={(e) => setCourse(e.target.value)} />
+        </label>
+        <label>
+          学期（留空表示全部）
+          <input value={term} onChange={(e) => setTerm(e.target.value)} />
+        </label>
+      </details>
       <button
+        disabled={running}
         onClick={async () => {
-          const r = await call(`/api/analyses/${category}`, scope);
-          if (r) setSnapshot(r);
+          if (!college.trim()) {
+            setError("请先选择学院。");
+            return;
+          }
+          setRunning(true);
+          setSnapshot(null);
+          try {
+            const r = await call(`/api/analyses/${category}`, {
+              ...scope, college: college.trim(), major: major.trim(),
+            });
+            if (r) {
+              setHistory((previous) => [r, ...previous.filter((item) => item.id !== r.id)]);
+              setSnapshot(r);
+            }
+          } finally {
+            setRunning(false);
+          }
         }}
       >
         生成新分析版本
       </button>
+      {running && <p role="status">正在生成分析，请稍候。</p>}
+      {error && <p role="alert">{error}</p>}
       {history.length > 0 && (
         <details>
           <summary>分析历史（{history.length}，进入本页自动读取）</summary>
@@ -198,13 +226,16 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
           ))}
         </details>
       )}
-      {error && <p role="alert">{error}</p>}
       {snapshot && (
         <>
-          <h3>
+          <h3 tabIndex={-1} ref={resultHeading}>
             分析版本 {snapshot.id} ·{" "}
             {snapshot.stale ? "已过时，请生成新版本" : "当前有效"}
           </h3>
+          {snapshot.result.assessment_count === 0 && (
+            <p>当前筛选范围内没有可分析的考核记录。可清空可选筛选，或检查对应环节的数据是否已导入。</p>
+          )}
+          <p>通过率按已知结果的考核记录计算。空成绩不计零；均值和分布按同课程、同学期、同评分制度计算。</p>
           <p>
             分析范围：{snapshot.scope.college} / {snapshot.scope.major || "授权范围内专业"} /{" "}
             {snapshot.scope.course_code || "全部课程"} /{" "}
@@ -410,6 +441,7 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
           </details>
         </>
       )}
+      <TopicCorrelation />
     </section>
   );
 }
