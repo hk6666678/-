@@ -44,13 +44,25 @@ def create_user(
 def public_user(
     row: sqlite3.Row, db: sqlite3.Connection | None = None
 ) -> dict[str, object]:
+    roles = json.loads(row["roles"])
+    school_view = bool(row["school_view"]) and bool(
+        {"platform_admin", "school_analyst"} & set(roles)
+    )
+    school_full = school_view and bool(row["school_full"]) and "platform_admin" in roles
     return {
         "id": row["id"],
         "username": row["username"],
-        "roles": json.loads(row["roles"]),
+        "roles": roles,
         "active": bool(row["active"]),
-        "school_view": bool(row["school_view"])
-        and "platform_admin" in json.loads(row["roles"]),
+        "school_view": school_view,
+        **(
+            {
+                "account_scope": "school",
+                "account_preset": "full" if school_full else "ordinary",
+            }
+            if school_full or (school_view and roles == ["school_analyst"])
+            else {}
+        ),
         "version": row["version"],
         "business_permissions": [
             dict(grant)

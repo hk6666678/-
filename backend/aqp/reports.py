@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import Response
 
 from aqp.analysis import outcome
-from aqp.authorization import allowed, student_allowed
+from aqp.authorization import allowed, school_operation_allowed, student_allowed
 from aqp.exports import excel_report
 from aqp.mentor_groups import group_facts
 from aqp.research_outputs import current_participant
@@ -529,7 +529,7 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any], snap
         return sorted(scopes)
 
     def any_basic_export(db: Any, actor: int) -> bool:
-        return (
+        return school_operation_allowed(db, actor, "export") or (
             db.execute(
                 "SELECT 1 FROM grants WHERE user_id=? AND category='basic' AND operation='export' LIMIT 1",
                 (actor,),

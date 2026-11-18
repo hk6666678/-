@@ -15,16 +15,21 @@ from aqp.store import audit, connection
 class AccountRoles(BaseModel):
     roles: list[str] = Field(min_length=1, max_length=6)
     preset: Literal["ordinary", "full"] | None = None
+    scope: Literal["college", "school"] = "college"
     college: str = Field(default="", max_length=100)
 
     @model_validator(mode="after")
     def resolve_preset(self) -> "AccountRoles":
         if self.preset:
             self.college = self.college.strip()
-            if not self.college:
+            if self.scope == "college" and not self.college:
                 raise ValueError("请选择所属学院")
             self.roles = [
-                "platform_admin" if self.preset == "full" else "college_analyst"
+                "platform_admin"
+                if self.preset == "full"
+                else "school_analyst"
+                if self.scope == "school"
+                else "college_analyst"
             ]
         return self
 
@@ -41,16 +46,26 @@ def apply_preset(
     before = grants_for(db, user_id)
     operations = preset_operations(body.preset)
     db.execute("DELETE FROM grants WHERE user_id=?", (user_id,))
-    db.executemany(
-        "INSERT INTO grants(user_id,category,operation,college,major) VALUES (?,?,?,?,'')",
+    db.execute(
+        "UPDATE users SET school_view=?, school_full=? WHERE id=?",
         (
-            (user_id, category, operation, body.college)
-            for category in get_args(Category)
-            for operation in operations
+            body.scope == "school",
+            body.scope == "school" and body.preset == "full",
+            user_id,
         ),
     )
+    if body.scope == "college":
+        db.executemany(
+            "INSERT INTO grants(user_id,category,operation,college,major) VALUES (?,?,?,?,'')",
+            (
+                (user_id, category, operation, body.college)
+                for category in get_args(Category)
+                for operation in operations
+            ),
+        )
     return {
         "preset": body.preset,
+        "scope": body.scope,
         "grants_before": before,
         "grants_after": grants_for(db, user_id),
     }
@@ -108,9 +123,13 @@ def register_management(
             result = []
             for row in db.execute("SELECT * FROM users ORDER BY id"):
                 account = public_user(row)
+                if account.get("account_scope") == "school":
+                    result.append(account)
+                    continue
                 roles = account["roles"]
                 grants = grants_for(db, row["id"])
                 colleges = {grant["college"] for grant in grants}
+                account["account_colleges"] = sorted(colleges)
                 preset = (
                     "full"
                     if roles == ["platform_admin"]
@@ -200,15 +219,24 @@ def register_management(
             roles = json.dumps(sorted(set(body.roles)))
             if body.school_view and "platform_admin" not in body.roles:
                 raise HTTPException(422, "只有管理员可以开启全校查看")
-            school_view = "platform_admin" in body.roles and (
+            school_view = bool(
+                {"platform_admin", "school_analyst"} & set(body.roles)
+            ) and (
                 bool(target["school_view"])
                 if body.school_view is None
                 else body.school_view
             )
+            if removing_admin and "platform_admin" in json.loads(target["roles"]):
+                school_view = False
+            school_full = (
+                bool(target["school_full"])
+                and "platform_admin" in body.roles
+                and school_view
+            )
             changed = bool(target["active"]) != body.active or target["roles"] != roles
             db.execute(
-                "UPDATE users SET active=?,roles=?,school_view=?,version=version+1 WHERE id=?",
-                (body.active, roles, school_view, user_id),
+                "UPDATE users SET active=?,roles=?,school_view=?,school_full=?,version=version+1 WHERE id=?",
+                (body.active, roles, school_view, school_full, user_id),
             )
             preset_details = apply_preset(db, user_id, body)
             if changed:
@@ -232,7 +260,7 @@ def register_management(
                     "after": {
                         "active": body.active,
                         "roles": json.loads(roles),
-                        "school_view": school_view,
+                        "school_view": result["school_view"],
                         "version": result["version"],
                     },
                 },

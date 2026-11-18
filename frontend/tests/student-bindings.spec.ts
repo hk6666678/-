@@ -13,14 +13,16 @@ test("administrator saves and revokes explicit student bindings", async ({ page 
   expect((await page.request.post(`/api/imports/${preview.id}/confirm`, { headers })).status()).toBe(200);
   const students = await (await page.request.get("/api/students")).json();
   const research = students.items[0].research_id;
-  await page.getByRole("button", { name: "高级授权", exact: true }).click();
+  await page.getByRole("button", { name: "个人账号管理" }).click();
+  await page.getByText("高级授权", { exact: true }).click();
   await page.getByLabel("配置账号").selectOption({ label: "synthetic-admin" });
   const bindings = page.getByLabel("学生研究编号绑定（每行一个）");
   await bindings.fill(research);
   await page.getByRole("button", { name: "保存学生绑定" }).click();
   await expect(page.getByRole("status")).toContainText("学生绑定已保存");
   await page.reload();
-  await page.getByRole("button", { name: "高级授权", exact: true }).click();
+  await page.getByRole("button", { name: "个人账号管理" }).click();
+  await page.getByText("高级授权", { exact: true }).click();
   await page.getByLabel("配置账号").selectOption({ label: "synthetic-admin" });
   await expect(bindings).toHaveValue(research);
   await bindings.fill("");

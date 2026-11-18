@@ -90,17 +90,19 @@ def student_allowed(
     )
 
 
-def school_read_allowed(db: sqlite3.Connection, user_id: int, operation: str) -> bool:
-    if operation not in {"view", "analyze"}:
-        return False
+def school_operation_allowed(
+    db: sqlite3.Connection, user_id: int, operation: str
+) -> bool:
     row = db.execute(
-        "SELECT roles,active,school_view FROM users WHERE id=?", (user_id,)
+        "SELECT roles,active,school_view,school_full FROM users WHERE id=?", (user_id,)
     ).fetchone()
-    return bool(
-        row
-        and row["active"]
-        and row["school_view"]
-        and "platform_admin" in json.loads(row["roles"])
+    if not row or not row["active"] or not row["school_view"]:
+        return False
+    roles = set(json.loads(row["roles"]))
+    if row["school_full"] and "platform_admin" in roles:
+        return True
+    return operation in {"view", "analyze"} and bool(
+        {"platform_admin", "school_analyst"} & roles
     )
 
 
@@ -112,7 +114,7 @@ def allowed(
     college: str,
     major: str,
 ) -> bool:
-    if school_read_allowed(db, user_id, operation):
+    if school_operation_allowed(db, user_id, operation):
         return True
     return (
         db.execute(
@@ -249,7 +251,7 @@ def compatible_scope(
     db: sqlite3.Connection, actor: int, category: str, payload: dict[str, object]
 ) -> bool:
     """Only an upload holding area may use this check; never grants identity."""
-    return any(
+    return school_operation_allowed(db, actor, "maintain") or any(
         g["category"] == category
         and g["operation"] == "maintain"
         and (not payload.get("所属学院") or g["college"] == payload["所属学院"])

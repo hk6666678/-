@@ -18,7 +18,7 @@ from aqp.authorization import (
     allowed,
     compatible_scope,
     grants_for,
-    school_read_allowed,
+    school_operation_allowed,
     student_allowed,
 )
 from aqp.store import audit, connection
@@ -114,7 +114,7 @@ def register_students(
     current: Callable[[sqlite3.Connection, Request], tuple[sqlite3.Row, str]],
 ) -> None:
     def require_any(db: sqlite3.Connection, actor: int, operation: str) -> None:
-        if not school_read_allowed(db, actor, operation) and not any(
+        if not school_operation_allowed(db, actor, operation) and not any(
             g["category"] == "basic" and g["operation"] == operation
             for g in grants_for(db, actor)
         ):

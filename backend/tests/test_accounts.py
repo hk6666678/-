@@ -68,6 +68,112 @@ def test_account_presets_apply_scoped_permissions_and_clear_on_downgrade(
     assert {row["operation"] for row in grants} == {"view", "analyze"}
 
 
+def test_school_presets_grant_and_revoke_cross_college_operations(
+    client: TestClient,
+) -> None:
+    from io import BytesIO
+
+    from openpyxl import Workbook
+
+    headers = login_admin(client)
+    response = client.post(
+        "/api/users",
+        headers=headers,
+        json={
+            "username": "school-preset",
+            "password": "Synthetic-password-123!",
+            "roles": ["platform_admin"],
+            "preset": "full",
+            "scope": "school",
+            "request_id": str(uuid4()),
+        },
+    )
+    assert response.status_code == 201, response.text
+    target = response.json()
+    with TestClient(client.app) as member:
+        login = member.post(
+            "/api/login",
+            json={
+                "username": "school-preset",
+                "password": "Synthetic-password-123!",
+            },
+        )
+        assert login.status_code == 200
+        member_headers = {"X-CSRF-Token": login.json()["csrf_token"]}
+        assert member.get("/api/templates/basic").status_code == 200
+        colleges = ["测试甲学院", "测试乙学院"]
+        wb = Workbook()
+        sheet = wb.active
+        sheet.append(["AQP-PGS", "basic", "1"])
+        sheet.append(["学号", "姓名", "所属学院", "专业", "培养层次", "入学年份"])
+        for index, college in enumerate(colleges):
+            sheet.append(
+                [
+                    f"school-{index}",
+                    f"模拟学生{index}",
+                    college,
+                    "计算机",
+                    "硕士",
+                    "2025",
+                ]
+            )
+        stream = BytesIO()
+        wb.save(stream)
+        batch = member.post(
+            "/api/imports/basic/preview",
+            headers=member_headers,
+            data={"source_department": "模拟"},
+            files={"file": ("school.xlsx", stream.getvalue())},
+        )
+        assert batch.status_code == 200, batch.text
+        confirmed = member.post(
+            f"/api/imports/{batch.json()['id']}/confirm", headers=member_headers
+        )
+        assert confirmed.status_code == 200
+        assert confirmed.json()["counts"] == {"imported": 2}
+        assert all(
+            "姓名" in row["data"] for row in member.get("/api/students").json()["items"]
+        )
+        for college in colleges:
+            report = member.post(
+                "/api/analyses/courses",
+                headers=member_headers,
+                json={"college": college},
+            )
+            assert report.status_code == 200, report.text
+        saved = client.patch(
+            f"/api/users/{target['id']}",
+            headers=headers,
+            json={
+                "active": True,
+                "roles": ["college_analyst"],
+                "preset": "ordinary",
+                "scope": "school",
+                "expected_version": target["version"],
+                "request_id": str(uuid4()),
+            },
+        )
+        assert saved.status_code == 200, saved.text
+        assert member.get("/api/students").status_code == 401
+        assert (
+            member.post(
+                "/api/login",
+                json={
+                    "username": "school-preset",
+                    "password": "Synthetic-password-123!",
+                },
+            ).status_code
+            == 200
+        )
+        visible = member.get("/api/students")
+        assert visible.status_code == 200
+        items = [row["data"] for row in visible.json()["items"]]
+        assert {row["所属学院"] for row in items} == set(colleges)
+        assert all("姓名" not in row and "学号" not in row for row in items)
+        assert member.get("/api/templates/basic").status_code == 403
+        assert member.get("/api/users").status_code == 403
+
+
 def test_admin_school_view_is_schoolwide_and_read_only(client: TestClient) -> None:
     from io import BytesIO
 

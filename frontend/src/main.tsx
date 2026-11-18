@@ -37,6 +37,8 @@ type User = {
   version: number;
   business_permissions: string[];
   account_preset?: AccountPreset;
+  account_scope?: "college" | "school";
+  account_colleges?: string[];
   preset_college?: string;
 };
 type Session = { user: User; csrf_token: string };
@@ -94,6 +96,7 @@ function App() {
     [password, setPassword] = useState(""),
     [preset, setPreset] = useState<AccountPreset>("ordinary");
   const [accountCollege, setAccountCollege] = useState("");
+  const [accountScope, setAccountScope] = useState<"college" | "school">("college");
   const [editingAccount, setEditingAccount] = useState<User | null>(null);
   const accountFormRef = useRef<HTMLElement>(null);
   const [navOpen, setNavOpen] = useState(false);
@@ -163,7 +166,8 @@ function App() {
             : { username, password }),
           roles: [preset === "full" ? "platform_admin" : "college_analyst"],
           preset,
-          college: accountCollege.trim(),
+          scope: accountScope,
+          college: accountScope === "college" ? accountCollege.trim() : "",
           request_id: crypto.randomUUID(),
         },
         session?.csrf_token,
@@ -171,11 +175,14 @@ function App() {
       setUsername("");
       setPassword("");
       setEditingAccount(null);
+      setPreset("ordinary");
+      setAccountScope("college");
+      setAccountCollege("");
       setNotice(account ? "账号权限已更新" : "账号已创建，权限已自动配置");
       await refresh();
     });
   }
-  async function update(user: User, nextRoles: Role[], active: boolean, schoolView?: boolean) {
+  async function update(user: User, nextRoles: Role[], active: boolean) {
     await perform(async () => {
       await request(
         `/api/users/${user.id}`,
@@ -183,15 +190,12 @@ function App() {
         {
           roles: nextRoles,
           active,
-          school_view: schoolView,
           expected_version: user.version,
           request_id: crypto.randomUUID(),
         },
         session?.csrf_token,
       );
-      setNotice(schoolView === undefined
-        ? "账号已更新，受影响账号需重新登录"
-        : schoolView ? "已开启全校查看" : "已关闭全校查看");
+      setNotice("账号已更新，受影响账号需重新登录");
       await refresh();
     });
   }
@@ -306,7 +310,6 @@ function App() {
                 ...(admin
                   ? [
                       ["accounts", "个人账号管理"],
-                      ["access", "高级授权"],
                       ["model", "获准模型连接"],
                       ["audit", "审计查询"],
                     ]
@@ -359,7 +362,6 @@ function App() {
                   courses: "课程导入与待关联",
                   students: "基础导入与学生档案",
                   model: "获准模型连接",
-                  access: "高级授权",
                 }[page]
               }
             </h1>
@@ -420,14 +422,6 @@ function App() {
           <StudentPanel csrf={session.csrf_token} fetcher={request} />
         ) : page === "model" && admin ? (
           <ModelPanel csrf={session.csrf_token} fetcher={request} />
-        ) : page === "access" ? (
-          <AccessPanel
-            key={session.user.id}
-            admin={admin}
-            csrf={session.csrf_token}
-            users={users}
-            fetcher={request}
-          />
         ) : page === "overview" || !admin ? (
           <>
             <section className="welcome">
@@ -460,7 +454,11 @@ function App() {
                 <p>
                   角色不自动开放学生数据。数据维护、查看、分析和导出需要分别授权。导师还须绑定学生，兼任其他角色也只能访问绑定学生与数据授权的交集；解绑立即生效。
                 </p>
-                <span className="badge">业务数据权限请在授权验证页面查看</span>
+                <span className="badge">
+                  {session.user.account_scope === "school" && session.user.account_preset === "full"
+                    ? "全校全权限"
+                    : session.user.school_view ? "全校查看和分析" : "按账号分配的学院访问"}
+                </span>
               </section>
             </div>
           </>
@@ -501,18 +499,33 @@ function App() {
                     <option value="full">全权限</option>
                   </select>
                 </label>
-                <CollegeSelect
+                <label>
+                  操作范围
+                  <select value={accountScope} onChange={(event) => setAccountScope(event.target.value === "school" ? "school" : "college")}>
+                    <option value="college">指定学院</option>
+                    <option value="school">全校</option>
+                  </select>
+                </label>
+                {accountScope === "college" && <CollegeSelect
                   key={editingAccount?.id ?? "new"}
                   label="所属学院"
                   value={accountCollege}
                   onChange={setAccountCollege}
                   required
-                />
+                />}
                 <p className="muted">
-                  {preset === "ordinary" ? "普通可查看和分析所选学院的数据，学生姓名和学号会隐藏。" : "全权限可管理账号，并查看、导入、维护和导出所选学院的数据，包括学生身份与原件。"}
-                  {editingAccount && "保存会替换此账号原有的角色和业务授权。"}
+                  新权限：{preset === "ordinary" ? "普通" : "全权限"} · {accountScope === "school" ? "全校" : accountCollege || "请选择学院"}。
+                  {preset === "ordinary" ? "可查看和分析，学生姓名和学号会隐藏。" : "可管理账号，查看、导入、修改和导出数据，也可查看学生身份与下载原件。"}
                 </p>
-                <button disabled={busy || !accountCollege.trim()}>
+                {editingAccount && <p className="muted">
+                  原权限：{editingAccount.account_preset === "full" ? "全权限" : editingAccount.account_preset === "ordinary" ? "普通" : "原有配置"}
+                  {editingAccount.account_scope === "school"
+                    ? " · 全校"
+                    : ` · ${editingAccount.account_colleges?.join("、") || "未配置学院业务权限"}`}
+                  {editingAccount.school_view && editingAccount.account_scope !== "school" && " · 全校查看"}
+                  。保存将替换原有权限。
+                </p>}
+                <button disabled={busy || (accountScope === "college" && !accountCollege.trim())}>
                   {editingAccount ? "保存权限" : "创建账号"}
                 </button>
                 {editingAccount && <button className="secondary" type="button" onClick={() => setEditingAccount(null)}>取消</button>}
@@ -522,7 +535,6 @@ function App() {
               <h2>
                 账号列表 <span className="muted">{users.length}</span>
               </h2>
-              <p className="muted">管理员可开启全校查看，直接查看和分析各学院。导入、修改、导出和查看学生身份仍按已有授权。</p>
               <div className="table-wrap">
                 <table className="accounts-table">
                   <thead>
@@ -546,7 +558,7 @@ function App() {
                           {user.account_preset ? (
                             <>
                               <span>{user.account_preset === "full" ? "全权限" : "普通"}</span>
-                              <small>{user.preset_college}</small>
+                              <small>{user.account_scope === "school" ? "全校" : user.preset_college}</small>
                             </>
                           ) : (
                             <>原有配置<small>{user.roles.map((role) => roleNames[role]).join("、")}</small></>
@@ -560,15 +572,6 @@ function App() {
                           </span>
                         </td>
                         <td>
-                          {user.roles.includes("platform_admin") && (
-                            <button
-                              className="secondary"
-                              disabled={busy || !user.active}
-                              onClick={() => void update(user, user.roles, user.active, !user.school_view)}
-                            >
-                              {user.school_view ? "关闭全校查看" : "开启全校查看"}
-                            </button>
-                          )}{" "}
                           <button
                             className="secondary"
                             disabled={busy}
@@ -576,6 +579,7 @@ function App() {
                               setEditingAccount(user);
                               setPreset(user.roles.includes("platform_admin") ? "full" : "ordinary");
                               setAccountCollege(user.preset_college ?? "");
+                              setAccountScope(user.account_scope === "school" ? "school" : "college");
                               accountFormRef.current?.scrollIntoView({ block: "start" });
                             }}
                           >
@@ -597,6 +601,16 @@ function App() {
                 </table>
               </div>
             </section>
+            <details className="card">
+              <summary>高级授权</summary>
+              <AccessPanel
+                key={session.user.id}
+                admin={admin}
+                csrf={session.csrf_token}
+                users={users}
+                fetcher={request}
+              />
+            </details>
           </>
         )}
       </main>

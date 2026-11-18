@@ -6,9 +6,8 @@ test("grant scope, expose identity and revoke through UI", async ({ page }) => {
     .getByLabel("密码", { exact: true })
     .fill("Synthetic-password-123!");
   await page.getByRole("button", { name: "登录平台" }).click();
-  await page
-    .getByRole("button", { name: "高级授权", exact: true })
-    .click();
+  await page.getByRole("button", { name: "个人账号管理" }).click();
+  await page.getByText("高级授权", { exact: true }).click();
   await page.getByLabel("配置账号").selectOption({ label: "synthetic-admin" });
   await page.getByRole("button", { name: "添加授权" }).click();
   await expect(page.getByRole("status")).toContainText("授权已保存");

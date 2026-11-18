@@ -14,10 +14,6 @@ test("personal account lifecycle through the browser", async ({
     .fill("Synthetic-password-123!");
   await page.getByRole("button", { name: "登录平台" }).click();
   await page.getByRole("button", { name: "个人账号管理" }).click();
-  await page.getByRole("button", { name: "开启全校查看" }).click();
-  await expect(page.getByRole("button", { name: "关闭全校查看" })).toBeVisible();
-  await page.getByRole("button", { name: "关闭全校查看" }).click();
-  await expect(page.getByRole("button", { name: "开启全校查看" })).toBeVisible();
   await page.getByLabel("新账号用户名").fill("synthetic-member");
   await page.getByLabel("初始密码").fill("Synthetic-member-password!");
   await page.getByLabel("账号权限").selectOption("ordinary");
@@ -39,9 +35,15 @@ test("personal account lifecycle through the browser", async ({
   await expect(row.getByText("全权限", { exact: true })).toBeVisible();
   await expect(row.getByText("计算机科学与技术学院（软件学院）", { exact: true })).toBeVisible();
   await row.getByRole("button", { name: "更改权限" }).click();
+  await page.getByLabel("操作范围").selectOption("school");
+  await expect(page.getByLabel("所属学院", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "保存权限" }).click();
+  await expect(row.getByText("全校", { exact: true })).toBeVisible();
+  await row.getByRole("button", { name: "更改权限" }).click();
   await page.getByLabel("账号权限").selectOption("ordinary");
   await page.getByRole("button", { name: "保存权限" }).click();
   await expect(row.getByText("普通", { exact: true })).toBeVisible();
+  await expect(row.getByText("全校", { exact: true })).toBeVisible();
   const memberContext = await browser.newContext();
   const member = await memberContext.newPage();
   await member.goto(page.url());
@@ -51,7 +53,7 @@ test("personal account lifecycle through the browser", async ({
     .fill("Synthetic-member-password!");
   await member.getByRole("button", { name: "登录平台" }).click();
   await expect(
-    member.getByText("业务数据权限请在授权验证页面查看"),
+    member.getByText("全校查看和分析"),
   ).toBeVisible();
   await expect(
     member.getByRole("button", { name: "个人账号管理" }),
