@@ -61,6 +61,40 @@ class Activation(BaseModel):
     acknowledge_simulation: Literal[True]
 
 
+def builtin_evaluation(college: str, major: str) -> dict[str, Any]:
+    dimensions = [
+        ("学术基础", [("course_pass_ratio", 1)]),
+        ("科研产出", [("research_paper_count", 3), ("patent_count", 2)]),
+        ("学术影响", [("award_count", 2), ("conference_count", 2), ("latest_citation_count", 20)]),
+    ]
+    # Consistent demonstration judgments: foundation and output are equally
+    # important and each is twice as important as impact.
+    matrix = [[1.0, 1.0, 2.0], [1.0, 1.0, 2.0], [0.5, 0.5, 1.0]]
+    size = len(matrix)
+    columns = [sum(column) for column in zip(*matrix, strict=True)]
+    weights = [sum(value / column for value, column in zip(row, columns, strict=True)) / size for row in matrix]
+    eigenvalue = sum(
+        sum(value * weight for value, weight in zip(row, weights, strict=True)) / row_weight
+        for row, row_weight in zip(matrix, weights, strict=True)
+    ) / size
+    ratio = max(0.0, (eigenvalue - size) / (size - 1) / 0.58)
+    if ratio >= 0.10:
+        raise ValueError("内置模拟 AHP 判断矩阵未通过一致性检验")
+    return {
+        "name": "内置多维模拟评分 v2", "mode": "simulation", "builtin": True,
+        "college": college, "major": major,
+        "ahp": {"matrix": matrix, "consistency_ratio": ratio, "dimensions": [
+            {"name": name, "weight": weight, "features": [feature for feature, _ in metrics]}
+            for (name, metrics), weight in zip(dimensions, weights, strict=True)
+        ]},
+        "metrics": [
+            {"feature": feature, "weight": weight / len(metrics), "minimum": 0, "maximum": maximum}
+            for (_, metrics), weight in zip(dimensions, weights, strict=True)
+            for feature, maximum in metrics
+        ],
+    }
+
+
 def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -> Callable[..., dict[str, Any]]:
     def deny(db: Any, actor: int, target: str, message: str) -> None:
         # Matches the analysis module: refusals stay auditable.
@@ -311,17 +345,11 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                 rule = db.execute(
                     """SELECT * FROM evaluation_rules WHERE enabled=1
                     AND json_extract(config,'$.college')=? AND json_extract(config,'$.major')=?
+                    AND (COALESCE(json_extract(config,'$.builtin'),0)=0 OR json_type(config,'$.ahp')='object')
                     ORDER BY COALESCE(json_extract(config,'$.builtin'),0), id DESC LIMIT 1""",
                     (student["college"], student["major"]),
                 ).fetchone()
-                config = json.loads(rule["config"]) if rule else {
-                    "name": "内置模拟评分 v1", "mode": "simulation", "builtin": True,
-                    "college": student["college"], "major": student["major"],
-                    "metrics": [
-                        {"feature": "course_pass_ratio", "weight": 1, "minimum": 0, "maximum": 1},
-                        {"feature": "research_paper_count", "weight": 1, "minimum": 0, "maximum": 3},
-                    ],
-                }
+                config = json.loads(rule["config"]) if rule else builtin_evaluation(student["college"], student["major"])
             else:
                 rule = db.execute("SELECT * FROM evaluation_rules WHERE id=?", (body.rule_id,)).fetchone()
                 if rule is None:
@@ -362,6 +390,17 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                 "total": total,
                 "data_digest": digest,
             }
+            if ahp := config.get("ahp"):
+                by_feature = {value["feature"]: value for value in values}
+                dimensions = []
+                for dimension in ahp["dimensions"]:
+                    members = [by_feature[feature] for feature in dimension["features"]]
+                    normalized = (
+                        None if any(member["missing"] for member in members)
+                        else sum(member["normalized"] for member in members) / len(members)
+                    )
+                    dimensions.append({**dimension, "normalized": normalized})
+                result["ahp"] = {**ahp, "dimensions": dimensions}
             cursor = db.execute(
                 "INSERT INTO evaluation_snapshots(student_id,rule_id,result,data_digest,created_by,created_at) VALUES(?,?,?,?,?,?)",
                 (

@@ -11,6 +11,11 @@ type Rule = {
 };
 type Snapshot = {
   rule_name?: string;
+  ahp?: {
+    matrix: number[][];
+    consistency_ratio: number;
+    dimensions: { name: string; weight: number; normalized: number | null }[];
+  };
   id: number;
   student_id: number;
   rule_id: number;
@@ -51,7 +56,7 @@ const features: Record<string, string> = {
   latest_citation_count: "最新引用总数",
 };
 
-function Radar({ inputs }: { inputs: Snapshot["inputs"] }) {
+function Radar({ inputs }: { inputs: { feature: string; normalized: number | null }[] }) {
   if (inputs.length < 3)
     return (
       <p>
@@ -97,7 +102,7 @@ function Radar({ inputs }: { inputs: Snapshot["inputs"] }) {
               textAnchor={lx > center + 4 ? "start" : lx < center - 4 ? "end" : "middle"}
               dominantBaseline="middle"
             >
-              {features[v.feature]}
+              {features[v.feature] ?? v.feature}
               {v.normalized === null ? "（缺失）" : ""}
             </text>
           </g>
@@ -479,8 +484,10 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
           </button>
           <div className="evaluation-charts">
             <div>
-              <h4>指标雷达</h4>
-              <Radar inputs={snapshot.inputs} />
+              <h4>{snapshot.ahp ? "维度雷达" : "指标雷达"}</h4>
+              <Radar inputs={snapshot.ahp?.dimensions.map((dimension) => ({
+                feature: dimension.name, normalized: dimension.normalized,
+              })) ?? snapshot.inputs} />
               <p>缺失指标的顶点收至中心仅为闭合图形，数值不是0分。</p>
             </div>
             <div>
@@ -494,6 +501,30 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
               />
             </div>
           </div>
+          {snapshot.ahp && (
+            <>
+              <h4>模拟维度得分</h4>
+              <ul>{snapshot.ahp.dimensions.map((dimension) => (
+                <li key={dimension.name}>{dimension.name} · 权重 {(dimension.weight * 100).toFixed(0)}% · {
+                  dimension.normalized === null ? "资料不足" : `${(dimension.normalized * 100).toFixed(1)} 分`
+                }</li>
+              ))}</ul>
+              <p>创新活跃度、成长潜力需更多可靠数据和评价口径，暂不计分。</p>
+              <details className="task-details">
+                <summary>查看 AHP 权重依据</summary>
+                <p>内置演示判断矩阵。每个维度内的指标等权，一致性比率 CR = {snapshot.ahp.consistency_ratio.toFixed(3)}，通过 0.10 阈值。</p>
+                <div className="table-wrap"><table>
+                  <thead><tr><th>维度</th>{snapshot.ahp.dimensions.map(({ name }) => <th key={name}>{name}</th>)}</tr></thead>
+                  <tbody>{snapshot.ahp.matrix.map((row, index) => (
+                    <tr key={snapshot.ahp?.dimensions[index].name}>
+                      <th scope="row">{snapshot.ahp?.dimensions[index].name}</th>
+                      {row.map((value, column) => <td key={column}>{value}</td>)}
+                    </tr>
+                  ))}</tbody>
+                </table></div>
+              </details>
+            </>
+          )}
           <div className="evaluation-table"><p className="table-hint">可左右滑动查看完整表格</p><div className="table-wrap"><table>
             <thead>
               <tr>

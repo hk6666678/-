@@ -22,7 +22,7 @@ def test_automatic_simulation_reuses_builtin_rule_without_activation_permission(
             "request_id": str(uuid4()),
             "grants": [
                 {"category": category, "operation": op, "college": "synthetic", "major": "synthetic"}
-                for category in ("basic", "talent_evaluation", "courses", "research_papers")
+                for category in ("basic", "talent_evaluation", "courses", "research_papers", "patents", "awards", "conferences")
                 for op in ("view", "identity", "analyze")
             ],
         },
@@ -31,7 +31,10 @@ def test_automatic_simulation_reuses_builtin_rule_without_activation_permission(
     assert first.status_code == 200, first.text
     second = client.post("/api/evaluation-snapshots", headers=headers, json={"student_id": 1})
     assert second.status_code == 200, second.text
-    assert first.json()["rule_name"] == "内置模拟评分 v1"
+    assert first.json()["rule_name"] == "内置多维模拟评分 v2"
+    assert first.json()["ahp"]["consistency_ratio"] < 0.10
+    assert [round(entry["weight"], 8) for entry in first.json()["ahp"]["dimensions"]] == [0.4, 0.4, 0.2]
+    assert len(first.json()["inputs"]) == 6
     assert second.json()["rule_id"] == first.json()["rule_id"]
     assert first.json()["total"] is None
     assert first.json()["inputs"][0]["missing"]
