@@ -50,6 +50,9 @@ test("basic Excel preview then confirmed archive", async ({ page }) => {
   await expect(page.getByText("ready: 1 / invalid: 1")).toBeVisible();
   await page.getByRole("button", { name: "确认导入有效行" }).click();
   await expect(page.getByText(/imported: 1/)).toBeVisible();
+  await page.getByLabel("专业筛选", { exact: true }).selectOption("合成专业");
+  await page.getByLabel("入学年份筛选", { exact: true }).selectOption("2025");
+  await page.getByLabel("培养层次筛选", { exact: true }).selectOption("硕士");
   await page.getByRole("button", { name: "查询学生档案" }).click();
   await expect(
     page.getByRole("button", { name: "查看来源" }).first(),

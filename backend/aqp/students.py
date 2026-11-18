@@ -389,6 +389,7 @@ def register_students(
         entry_year: int | None = None,
         offset: int = 0,
         limit: int = 50,
+        include_filters: bool = False,
     ) -> dict[str, object]:
         if offset < 0 or not 1 <= limit <= 200:
             raise HTTPException(422, "分页范围无效")
@@ -396,17 +397,36 @@ def register_students(
             actor, _ = current(db, request)
             require_any(db, actor["id"], "view")
             items = []
+            majors: set[str] = set()
+            years: set[int] = set()
+            levels: set[str] = set()
             for row in db.execute("SELECT * FROM students WHERE active=1 ORDER BY id"):
-                if (
+                matches = not (
                     (major and row["major"] != major)
                     or (level and row["level"] != level)
                     or (entry_year is not None and row["entry_year"] != entry_year)
-                ):
+                )
+                if not matches and not include_filters:
                     continue
                 if scope(db, actor["id"], "view", json.loads(row["payload"])):
-                    items.append(student_view(db, actor["id"], row))
+                    if include_filters:
+                        majors.add(row["major"])
+                        years.add(row["entry_year"])
+                        levels.add(row["level"])
+                    if matches:
+                        items.append(student_view(db, actor["id"], row))
             audit(db, actor["id"], "student.list", "students")
-            return {"total": len(items), "items": items[offset : offset + limit]}
+            result: dict[str, object] = {
+                "total": len(items),
+                "items": items[offset : offset + limit],
+            }
+            if include_filters:
+                result["filters"] = {
+                    "majors": sorted(majors),
+                    "entry_years": sorted(years, reverse=True),
+                    "levels": sorted(levels),
+                }
+            return result
 
     @app.get("/api/students/{student_id}")
     def student(student_id: int, request: Request) -> dict[str, object]:

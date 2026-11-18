@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 type Props = {
   csrf: string;
   fetcher: (
@@ -26,6 +26,7 @@ type Batch = {
     data: Record<string, unknown>;
   }[];
 };
+type Filters = { majors: string[]; entry_years: number[]; levels: string[] };
 export function StudentPanel({ csrf, fetcher }: Props) {
   const [error, setError] = useState(""),
     [department, setDepartment] = useState(""),
@@ -36,7 +37,15 @@ export function StudentPanel({ csrf, fetcher }: Props) {
     [busy, setBusy] = useState(false),
     [major, setMajor] = useState(""),
     [year, setYear] = useState(""),
-    [level, setLevel] = useState("");
+    [level, setLevel] = useState(""),
+    [filters, setFilters] = useState<Filters>({ majors: [], entry_years: [], levels: [] });
+  const refreshFilters = useCallback(async () => {
+    const result = (await fetcher("/api/students?include_filters=true&limit=1")) as { filters: Filters };
+    setFilters(result.filters);
+  }, [fetcher]);
+  useEffect(() => {
+    void refreshFilters().catch(() => {});
+  }, [refreshFilters]);
   async function act(action: () => Promise<void>) {
     setError("");
     setBusy(true);
@@ -139,7 +148,7 @@ export function StudentPanel({ csrf, fetcher }: Props) {
             <button
               disabled={busy}
               onClick={() =>
-                void act(async () =>
+                void act(async () => {
                   setBatch(
                     (await fetcher(
                       `/api/imports/${batch.id}/confirm`,
@@ -147,8 +156,9 @@ export function StudentPanel({ csrf, fetcher }: Props) {
                       undefined,
                       csrf,
                     )) as Batch,
-                  ),
-                )
+                  );
+                  await refreshFilters().catch(() => {});
+                })
               }
             >
               确认导入有效行
@@ -180,22 +190,28 @@ export function StudentPanel({ csrf, fetcher }: Props) {
       </section>
       <section className="card">
         <h2>统一学生档案</h2>
+        <p className="muted">下拉选项来自你有权查看的学生档案，导入新数据后会更新。</p>
         <div className="account-form">
           <label>
             专业筛选
-            <input value={major} onChange={(e) => setMajor(e.target.value)} />
+            <select aria-label="专业筛选" value={major} onChange={(e) => setMajor(e.target.value)}>
+              <option value="">全部专业</option>
+              {filters.majors.map((option) => <option key={option}>{option}</option>)}
+            </select>
           </label>
           <label>
             入学年份筛选
-            <input
-              type="number"
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
-            />
+            <select aria-label="入学年份筛选" value={year} onChange={(e) => setYear(e.target.value)}>
+              <option value="">全部年份</option>
+              {filters.entry_years.map((option) => <option key={option}>{option}</option>)}
+            </select>
           </label>
           <label>
             培养层次筛选
-            <input value={level} onChange={(e) => setLevel(e.target.value)} />
+            <select aria-label="培养层次筛选" value={level} onChange={(e) => setLevel(e.target.value)}>
+              <option value="">全部培养层次</option>
+              {filters.levels.map((option) => <option key={option}>{option}</option>)}
+            </select>
           </label>
         </div>
         <button disabled={busy} onClick={() => void load()}>
