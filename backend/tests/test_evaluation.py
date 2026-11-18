@@ -2,6 +2,41 @@
 from test_accounts import client, login_admin  # noqa: F401
 
 
+def test_automatic_simulation_reuses_builtin_rule_without_activation_permission(client, tmp_path):
+    from uuid import uuid4
+
+    from aqp.store import connection
+
+    headers = login_admin(client)
+    me = client.get("/api/me").json()["user"]
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        db.execute(
+            "INSERT INTO students(id,research_id,student_number,name,college,major,level,entry_year,payload) "
+            "VALUES(1,'R1','S1','Synthetic','synthetic','synthetic','master',2025,'{}')"
+        )
+    assert client.put(
+        f"/api/users/{me['id']}/grants",
+        headers=headers,
+        json={
+            "expected_version": me["version"],
+            "request_id": str(uuid4()),
+            "grants": [
+                {"category": category, "operation": op, "college": "synthetic", "major": "synthetic"}
+                for category in ("basic", "talent_evaluation", "courses", "research_papers")
+                for op in ("view", "identity", "analyze")
+            ],
+        },
+    ).status_code == 200
+    first = client.post("/api/evaluation-snapshots", headers=headers, json={"student_id": 1})
+    assert first.status_code == 200, first.text
+    second = client.post("/api/evaluation-snapshots", headers=headers, json={"student_id": 1})
+    assert second.status_code == 200, second.text
+    assert first.json()["rule_name"] == "内置模拟评分 v1"
+    assert second.json()["rule_id"] == first.json()["rule_id"]
+    assert first.json()["total"] is None
+    assert first.json()["inputs"][0]["missing"]
+
+
 def test_evaluation_requires_business_grant(client):
     headers = login_admin(client)
     body = {

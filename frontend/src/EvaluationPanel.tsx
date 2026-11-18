@@ -10,6 +10,7 @@ type Rule = {
   config: { name: string; college: string; major: string; mode: string };
 };
 type Snapshot = {
+  rule_name?: string;
   id: number;
   student_id: number;
   rule_id: number;
@@ -252,8 +253,6 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
   async function load() {
     const items = (await call("/api/evaluation-rules")).items;
     setRules(items);
-    // 默认选中已启用规则，评分无需再手动选一遍
-    setSelected((prev) => prev ?? items.find((r: Rule) => r.enabled)?.id);
   }
   async function loadSnapshots() {
     setSnapshots((await call("/api/evaluation-snapshots")).items);
@@ -294,7 +293,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
 
       <article className="card">
         <h3>为学生生成模拟评分</h3>
-        <p>{rule ? `当前规则：${rule.config.name} / v${rule.version}` : "暂无可用评分规则。"}</p>
+        <p>{rule ? `当前规则：${rule.config.name} / v${rule.version}` : "自动使用该生适用的规则。首次可直接使用内置模拟方案。"}</p>
         <details className="task-details"><summary>按专业缩小学生列表</summary>
         <label>
           学生列表专业筛选
@@ -351,7 +350,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
               ))}
             </select>
           </label>
-          <button disabled={!rule || !rule.enabled}>保存新评分快照</button>
+          <button disabled={!!rule && !rule.enabled}>保存新评分快照</button>
         </form>
         <details className="task-details"><summary>查看历史评分</summary>
         <label>
@@ -396,6 +395,11 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
             </tr>
           </thead>
           <tbody>
+            <tr>
+              <td><input type="radio" name="evaluation-rule" aria-label="自动匹配评分规则"
+                checked={selected === undefined} onChange={() => setSelected(undefined)} /></td>
+              <td colSpan={4}>按所选学生自动匹配</td>
+            </tr>
             {rules.map((r) => (
               <tr key={r.id}>
                 <td>
@@ -442,7 +446,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
             {snapshot.stale
               ? "来源已更新，请重新评分生成新快照"
               : "来源版本未变化"}{" "}
-            · 规则 #{snapshot.rule_id} / v{snapshot.rule_version} ·{" "}
+            · {snapshot.rule_name || "评分规则"} #{snapshot.rule_id} / v{snapshot.rule_version} ·{" "}
             {new Date(snapshot.as_of * 1000).toLocaleString()}
           </p>
           <button

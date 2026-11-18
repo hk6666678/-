@@ -304,16 +304,41 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
         with connection(path) as db:
             db.execute("BEGIN IMMEDIATE")
             actor, _ = current(db, request)
-            rule = db.execute(
-                "SELECT * FROM evaluation_rules WHERE id=?", (body.rule_id,)
-            ).fetchone()
-            if rule is None:
-                raise HTTPException(404, "规则不存在")
-            config = json.loads(rule["config"])
+            if body.rule_id is None:
+                student = db.execute("SELECT college,major FROM students WHERE id=? AND active=1", (body.student_id,)).fetchone()
+                if student is None or not student_allowed(db, actor["id"], body.student_id):
+                    deny(db, actor["id"], str(body.student_id), "学生当前范围不可访问")
+                rule = db.execute(
+                    """SELECT * FROM evaluation_rules WHERE enabled=1
+                    AND json_extract(config,'$.college')=? AND json_extract(config,'$.major')=?
+                    ORDER BY COALESCE(json_extract(config,'$.builtin'),0), id DESC LIMIT 1""",
+                    (student["college"], student["major"]),
+                ).fetchone()
+                config = json.loads(rule["config"]) if rule else {
+                    "name": "内置模拟评分 v1", "mode": "simulation", "builtin": True,
+                    "college": student["college"], "major": student["major"],
+                    "metrics": [
+                        {"feature": "course_pass_ratio", "weight": 1, "minimum": 0, "maximum": 1},
+                        {"feature": "research_paper_count", "weight": 1, "minimum": 0, "maximum": 3},
+                    ],
+                }
+            else:
+                rule = db.execute("SELECT * FROM evaluation_rules WHERE id=?", (body.rule_id,)).fetchone()
+                if rule is None:
+                    raise HTTPException(404, "规则不存在")
+                config = json.loads(rule["config"])
             authorize(db, actor["id"], config, "analyze")
-            if not rule["enabled"]:
+            if rule is not None and not rule["enabled"]:
                 raise HTTPException(409, "规则尚未启用")
             values, digest = inputs(db, actor["id"], body.student_id, config)
+            if rule is None:
+                family = db.execute("SELECT COALESCE(MAX(family_id),0)+1 FROM evaluation_rules").fetchone()[0]
+                cursor = db.execute(
+                    """INSERT INTO evaluation_rules(family_id,version,config,enabled,confirmed_by,basis,created_by,created_at,enabled_at)
+                    VALUES(?,1,?,1,'系统内置','仅供模拟研究',?,?,?)""",
+                    (family, json.dumps(config), actor["id"], int(time.time()), int(time.time())),
+                )
+                rule = db.execute("SELECT * FROM evaluation_rules WHERE id=?", (cursor.lastrowid,)).fetchone()
             max_weight = max(v["weight"] for v in values)
             total = (
                 None
@@ -327,7 +352,8 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                 "mode": config["mode"],
                 "notice": "模拟演示，不构成正式人才识别",
                 "student_id": body.student_id,
-                "rule_id": body.rule_id,
+                "rule_id": rule["id"],
+                "rule_name": config["name"],
                 "family_id": rule["family_id"],
                 "rule_version": rule["version"],
                 "scope": {"college": config["college"], "major": config["major"]},
@@ -340,7 +366,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                 "INSERT INTO evaluation_snapshots(student_id,rule_id,result,data_digest,created_by,created_at) VALUES(?,?,?,?,?,?)",
                 (
                     body.student_id,
-                    body.rule_id,
+                    rule["id"],
                     json.dumps(result, allow_nan=False),
                     digest,
                     actor["id"],
@@ -550,4 +576,4 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
 class ScoreInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     student_id: int = Field(ge=1)
-    rule_id: int = Field(ge=1)
+    rule_id: int | None = Field(default=None, ge=1)
