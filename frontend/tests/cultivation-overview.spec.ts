@@ -1,8 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-test("one scope loads the cultivation stages and student evidence", async ({ page }) => {
-  const scope = { college: "合成试用学院", major: "", grade: "2024" };
+test("selecting a student loads their cultivation stages and evidence", async ({ page }) => {
+  const scope = { college: "合成试用学院", major: "合成专业", student_id: 42 };
   const stages: string[] = [];
+  await page.route("**/api/students?limit=50&offset=0", (route) => route.fulfill({ json: {
+    items: [{ id: 42, research_id: "R42", data: { 所属学院: scope.college, 专业: "合成专业" } }],
+    total: 1,
+  }}));
   await page.route(/\/api\/analyses\/(courses|topic|midterm)$/, (route) => {
     const category = new URL(route.request().url()).pathname.split("/").at(-1)!;
     expect(route.request().postDataJSON()).toEqual(scope);
@@ -22,10 +26,11 @@ test("one scope loads the cultivation stages and student evidence", async ({ pag
   await page.getByLabel("密码", { exact: true }).fill("Synthetic-password-123!");
   await page.getByRole("button", { name: "登录平台" }).click();
   await page.getByRole("button", { name: "培养过程分析", exact: true }).click();
-  await page.getByLabel("学生所在学院").selectOption(scope.college);
-  await page.getByLabel("总览入学年份").fill(scope.grade);
-  await page.getByRole("button", { name: "查看培养概况" }).click();
-  await expect(page.getByRole("heading", { name: "培养概况" })).toBeVisible();
+  await page.getByLabel("研究生", { exact: true }).selectOption("42");
+  await page.getByRole("button", { name: "查看培养过程" }).click();
+  await expect(page.getByRole("heading", { name: "个人培养过程" })).toBeVisible();
+  await expect(page.locator("p").filter({ hasText: "R42 · 合成试用学院 · 合成专业" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "按范围查看" })).toHaveCount(0);
   expect(stages.sort()).toEqual(["courses", "midterm", "topic"]);
   await expect(page.getByText("通过率 100%")).toBeVisible();
   await expect(page.getByText("此范围操作未授权")).toBeVisible();

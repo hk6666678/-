@@ -142,7 +142,7 @@ export function WorkbenchAlerts({ openAnalysis }: { openAnalysis: () => void }) 
     async function load() {
       const { items } = await read("/api/analyses") as { items: Snapshot[] };
       const selected = ["courses", "topic", "midterm"].flatMap((category) => {
-        const item = items.find((snapshot) => snapshot.category === category && !snapshot.stale);
+        const item = items.find((snapshot) => snapshot.category === category && !snapshot.stale && !snapshot.scope.student_id);
         return item ? [item] : [];
       });
       setSnapshots(await Promise.all(selected.map((item) => read(`/api/analyses/${item.id}`))));

@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import type { Snapshot } from "./AnalysisPanel";
-import { CollegeSelect } from "./CollegeSelect";
 import { StudentAlerts } from "./ProcessAlerts";
 
 const stages = [
@@ -10,29 +9,45 @@ const stages = [
 ];
 
 type Outcome = { snapshot: Snapshot } | { error: string };
-type Scope = { college: string; major: string; grade: string };
+type Scope = { college: string; major: string; student_id: number };
+type Student = { id: number; research_id: string; name?: string; data: Record<string, string> };
+const pageSize = 50;
 
-export function CultivationOverview({ csrf, onSnapshots, showSnapshot }: {
+function studentLabel(student: Student) {
+  return [student.name, student.research_id, student.data["所属学院"], student.data["专业"]].filter(Boolean).join(" · ");
+}
+
+export function CultivationOverview({ csrf, showSnapshot }: {
   csrf: string;
-  onSnapshots: (snapshots: Snapshot[]) => void;
-  showSnapshot: (snapshot: Snapshot) => void;
+  showSnapshot: (snapshot: Snapshot | null) => void;
 }) {
-  const [college, setCollege] = useState("");
+  const [page, setPage] = useState(0);
+  const [roster, setRoster] = useState<{ items: Student[]; total: number }>();
+  const [rosterError, setRosterError] = useState(false);
+  const [studentId, setStudentId] = useState("");
   const [running, setRunning] = useState(false);
-  const [error, setError] = useState("");
-  const [result, setResult] = useState<{ scope: Scope; outcomes: Outcome[] }>();
+  const [result, setResult] = useState<{ student: Student; outcomes: Outcome[] }>();
   const heading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => { if (result) heading.current?.focus(); }, [result]);
+  useEffect(() => {
+    const controller = new AbortController();
+    setRoster(undefined);
+    setRosterError(false);
+    void fetch(`/api/students?limit=${pageSize}&offset=${page * pageSize}`, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error();
+        return response.json();
+      })
+      .then(setRoster)
+      .catch(() => { if (!controller.signal.aborted) setRosterError(true); });
+    return () => controller.abort();
+  }, [page]);
 
-  async function load(scope: Scope) {
-    if (!scope.college) {
-      setError("请先选择学院。");
-      return;
-    }
+  async function load(scope: Scope, student: Student) {
     setRunning(true);
-    setError("");
     setResult(undefined);
+    showSnapshot(null);
     const outcomes: Outcome[] = [];
     for (const stage of stages) {
       try {
@@ -42,16 +57,24 @@ export function CultivationOverview({ csrf, onSnapshots, showSnapshot }: {
           body: JSON.stringify(scope),
         });
         const data = await response.json();
-        outcomes.push(response.ok ? { snapshot: data } : {
-          error: typeof data.detail === "string" ? data.detail : "分析失败，请检查所选范围。",
-        });
+        if (response.ok && data.scope?.student_id === scope.student_id) {
+          outcomes.push({ snapshot: data });
+        } else {
+          outcomes.push({ error: typeof data.detail === "string" ? data.detail : "未取得该学生的分析结果，请刷新后重试。" });
+        }
       } catch {
         outcomes.push({ error: "加载失败，请稍后重试。" });
       }
     }
-    onSnapshots(outcomes.flatMap((item) => "snapshot" in item ? [item.snapshot] : []));
-    setResult({ scope, outcomes });
+    setResult({ student, outcomes });
     setRunning(false);
+  }
+
+  function changePage(next: number) {
+    setStudentId("");
+    setResult(undefined);
+    showSnapshot(null);
+    setPage(next);
   }
 
   const snapshots = result?.outcomes.flatMap((item) => "snapshot" in item ? [item.snapshot] : []) ?? [];
@@ -59,26 +82,38 @@ export function CultivationOverview({ csrf, onSnapshots, showSnapshot }: {
     <>
       <form className="cultivation-scope" onSubmit={(event) => {
         event.preventDefault();
-        const fields = new FormData(event.currentTarget);
-        void load({ college: college.trim(), major: String(fields.get("major")).trim(), grade: String(fields.get("grade")) });
+        const student = roster?.items.find((item) => String(item.id) === studentId);
+        if (student) void load({
+          college: student.data["所属学院"], major: student.data["专业"], student_id: student.id,
+        }, student);
       }}>
         <fieldset disabled={running}>
-          <legend>选择要查看的学生范围</legend>
-          <CollegeSelect label="学生所在学院" value={college} onChange={(value) => {
-            setCollege(value);
-            setError("");
-          }} required />
-          <label>专业（可选）<input name="major" placeholder="留空查看授权范围内的全部专业" /></label>
-          <label>入学年份（可选）<input aria-label="总览入学年份" name="grade" type="number" min="1900" max="2100" /></label>
-          <button>查看培养概况</button>
+          <label>研究生
+            <select aria-label="研究生" value={studentId} onChange={(event) => {
+              setStudentId(event.target.value);
+              setResult(undefined);
+              showSnapshot(null);
+            }} required disabled={!roster?.items.length}>
+              <option value="">请选择研究生</option>
+              {roster?.items.map((student) => <option key={student.id} value={student.id}>{studentLabel(student)}</option>)}
+            </select>
+          </label>
+          {rosterError ? <p role="alert">无法读取学生档案，请核对账号是否有基础档案查看权限。</p>
+            : !roster ? <p role="status">正在读取授权范围内的学生</p>
+            : roster.total === 0 ? <p>授权范围内暂无学生档案。</p> : null}
+          {roster && roster.total > pageSize && <div>
+            <button type="button" disabled={page === 0} onClick={() => changePage(page - 1)}>上一页</button>
+            <button type="button" disabled={(page + 1) * pageSize >= roster.total} onClick={() => changePage(page + 1)}>下一页</button>
+            <p>第 {page + 1}/{Math.ceil(roster.total / pageSize)} 页</p>
+          </div>}
+          <button disabled={!studentId}>查看培养过程</button>
         </fieldset>
       </form>
-      {error && <p role="alert">{error}</p>}
-      {running && <p role="status">正在分析同一范围的课程、选题和中期。</p>}
+      {running && <p role="status">正在分析课程、选题和中期。</p>}
       {result && (
         <>
-          <h3 ref={heading} tabIndex={-1}>培养概况</h3>
-          <p>{result.scope.college} · {result.scope.major || "授权范围内的专业"} · {result.scope.grade ? `${result.scope.grade} 级` : "全部年级"}</p>
+          <h3 ref={heading} tabIndex={-1}>个人培养过程</h3>
+          <p>{studentLabel(result.student)}</p>
           <div className="cultivation-stages">
             {result.outcomes.map((outcome, index) => {
               const stage = stages[index];
@@ -87,11 +122,15 @@ export function CultivationOverview({ csrf, onSnapshots, showSnapshot }: {
                   <h4>{stage.label}</h4>
                   {"error" in outcome ? <p>{outcome.error}</p> : (
                     <>
-                      {outcome.snapshot.result.assessment_count === 0 ? <p>当前范围暂无可分析记录。</p> : (
+                      {outcome.snapshot.result.assessment_count === 0 ? <p>该学生暂无可分析记录。</p> : (
                         <>
-                          <p>{outcome.snapshot.result.student_count} 人 · {outcome.snapshot.result.assessment_count} 条考核记录</p>
+                          <p>{outcome.snapshot.result.assessment_count} 条考核记录</p>
                           <p>{outcome.snapshot.result.pass_rate === null ? "通过率暂无数据" : `通过率 ${outcome.snapshot.result.pass_rate}%`}</p>
                           <p>未通过 {outcome.snapshot.result.failed} 条 · 状态未知 {outcome.snapshot.result.unknown} 条</p>
+                          {stage.key === "courses" && (() => {
+                            const progress = outcome.snapshot.result.credit_progress?.students?.[0];
+                            return <p>{progress ? `已获 ${progress.earned_credits} 学分 · 完成 ${progress.progress_percent}%` : "学分进度暂不可计算，查看明细了解缺项。"}</p>;
+                          })()}
                         </>
                       )}
                       <button type="button" className="secondary" onClick={() => showSnapshot(outcome.snapshot)}>查看{stage.label}明细</button>

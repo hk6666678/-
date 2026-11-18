@@ -118,17 +118,15 @@ test("synthetic Excel report and originals use independent current grants", asyn
     await page
       .getByRole("button", { name: "培养过程分析", exact: true })
       .click();
-    await page.getByText("单环节分析与历史", { exact: true }).click();
     const scope = page.locator("section").filter({
       has: page.getByRole("heading", {
         name: "培养过程分析",
         exact: true,
       }),
     });
-    await scope.getByLabel("学院", { exact: true }).selectOption("__other_college__");
-    await scope.getByLabel("其他学院名称", { exact: true }).fill("导出19合成学院");
-    await scope.getByLabel("专业", { exact: true }).fill("导出19合成专业");
-    await scope.getByRole("button", { name: "生成新分析版本" }).click();
+    await page.getByLabel("研究生", { exact: true }).selectOption({ index: 1 });
+    await page.getByRole("button", { name: "查看培养过程", exact: true }).click();
+    await scope.getByRole("button", { name: "查看课程明细" }).click();
     const link = scope.getByRole("link", {
       name: "下载分析 Excel（须导出权限）",
     });

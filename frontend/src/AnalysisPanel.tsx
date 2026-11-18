@@ -1,7 +1,5 @@
-import { CollegeSelect } from "./CollegeSelect";
 import { useEffect, useRef, useState } from "react";
 import { ProcessAlerts } from "./ProcessAlerts";
-import { TopicCorrelation } from "./TopicCorrelation";
 import { CultivationOverview } from "./CultivationOverview";
 type Group = {
   group_value: string;
@@ -22,6 +20,7 @@ export type Snapshot = {
   id: number;
   category: string;
   scope: {
+    student_id?: number | null;
     college: string;
     major: string;
     course_code: string;
@@ -70,181 +69,17 @@ export type Snapshot = {
   }[];
 };
 export function AnalysisPanel({ csrf }: { csrf: string }) {
-  const [category, setCategory] = useState("courses"),
-    [grade, setGrade] = useState(""),
-    [level, setLevel] = useState(""),
-    [groupBy, setGroupBy] = useState("");
-  const [college, setCollege] = useState(""),
-    [major, setMajor] = useState(""),
-    [course, setCourse] = useState(""),
-    [term, setTerm] = useState("");
-  const [snapshot, setSnapshot] = useState<Snapshot | null>(null),
-    [history, setHistory] = useState<Snapshot[]>([]),
-    [error, setError] = useState("");
-  const [running, setRunning] = useState(false);
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const resultHeading = useRef<HTMLHeadingElement>(null);
-  const details = useRef<HTMLDetailsElement>(null);
-  function remember(snapshots: Snapshot[]) {
-    setHistory((previous) => [
-      ...snapshots.filter((item) => !previous.some((other) => other.id === item.id)),
-      ...previous,
-    ].sort((a, b) => b.id - a.id));
-  }
-  async function call(url: string, body?: unknown) {
-    setError("");
-    try {
-      const r = await fetch(url, {
-        method: body ? "POST" : "GET",
-        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
-        body: body ? JSON.stringify(body) : undefined,
-      });
-      const data = await r.json();
-      if (r.status === 403 && body && data.detail === "此范围操作未授权") {
-        throw new Error("当前账号缺少所选范围的查看或分析权限，请选择已授权的学院和专业。");
-      }
-      if (!r.ok)
-        throw new Error(
-          typeof data.detail === "string"
-            ? data.detail
-            : "请检查完整条件及授权",
-        );
-      return data;
-    } catch (e) {
-      setError((e as Error).message);
-      return null;
-    }
-  }
-  const scope = {
-    college,
-    major,
-    course_code: course,
-    term,
-    category,
-    grade,
-    level,
-    group_by: groupBy,
-  };
-  useEffect(() => {
-    void (async () => {
-      const r = await call("/api/analyses");
-      if (r) remember(r.items);
-    })();
-  }, []);
+
   useEffect(() => {
     if (snapshot) resultHeading.current?.focus();
   }, [snapshot]);
+
   return (
     <section className="card">
       <h2>培养过程分析</h2>
-      <CultivationOverview
-        csrf={csrf}
-        onSnapshots={remember}
-        showSnapshot={(item) => {
-          if (details.current) details.current.open = true;
-          setSnapshot(item);
-          if (item === snapshot) resultHeading.current?.focus();
-        }}
-      />
-      <details ref={details}>
-        <summary>单环节分析与历史</summary>
-      <p>
-        先选分析环节和学院，再点「生成新分析版本」。首次查看可将专业和其他筛选留空。
-      </p>
-      <label>
-        分析环节
-        <select
-          aria-label="分析环节"
-          value={category}
-          onChange={(e) => {
-            setCategory(e.target.value);
-            setSnapshot(null);
-          }}
-        >
-          <option value="courses">课程</option>
-          <option value="topic">选题</option>
-          <option value="midterm">中期</option>
-        </select>
-      </label>
-      <CollegeSelect label="学院" value={college} onChange={(value) => {
-        setCollege(value);
-        setError("");
-      }} required />
-      <label>
-        专业
-        <input value={major} placeholder="留空查看授权范围内的全部专业" onChange={(e) => setMajor(e.target.value)} />
-      </label>
-      <details>
-        <summary>更多筛选条件</summary>
-        <label>
-          年级（入学年份）
-          <input value={grade} onChange={(e) => setGrade(e.target.value)} />
-        </label>
-        <label>
-          培养层次
-          <input value={level} onChange={(e) => setLevel(e.target.value)} />
-        </label>
-        <label>
-          对比分组
-          <select value={groupBy} onChange={(e) => setGroupBy(e.target.value)}>
-            <option value="">不分组</option>
-            <option value="grade">年级</option>
-            <option value="major">专业</option>
-            <option value="level">培养层次</option>
-          </select>
-        </label>
-        <label>
-          {category === "courses"
-            ? "课程编号（分析可留空）"
-            : "考核批次（分析可留空）"}
-          <input value={course} onChange={(e) => setCourse(e.target.value)} />
-        </label>
-        <label>
-          学期（留空表示全部）
-          <input value={term} onChange={(e) => setTerm(e.target.value)} />
-        </label>
-      </details>
-      <button
-        disabled={running}
-        onClick={async () => {
-          if (!college.trim()) {
-            setError("请先选择学院。");
-            return;
-          }
-          setRunning(true);
-          setSnapshot(null);
-          try {
-            const r = await call(`/api/analyses/${category}`, {
-              ...scope, college: college.trim(), major: major.trim(),
-            });
-            if (r) {
-              remember([r]);
-              setSnapshot(r);
-            }
-          } finally {
-            setRunning(false);
-          }
-        }}
-      >
-        生成新分析版本
-      </button>
-      {running && <p role="status">正在生成分析，请稍候。</p>}
-      {error && <p role="alert">{error}</p>}
-      {history.length > 0 && (
-        <details>
-          <summary>分析历史（{history.length}，进入本页自动读取）</summary>
-          {history.map((h) => (
-            <button
-              key={h.id}
-              onClick={async () => {
-                const r = await call(`/api/analyses/${h.id}`);
-                if (r) setSnapshot(r);
-              }}
-            >
-              分析 {h.id} {h.stale ? "过时" : "有效"}
-            </button>
-          ))}
-        </details>
-      )}
+      <CultivationOverview csrf={csrf} showSnapshot={setSnapshot} />
       {snapshot && (
         <>
           <h3 tabIndex={-1} ref={resultHeading}>
@@ -256,7 +91,8 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
           )}
           <p>通过率按已知结果的考核记录计算。空成绩不计零；均值和分布按同课程、同学期、同评分制度计算。</p>
           <p>
-            分析范围：{snapshot.scope.college} / {snapshot.scope.major || "授权范围内专业"} /{" "}
+            分析范围：{snapshot.scope.student_id && `研究记录 ${snapshot.scope.student_id} / `}
+            {snapshot.scope.college} / {snapshot.scope.major || "授权范围内专业"} /{" "}
             {snapshot.scope.course_code || "全部课程"} /{" "}
             {snapshot.scope.term || "全部学期"} · 年级{" "}
             {snapshot.scope.grade || "全部"} · 培养层次{" "}
@@ -460,8 +296,6 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
           </details>
         </>
       )}
-      </details>
-      <TopicCorrelation />
     </section>
   );
 }

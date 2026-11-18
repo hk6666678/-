@@ -24,6 +24,7 @@ from aqp.topic_correlation import OutputCategory, topic_correlation
 
 class Scope(BaseModel):
     college: str = Field(min_length=1)
+    student_id: int | None = Field(default=None, gt=0)
     major: str = Field(default="", max_length=100)
     category: Literal["courses", "topic", "midterm"] = "courses"
     grade: str = ""
@@ -98,6 +99,16 @@ def require(db: sqlite3.Connection, actor: int, scope: Scope, op: str) -> None:
     )
     if not scope.major:
         denied = effective_majors(db, actor, scope, [op]) == set()
+    if scope.student_id is not None:
+        student = db.execute(
+            "SELECT college,major FROM students WHERE id=? AND active=1", (scope.student_id,)
+        ).fetchone()
+        denied = denied or (
+            student is None
+            or not student_allowed(db, actor, scope.student_id)
+            or (student["college"], student["major"]) != (scope.college, scope.major)
+            or not allowed(db, actor, "basic", "view", student["college"], student["major"])
+        )
     if denied:
         audit(db, actor, "analysis.access", "restricted", "denied")
         db.commit()
@@ -125,9 +136,13 @@ def sources(
         if scope.category == "courses"
         else "c.category=? AND c.student_id IS NOT NULL"
     )
+    parameters: tuple[str | int, ...] = () if scope.category == "courses" else (scope.category,)
+    if scope.student_id is not None:
+        condition += " AND c.student_id=?"
+        parameters += (scope.student_id,)
     for r in db.execute(
         f"SELECT c.*,s.version AS student_version,s.payload AS student_payload,s.active AS student_active FROM {table} c JOIN students s ON s.id=c.student_id WHERE {condition} ORDER BY c.id",
-        () if scope.category == "courses" else (scope.category,),
+        parameters,
     ):
         if not student_allowed(db, actor, r["student_id"]):
             continue

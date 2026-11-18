@@ -62,7 +62,7 @@ def test_analysis_rules_and_immutable_unknown_snapshot(client):  # noqa: F811
 def test_eight_assessments_distribution_evidence_and_changes(client):  # noqa: F811
     from io import BytesIO
 
-    from openpyxl import Workbook
+    from openpyxl import Workbook, load_workbook
     from test_students import workbook
 
     h = login_admin(client)
@@ -81,11 +81,15 @@ def test_eight_assessments_distribution_evidence_and_changes(client):  # noqa: F
             "grants": grants,
         },
     )
+    basic = load_workbook(BytesIO(workbook()))
+    basic.active.cell(4, 2, "合成同届")
+    basic_stream = BytesIO()
+    basic.save(basic_stream)
     b = client.post(
         "/api/imports/basic/preview",
         headers=h,
         data={"source_department": "合成"},
-        files={"file": ("basic.xlsx", workbook())},
+        files={"file": ("basic.xlsx", basic_stream.getvalue())},
     ).json()
     client.post(f"/api/imports/{b['id']}/confirm", headers=h)
     wb = Workbook()
@@ -138,6 +142,15 @@ def test_eight_assessments_distribution_evidence_and_changes(client):  # noqa: F
     assert result["result"]["unknown"] == 2
     assert result["result"]["missing_scores"] == 2
     assert result["result"]["groups"][0]["mean"] == 80
+    personal_scope = {"college": "示例学院", "major": "计算机", "student_id": 2}
+    personal = client.post("/api/analyses/courses", headers=h, json=personal_scope)
+    assert personal.status_code == 200, personal.text
+    assert personal.json()["evidence"] == []
+    assert personal.json()["result"]["assessment_count"] == 0
+    populated = client.post("/api/analyses/courses", headers=h, json={**personal_scope, "student_id": 1})
+    assert populated.status_code == 200
+    assert {row["student_id"] for row in populated.json()["evidence"]} == {1}
+    assert client.post("/api/analyses/courses", headers=h, json={**personal_scope, "student_id": 999}).status_code == 403
     assert "学号" not in result["evidence"][0]["payload"]
     assert client.get(f"/api/analyses/{result['id']}/export").status_code == 403
     rid = result["evidence"][0]["id"]

@@ -662,7 +662,8 @@ def training_statistics(
     loader: Callable[..., dict[str, Any]],
 ) -> dict[str, Any]:
     for row in db.execute(
-        "SELECT id,scope FROM analysis_snapshots WHERE category=? ORDER BY id DESC LIMIT 100",
+        "SELECT id,scope FROM analysis_snapshots WHERE category=? "
+        "AND json_extract(scope, '$.student_id') IS NULL ORDER BY id DESC LIMIT 100",
         (plan.category,),
     ):
         scope = json.loads(row["scope"])

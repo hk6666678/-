@@ -107,16 +107,9 @@ test("milestone analysis preserves distribution and immutable evidence", async (
     await page
       .getByRole("button", { name: "培养过程分析", exact: true })
       .click();
-    await page.getByText("单环节分析与历史", { exact: true }).click();
-    await page.getByLabel("分析环节", { exact: true }).selectOption("topic");
-    await page.getByText("更多筛选条件", { exact: true }).click();
-    await page.getByLabel("年级（入学年份）").fill("2025");
-    await page.getByLabel("培养层次", { exact: true }).fill("硕士");
-    await page.getByLabel("对比分组").selectOption("level");
-    await page.getByLabel("学院", { exact: true }).selectOption("__other_college__");
-    await page.getByLabel("其他学院名称", { exact: true }).fill("培养09合成学院");
-    await page.getByLabel("专业", { exact: true }).fill("培养09合成专业");
-    await page.getByRole("button", { name: "生成新分析版本" }).click();
+    await page.getByLabel("研究生", { exact: true }).selectOption({ index: 1 });
+    await page.getByRole("button", { name: "查看培养过程", exact: true }).click();
+    await page.getByRole("button", { name: "查看选题明细" }).click();
     await expect(page.getByText(/考核记录 8 · 去重学生 1/)).toContainText(
       "通过率 66.67%",
     );
@@ -130,7 +123,7 @@ test("milestone analysis preserves distribution and immutable evidence", async (
       page.getByRole("link", { name: "记录版本和来源历史" }),
     ).toHaveCount(8);
     const snapshots = await (await page.request.get("/api/analyses")).json();
-    const oldId = snapshots.items[0].id;
+    const oldId = snapshots.items.find((item: { category: string }) => item.category === "topic").id;
     await page
       .getByRole("button", { name: "业务规则管理", exact: true })
       .click();
@@ -166,20 +159,9 @@ test("milestone analysis preserves distribution and immutable evidence", async (
     await expect(
       passRules.locator("pre").filter({ hasText: "version" }).first(),
     ).toBeVisible();
-    await page
-      .getByRole("button", { name: "培养过程分析", exact: true })
-      .click();
-    await page.getByText("单环节分析与历史", { exact: true }).click();
-    await page.getByText(/分析历史（1，进入本页自动读取）/).click();
-    await page
-      .getByRole("button", { name: `分析 ${oldId} 过时`, exact: true })
-      .click();
-    await expect(
-      page.getByRole("heading", { name: /已过时，请生成新版本/ }),
-    ).toBeVisible();
-    await expect(page.getByText(/考核记录 8 · 去重学生 1/)).toContainText(
-      "通过率 66.67%",
-    );
+    const old = await (await page.request.get(`/api/analyses/${oldId}`)).json();
+    expect(old.stale).toBe(true);
+    expect(old.result.pass_rate).toBe(66.67);
     expect(
       (await page.request.get(`/api/analyses/${oldId}/export`)).status(),
     ).toBe(403);

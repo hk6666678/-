@@ -29,7 +29,10 @@ test("workbench shows current control limits and date-based reminders", async ({
     ],
   };
   await page.route("**/api/analyses", (route) => route.fulfill({
-    json: { items: [midterm, { ...courses, id: 12, stale: true }, topic, courses] },
+    json: { items: [
+      { ...courses, id: 14, scope: { ...courses.scope, student_id: 1 } },
+      midterm, { ...courses, id: 12, stale: true }, topic, courses,
+    ] },
   }));
   await page.route("**/api/analyses/10", (route) => route.fulfill({ json: courses }));
   await page.route("**/api/analyses/11", (route) => route.fulfill({ json: topic }));
@@ -52,5 +55,5 @@ test("workbench shows current control limits and date-based reminders", async ({
   await alerts.getByText("查看来源记录（1 条）").last().click();
   await expect(alerts.getByText("记录 #4 v1 · 批次 #8 · 合成来源 · 考核 第 4 行")).toBeVisible();
   await page.getByRole("button", { name: "进入培养过程分析" }).click();
-  await expect(page.getByRole("button", { name: "查看培养概况" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "查看培养过程" })).toBeVisible();
 });
