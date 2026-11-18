@@ -1,5 +1,5 @@
 import { CollegeSelect } from "./CollegeSelect";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { tongjiMajors } from "./tongjiMajors";
 
 type Section =
@@ -161,6 +161,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
   const [groupReport, setGroupReport] = useState<GroupReport>();
   const [collegeReport, setCollegeReport] = useState<CollegeReport>();
   const [students, setStudents] = useState<{ id: number; research_id: string; name?: string; student_number?: string }[]>([]);
+  const studentRequest = useRef(0);
   const [studentMajor, setStudentMajor] = useState("");
   const [majorFilters, setMajorFilters] = useState<{ majors: string[]; levels: string[] }>({ majors: [], levels: [] });
   const [mentors, setMentors] = useState<DirectoryRow[]>([]);
@@ -207,15 +208,19 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
   }
 
   async function fetchStudents(major: string) {
+    const requestId = ++studentRequest.current;
+    setStudents([]);
     const response = await get(
       `/api/students?limit=200&offset=0&major=${encodeURIComponent(major)}`,
     );
-    setStudents((await response.json()).items);
+    const data = await response.json();
+    if (requestId === studentRequest.current) setStudents(data.items);
   }
   const otherMajors = majorFilters.majors.filter(
     (name) => !tongjiMajorNames.has(name),
   );
   useEffect(() => {
+    void fetchStudents("").catch(() => {});
     void (async () => {
       try {
         const filters = await (
@@ -252,8 +257,6 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
 
   return (
     <section className="reports-panel" aria-label="三级报告">
-      <p className="eyebrow">REPORTS / 学生 · 导师课题组 · 学院学科</p>
-      <p className="muted">仅呈现当前授权范围；缺失数据不填零。</p>
       <details className="report-guidance"><summary>报告范围与导出细则</summary><p>
         三级报告按读取时当前权限现算：无授权段落仅标注不计数，缺数据标注缺失不填零，每项数值保留记录与版本依据。导出需要相应类别的独立导出授权。
       </p>
@@ -263,6 +266,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
 
       <article className="card">
         <h3>学生发展报告</h3>
+        <details className="task-details"><summary>按专业缩小学生列表</summary>
         <label>
           学生列表专业筛选
           <select
@@ -288,9 +292,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
             )}
           </select>
         </label>
-        <p className="muted">
-          选择专业后自动读取学生列表，无需手动刷新。
-        </p>
+        </details>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -418,8 +420,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
         )}
       </article>
 
-      <article className="card">
-        <h3>导师课题组报告</h3>
+      <details className="card task-details"><summary>导师课题组报告</summary>
         <p>
           按指定日期统计当前有效导师课题组关系下的学生与成果事实；毕业与延期缺少确认口径时标注缺失，不作优劣排名。
         </p>
@@ -534,10 +535,9 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
             <p>延期：{groupReport.delay.reason}。</p>
           </div>
         )}
-      </article>
+      </details>
 
-      <article className="card">
-        <h3>学院学科报告</h3>
+      <details className="card task-details"><summary>学院学科报告</summary>
         <form
           onSubmit={(e) => {
             e.preventDefault();
@@ -631,7 +631,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
             )}
           </div>
         )}
-      </article>
+      </details>
     </section>
   );
 }

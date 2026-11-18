@@ -658,13 +658,9 @@ function CandidateRules({ csrf }: { csrf: string }) {
 export function BusinessRulesPanel({ csrf }: { csrf: string }) {
   return (
     <section className="business-rules-panel" aria-label="业务规则管理">
-      <p className="eyebrow">BUSINESS RULES / 版本 · 确认 · 启用</p>
-      <p className="muted">
-        本页集中管理通过规则、培养要求、评价规则与候选规则的业务确认与启用；各分析页只读引用，不再混入写操作。写操作需要对应独立授权。
-      </p>
-      <PassRules csrf={csrf} />
-      <EvaluationRules csrf={csrf} />
-      <CandidateRules csrf={csrf} />
+      <details className="task-details"><summary>课程通过与培养要求</summary><PassRules csrf={csrf} /></details>
+      <details className="task-details"><summary>模拟评分规则</summary><EvaluationRules csrf={csrf} /></details>
+      <details className="task-details"><summary>论文候选规则</summary><CandidateRules csrf={csrf} /></details>
     </section>
   );
 }

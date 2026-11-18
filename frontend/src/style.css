@@ -304,6 +304,10 @@ header h1 {
   gap: 12px;
   align-items: start;
 }
+.cultivation-scope fieldset {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 38rem;
+}
 .cultivation-scope button {
   grid-column: 1 / -1;
   justify-self: start;
@@ -691,6 +695,12 @@ td button { padding: 7px 11px; }
 .accounts-table td:nth-child(2) { display: grid; grid-template-columns: repeat(2, minmax(140px, 1fr)); gap: 5px 14px; }
 .accounts-table .check { margin: 0; white-space: nowrap; }
 summary { cursor: pointer; font-weight: 600; color: #20584d; }
+.task-details { margin-block: 12px; }
+.task-details > summary { padding-block: 6px; }
+.task-details[open] > summary { margin-bottom: 10px; }
+.check-option { display: flex; align-items: center; gap: 8px; }
+.check-option input { width: auto; }
+.workbench-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
 details > p { margin-top: 14px; }
 .report-guidance { margin-bottom: 18px; }
 @media (max-width: 550px) {

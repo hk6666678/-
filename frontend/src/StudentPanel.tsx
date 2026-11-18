@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { tongjiMajors } from "./tongjiMajors";
 type Props = {
   csrf: string;
@@ -116,7 +116,7 @@ function timelineEvents(detail: Detail): TimelineEvent[] {
         sort: `${yearOf(item.batch) || "9999"}-4-${item.batch}`,
         year: yearOf(item.batch) || "—",
         title: `${
-          item.category === "blind_review" ? "盲审" : "答辩"
+          item.category === "blind_reviews" ? "盲审" : "答辩"
         } · ${item.batch}`,
         meta: Object.entries(item.scores ?? {})
           .map(([key, value]) => `${key} ${value}`)
@@ -140,15 +140,24 @@ export function StudentPanel({ csrf, fetcher }: Props) {
     [level, setLevel] = useState(""),
     [mobilityOnly, setMobilityOnly] = useState(false),
     [filters, setFilters] = useState<Filters>({ majors: [], levels: [] });
+  const [studentTotal, setStudentTotal] = useState<number>();
+  const detailHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { if (detail) detailHeading.current?.focus(); }, [detail]);
   const currentYear = new Date().getFullYear();
   const recentYears = Array.from({ length: 10 }, (_, index) => currentYear - index);
   const otherMajors = filters.majors.filter((name) => !tongjiMajorNames.has(name));
-  const refreshFilters = useCallback(async () => {
-    const result = (await fetcher("/api/students?include_filters=true&limit=1")) as { filters: Filters };
+  const refreshFilters = useCallback(async (showStudents = false) => {
+    const result = (await fetcher(`/api/students?include_filters=true&limit=${showStudents ? 50 : 1}`)) as {
+      filters: Filters; items: Row[]; total: number;
+    };
     setFilters(result.filters);
+    if (showStudents) {
+      setStudents(result.items);
+      setStudentTotal(result.total);
+    }
   }, [fetcher]);
   useEffect(() => {
-    void refreshFilters().catch(() => {});
+    void refreshFilters(true).catch((err) => setError(String(err)));
   }, [refreshFilters]);
   async function act(action: () => Promise<void>) {
     setError("");
@@ -190,23 +199,25 @@ export function StudentPanel({ csrf, fetcher }: Props) {
       if (level) query.set("level", level);
       const result = (await fetcher("/api/students?" + query)) as {
         items: Row[];
+        total: number;
       };
       setStudents(result.items);
+      setStudentTotal(result.total);
       setDetail(null);
     });
   }
   return (
     <>
-      <section className="card">
-        <h2>基础信息导入</h2>
-        <p>
-          标准模板第1行记录类型与版本、第2行为字段名。导入预览不创建正式档案；学号必须以文本保存。
-        </p>
         {error && (
           <p className="error" role="alert">
             {error}
           </p>
         )}
+      <details className="card">
+        <summary>导入学生档案</summary>
+        <p>
+          标准模板第1行记录类型与版本、第2行为字段名。导入预览不创建正式档案；学号必须以文本保存。
+        </p>
         <a href="/api/templates/basic">下载基础信息模板 v1</a>
         <p>
           <a href="/api/templates/basic?sample=true">
@@ -291,10 +302,11 @@ export function StudentPanel({ csrf, fetcher }: Props) {
             </div>
           </>
         )}
-      </section>
+      </details>
       <section className="card">
         <h2>统一学生档案</h2>
-        <p className="muted">专业选项包含同济大学招生专业和你有权查看的已导入专业。</p>
+        <details className="task-details">
+        <summary>筛选学生</summary>
         <div className="account-form">
           <label>
             专业筛选
@@ -337,12 +349,17 @@ export function StudentPanel({ csrf, fetcher }: Props) {
         <button disabled={busy} onClick={() => void load()}>
           查询学生档案
         </button>
+        </details>
+        {studentTotal !== undefined && (studentTotal > students.length
+          ? <p>当前显示前 {students.length} 人，共 {studentTotal} 人。可通过筛选缩小范围。</p>
+          : studentTotal === 0 ? <p>当前范围暂无学生档案。</p> : null)}
         <table>
           <thead>
             <tr>
-              <th>研究编号</th>
-              <th>基础资料</th>
-              <th>追溯</th>
+              <th>学生</th>
+              <th>学院与专业</th>
+              <th>入学与学籍</th>
+              <th>操作</th>
             </tr>
           </thead>
           <tbody>
@@ -355,8 +372,9 @@ export function StudentPanel({ csrf, fetcher }: Props) {
               : students
             ).map((student) => (
               <tr key={student.id}>
-                <td>{student.research_id}</td>
-                <td>{JSON.stringify(student.data)}</td>
+                <td>{student.name ? <><strong>{student.name}</strong><br /></> : null}{student.research_id}</td>
+                <td>{[student.data["所属学院"], student.data["专业"]].filter(Boolean).join(" · ") || "—"}</td>
+                <td>{[student.data["入学年份"], student.data["培养层次"], student.data["学籍状态"]].filter(Boolean).join(" · ") || "—"}</td>
                 <td>
                   <button
                     disabled={busy}
@@ -396,7 +414,7 @@ export function StudentPanel({ csrf, fetcher }: Props) {
         </table>
         {detail !== null && (
           <>
-            <h3>培养时间线 · {detail.archive.research_id}</h3>
+            <h3 ref={detailHeading} tabIndex={-1}>培养时间线 · {detail.archive.name || detail.archive.research_id}</h3>
             <p className="muted">
               按年份汇总入学、学籍异动、修读学期、选题、中期、盲审与答辩；缺失字段如实留空。
               {detail.assessmentsNote ||

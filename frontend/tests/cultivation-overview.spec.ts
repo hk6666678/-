@@ -25,7 +25,7 @@ test("selecting a student loads their cultivation stages and evidence", async ({
   await page.getByLabel("用户名", { exact: true }).fill("synthetic-admin");
   await page.getByLabel("密码", { exact: true }).fill("Synthetic-password-123!");
   await page.getByRole("button", { name: "登录平台" }).click();
-  await page.getByRole("button", { name: "培养过程分析", exact: true }).click();
+  await page.getByRole("button", { name: "查学生培养过程", exact: true }).click();
   await page.getByLabel("研究生", { exact: true }).selectOption("42");
   await page.getByRole("button", { name: "查看培养过程" }).click();
   await expect(page.getByRole("heading", { name: "个人培养过程" })).toBeVisible();
@@ -39,4 +39,5 @@ test("selecting a student loads their cultivation stages and evidence", async ({
   await page.getByText("查看来源记录（1 条）").click();
   await expect(page.getByRole("link", { name: /记录 #7 v1/ }))
     .toHaveAttribute("href", "/api/records/midterm/7");
+  await page.screenshot({ path: "test-results/cultivation-overview.png", fullPage: true });
 });

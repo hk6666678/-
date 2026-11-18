@@ -19,12 +19,15 @@ test('restructured research analysis: outputs tabs, rules page, comparison hando
   await expect(page.getByRole('heading',{name:'会议',exact:true})).toBeVisible();
   // 业务规则管理页：三段规则集中
   await page.getByRole('button',{name:'业务规则管理',exact:true}).click();
+  await page.getByText('课程通过与培养要求',{exact:true}).click();
   await expect(page.getByRole('heading',{name:'课程通过规则与培养要求',exact:true})).toBeVisible();
+  await page.getByText('模拟评分规则',{exact:true}).click();
   await expect(page.getByRole('heading',{name:'人才评价规则（模拟）',exact:true})).toBeVisible();
+  await page.getByText('论文候选规则',{exact:true}).click();
   await expect(page.getByRole('heading',{name:'优秀论文候选规则',exact:true})).toBeVisible();
   // 学位论文上传与质量两页串联，生成比较后候选页自动带入
   await page.getByRole('button',{name:'学位论文上传',exact:true}).click();
-  await page.getByLabel('绑定学生ID').fill(String(student.id));await page.getByLabel('标题',{exact:true}).fill('重组合成论文');await page.getByLabel('文件涉及全体学生ID（JSON数组）').fill(JSON.stringify([student.id]));await page.getByLabel('论文PDF').setInputFiles({name:'synthetic.pdf',mimeType:'application/pdf',buffer:Buffer.from('synthetic damaged PDF')});await page.getByRole('button',{name:'上传新版本并排队'}).click();await expect(page.getByText('文件损坏或不可用',{exact:false})).toBeVisible();
+  await page.getByLabel('研究生',{exact:true}).selectOption(String(student.id));await page.getByLabel('标题',{exact:true}).fill('重组合成论文');await page.getByLabel('论文PDF').setInputFiles({name:'synthetic.pdf',mimeType:'application/pdf',buffer:Buffer.from('synthetic damaged PDF')});await page.getByLabel('已核对 PDF 涉及的全部学生').check();await page.getByRole('button',{name:'上传新版本并排队'}).click();await expect(page.getByText('文件损坏或不可用',{exact:false})).toBeVisible();
   const papers=(await(await page.request.get('/api/papers')).json()).items;const paper=papers.find((p:{student_id:number})=>p.student_id===student.id);expect(paper).toBeTruthy();
   await page.getByRole('button',{name:'学位论文质量',exact:true}).click();
   await page.getByLabel('比较论文',{exact:true}).selectOption(String(paper.id));

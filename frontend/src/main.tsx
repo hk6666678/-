@@ -283,6 +283,16 @@ function App() {
           {[
             { label: "工作台", items: [["overview", "工作台概览"]] },
             {
+              label: "研究分析",
+              items: [
+                ["analysis", "培养过程分析"],
+                ["thesis_quality", "学位论文质量"],
+                ["evaluation", "拔尖人才模拟评价"],
+                ["reports", "三级报告"],
+                ["agent", "Agent 智能问答"],
+              ],
+            },
+            {
               label: "数据管理",
               items: [
                 ["students", "基础导入与学生档案"],
@@ -293,16 +303,6 @@ function App() {
                 ["thesis_upload", "学位论文上传"],
                 ["mentor_groups", "导师与课题组数据"],
                 ["maintenance", "数据纠错与维护"],
-              ],
-            },
-            {
-              label: "研究分析",
-              items: [
-                ["analysis", "培养过程分析"],
-                ["thesis_quality", "学位论文质量"],
-                ["evaluation", "拔尖人才模拟评价"],
-                ["reports", "三级报告"],
-                ["agent", "Agent 智能问答"],
               ],
             },
             {
@@ -431,46 +431,32 @@ function App() {
         ) : page === "overview" || !admin ? (
           <>
             <section className="welcome">
-              <span className="eyebrow">统一平台 · 清晰职责</span>
-              <h2>您的工作，从这里开始。</h2>
               <p>当前账号：{session.user.username}</p>
               <div className="tags">
                 {session.user.roles.map((role) => (
                   <span key={role}>{roleNames[role]}</span>
                 ))}
+                <span>{session.user.account_scope === "school" && session.user.account_preset === "full"
+                  ? "全校全权限"
+                  : session.user.school_view ? "全校查看和分析" : "按授权范围访问"}</span>
               </div>
             </section>
+            <div className="workbench-actions" role="group" aria-label="常用操作">
+              {[
+                ["students", "基础导入与学生档案", "查学生档案"],
+                ["analysis", "培养过程分析", "查学生培养过程"],
+                ["reports", "三级报告", "看学生报告"],
+              ].map(([key, label, action]) => (
+                <button key={key} type="button" className="secondary" onClick={() => {
+                  setPage(key);
+                  setNavLabel(label);
+                }}>{action}</button>
+              ))}
+            </div>
             <WorkbenchAlerts openAnalysis={() => {
               setPage("analysis");
               setNavLabel("培养过程分析");
             }} />
-            <div className="cards">
-              <section className="card">
-                <h3>个人账号</h3>
-                <p>
-                  每次操作以个人身份记录，可由平台管理员管理账号状态及角色。
-                </p>
-                {admin && (
-                  <button
-                    className="secondary"
-                    onClick={() => setPage("accounts")}
-                  >
-                    管理账号 →
-                  </button>
-                )}
-              </section>
-              <section className="card">
-                <h3>业务数据授权</h3>
-                <p>
-                  角色不自动开放学生数据。数据维护、查看、分析和导出需要分别授权。导师还须绑定学生，兼任其他角色也只能访问绑定学生与数据授权的交集；解绑立即生效。
-                </p>
-                <span className="badge">
-                  {session.user.account_scope === "school" && session.user.account_preset === "full"
-                    ? "全校全权限"
-                    : session.user.school_view ? "全校查看和分析" : "按账号分配的学院访问"}
-                </span>
-              </section>
-            </div>
           </>
         ) : (
           <>

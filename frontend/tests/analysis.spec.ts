@@ -126,6 +126,7 @@ test("course analysis preserves source evidence and immutable stale history", as
     await page
       .getByRole("button", { name: "业务规则管理", exact: true })
       .click();
+  await page.getByText("课程通过与培养要求", { exact: true }).click();
     const passRules = page.locator("article.card", {
       has: page.getByRole("heading", {
         name: "课程通过规则与培养要求",

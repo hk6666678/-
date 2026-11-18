@@ -46,6 +46,7 @@ test("three-level reports with charts drilldown and authorized export", async ({
   ).toBe(200);
   await page.getByRole("button", { name: "基础导入与学生档案" }).click();
   const template = await page.request.get("/api/templates/basic?sample=true");
+  await page.getByText("导入学生档案", { exact: true }).click();
   await page.getByLabel("来源部门", { exact: true }).fill("报告专项合成数据源");
   await page.getByLabel("基础信息 Excel", { exact: true }).setInputFiles({
     name: "synthetic-basic.xlsx",
@@ -69,6 +70,7 @@ test("three-level reports with charts drilldown and authorized export", async ({
   await expect(page.getByText(/imported: 1/)).toBeVisible();
   await page.getByRole("button", { name: "科研成果导入", exact: true }).click();
   await page.getByRole("tab", { name: "专利", exact: true }).click();
+  await page.getByText("导入专利", { exact: true }).click();
   await page.getByLabel("来源部门", { exact: true }).fill("报告专项合成专利科");
   await page.getByLabel("标准 Excel 文件", { exact: true }).setInputFiles({
     name: "synthetic-patents.xlsx",
@@ -136,6 +138,7 @@ test("three-level reports with charts drilldown and authorized export", async ({
     ).status(),
   ).toBe(200);
   await page.getByRole("button", { name: "三级报告", exact: true }).click();
+  await page.getByText("按专业缩小学生列表", { exact: true }).click();
   await page
     .getByLabel("学生列表专业筛选", { exact: true })
     .selectOption("合成专业");
@@ -163,6 +166,7 @@ test("three-level reports with charts drilldown and authorized export", async ({
   expect((await studentDownload).suggestedFilename()).toBe(
     `report-student-${mine.id}.xlsx`,
   );
+  await page.getByText("导师课题组报告", { exact: true }).click();
   await page
     .getByLabel("导师（可空，进入本页自动读取目录）", { exact: true })
     .selectOption(String(mentor.id));
@@ -179,6 +183,7 @@ test("three-level reports with charts drilldown and authorized export", async ({
   expect((await groupDownload).suggestedFilename()).toBe(
     `report-group-${mentor.id}.xlsx`,
   );
+  await page.getByText("学院学科报告", { exact: true }).click();
   await page.getByLabel("学院", { exact: true }).selectOption("__other_college__");
   await page.getByLabel("其他学院名称", { exact: true }).fill("合成学院");
   await page.getByLabel("专业", { exact: true }).fill("合成专业");

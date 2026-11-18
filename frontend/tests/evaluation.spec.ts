@@ -67,6 +67,7 @@ test("simulation rule, scoring, history, charts and authorized export", async ({
   await page.getByRole("button", { name: "基础导入与学生档案" }).click();
   const template = await page.request.get("/api/templates/basic?sample=true");
   expect(template.status()).toBe(200);
+  await page.getByText("导入学生档案", { exact: true }).click();
   await page.getByLabel("来源部门", { exact: true }).fill("评分专项合成数据源");
   await page.getByLabel("基础信息 Excel", { exact: true }).setInputFiles({
     name: "synthetic-basic.xlsx",
@@ -90,6 +91,7 @@ test("simulation rule, scoring, history, charts and authorized export", async ({
   await expect(page.getByText(/imported: 1/)).toBeVisible();
   await page.getByRole("button", { name: "科研成果导入", exact: true }).click();
   await page.getByRole("tab", { name: "专利", exact: true }).click();
+  await page.locator("summary").filter({ hasText: /^导入/ }).first().click();
   await page.getByLabel("来源部门", { exact: true }).fill("评分专项合成专利科");
   const uploadOutput = async (
     category: string,
@@ -143,6 +145,7 @@ test("simulation rule, scoring, history, charts and authorized export", async ({
     ["PAT-EVAL-0001", "合成评分专利", ...participant, "发明", "2026-01-01"],
   );
   await page.getByRole("tab", { name: "科研论文", exact: true }).click();
+  await page.locator("summary").filter({ hasText: /^导入/ }).first().click();
   await page.getByLabel("来源部门", { exact: true }).fill("评分专项合成论文科");
   await uploadOutput(
     "research_papers",
@@ -161,6 +164,7 @@ test("simulation rule, scoring, history, charts and authorized export", async ({
     ["PAPER-EVAL-0001", "合成评分论文", ...participant, 2025],
   );
   await page.getByRole("tab", { name: "获奖项目", exact: true }).click();
+  await page.locator("summary").filter({ hasText: /^导入/ }).first().click();
   await page.getByLabel("来源部门", { exact: true }).fill("评分专项合成获奖科");
   await uploadOutput(
     "awards",
@@ -182,6 +186,7 @@ test("simulation rule, scoring, history, charts and authorized export", async ({
   await page
     .getByRole("button", { name: "业务规则管理", exact: true })
     .click();
+  await page.getByText("模拟评分规则", { exact: true }).click();
   const evaluationRules = page.locator("article.card", {
     has: page.getByRole("heading", {
       name: "人才评价规则（模拟）",
@@ -236,6 +241,7 @@ test("simulation rule, scoring, history, charts and authorized export", async ({
   await expect(
     page.getByLabel("学生内部编号", { exact: true }),
   ).toHaveCount(0);
+  await page.getByText("按专业缩小学生列表", { exact: true }).click();
   await page
     .getByLabel("学生列表专业筛选", { exact: true })
     .selectOption("合成专业");
@@ -264,6 +270,7 @@ test("simulation rule, scoring, history, charts and authorized export", async ({
   // slope between two genuine snapshots.
   await page.getByRole("button", { name: "科研成果导入", exact: true }).click();
   await page.getByRole("tab", { name: "专利", exact: true }).click();
+  await page.locator("summary").filter({ hasText: /^导入/ }).first().click();
   await page.getByLabel("来源部门", { exact: true }).fill("评分专项合成专利科");
   await uploadOutput(
     "patents",
@@ -285,7 +292,9 @@ test("simulation rule, scoring, history, charts and authorized export", async ({
   await page
     .getByRole("button", { name: "拔尖人才模拟评价", exact: true })
     .click();
+  await page.getByText("查看或更换评分规则", { exact: true }).click();
   await page.getByLabel("选择规则 1", { exact: true }).check();
+  await page.getByText("按专业缩小学生列表", { exact: true }).click();
   await page
     .getByLabel("学生列表专业筛选", { exact: true })
     .selectOption("合成专业");
@@ -316,6 +325,7 @@ test("simulation rule, scoring, history, charts and authorized export", async ({
   await expect(
     page.locator("svg[aria-label='总分成长曲线'] circle"),
   ).toHaveCount(2);
+  await page.getByText("查看历史评分", { exact: true }).click();
   const historySelect = page.getByLabel("历史快照", { exact: true });
   await expect(historySelect.locator("option")).toHaveCount(3);
   await historySelect.selectOption("1");

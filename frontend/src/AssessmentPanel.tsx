@@ -65,7 +65,7 @@ export function AssessmentPanel({ csrf }: { csrf: string }) {
   return (
     <section className="assessment-panel">
       <p className="assessment-note">
-        关联论文版本与考核批次 · simulation-v1 模拟配置 · 无真实模型
+        评分模板默认使用模拟配置。
       </p>
       {error && (
         <p className="assessment-error" role="alert">
@@ -77,6 +77,95 @@ export function AssessmentPanel({ csrf }: { csrf: string }) {
           {notice}
         </p>
       )}
+      <details className="card assessment-import task-details">
+        <summary>导入考核记录</summary>
+        <a
+          className="secondary assessment-download"
+          href="/api/external-assessments/template"
+        >
+          下载标准Excel模板 · simulation-v1
+        </a>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const data = new FormData(e.currentTarget);
+            setBusy(true);
+            setError("");
+            setNotice("");
+            setBatch(undefined);
+            try {
+              setBatch(
+                await call("/api/external-assessments/import/preview", {
+                  method: "POST",
+                  headers: { "X-CSRF-Token": csrf },
+                  body: data,
+                }),
+              );
+            } catch (err) {
+              setError(String(err));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <label>
+            标准Excel文件
+            <input
+              name="file"
+              type="file"
+              accept=".xlsx"
+              required
+              onChange={() => setBatch(undefined)}
+            />
+          </label>
+          <button disabled={busy}>上传并预览</button>
+        </form>
+      </details>
+      <div className="card assessment-records">
+        <h3>考核记录</h3>
+        <button onClick={() => void load().catch((e) => setError(String(e)))}>
+          刷新记录
+        </button>
+        {!loaded ? (
+          <p>正在读取…</p>
+        ) : items.length === 0 ? (
+          <p>当前范围暂无可见记录。</p>
+        ) : (
+          <table>
+            <thead>
+              <tr>
+                <th>类别</th>
+                <th>论文版本</th>
+                <th>批次</th>
+                <th>匿名编号</th>
+                <th>模板版本</th>
+                <th>分项成绩</th>
+                <th>意见</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((i) => (
+                <tr key={i.id}>
+                  <td>{i.category === "blind_reviews" ? "盲审" : "答辩"}</td>
+                  <td>{i.paper_version_id}</td>
+                  <td>{i.batch}</td>
+                  <td>{i.anonymous_code}</td>
+                  <td>{i.template_version}</td>
+                  <td>
+                    {Object.entries(i.scores)
+                      .map(
+                        ([key, value]) =>
+                          `${key === "quality" ? "质量" : key}：${value}`,
+                      )
+                      .join("；")}
+                  </td>
+                  <td>{i.comment ?? "需原文读取授权"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
       <details className="card">
         <summary>盲审意见关键词统计</summary>
         <form onSubmit={async (e) => {
@@ -120,50 +209,7 @@ export function AssessmentPanel({ csrf }: { csrf: string }) {
           </div>
         ) : <p>{loaded ? "暂无同模板的可比较评分。" : "正在读取评分。"}</p>}
       </details>
-      <div className="card assessment-import">
-        <h3>Excel集中导入</h3>
-        <a
-          className="secondary assessment-download"
-          href="/api/external-assessments/template"
-        >
-          下载标准Excel模板 · simulation-v1
-        </a>
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            const data = new FormData(e.currentTarget);
-            setBusy(true);
-            setError("");
-            setNotice("");
-            setBatch(undefined);
-            try {
-              setBatch(
-                await call("/api/external-assessments/import/preview", {
-                  method: "POST",
-                  headers: { "X-CSRF-Token": csrf },
-                  body: data,
-                }),
-              );
-            } catch (err) {
-              setError(String(err));
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          <label>
-            标准Excel文件
-            <input
-              name="file"
-              type="file"
-              accept=".xlsx"
-              required
-              onChange={() => setBatch(undefined)}
-            />
-          </label>
-          <button disabled={busy}>上传并预览</button>
-        </form>
-      </div>
+
       {batch && (
         <section className="card assessment-preview">
           <h3>预览批次</h3>
@@ -358,51 +404,6 @@ export function AssessmentPanel({ csrf }: { csrf: string }) {
           </tbody>
         </table>
       </details>
-      <div className="card assessment-records">
-        <h3>考核记录</h3>
-        <button onClick={() => void load().catch((e) => setError(String(e)))}>
-          刷新记录
-        </button>
-        {!loaded ? (
-          <p>正在读取…</p>
-        ) : items.length === 0 ? (
-          <p>当前范围暂无可见记录。</p>
-        ) : (
-          <table>
-            <thead>
-              <tr>
-                <th>类别</th>
-                <th>论文版本</th>
-                <th>批次</th>
-                <th>匿名编号</th>
-                <th>模板版本</th>
-                <th>分项成绩</th>
-                <th>意见</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((i) => (
-                <tr key={i.id}>
-                  <td>{i.category === "blind_reviews" ? "盲审" : "答辩"}</td>
-                  <td>{i.paper_version_id}</td>
-                  <td>{i.batch}</td>
-                  <td>{i.anonymous_code}</td>
-                  <td>{i.template_version}</td>
-                  <td>
-                    {Object.entries(i.scores)
-                      .map(
-                        ([key, value]) =>
-                          `${key === "quality" ? "质量" : key}：${value}`,
-                      )
-                      .join("；")}
-                  </td>
-                  <td>{i.comment ?? "需原文读取授权"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
     </section>
   );
 }

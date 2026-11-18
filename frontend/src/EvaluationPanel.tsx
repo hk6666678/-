@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { tongjiMajors } from "./tongjiMajors";
 import { EvaluationDashboard } from "./EvaluationDashboard";
 type Rule = {
@@ -207,10 +207,11 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
     [error, setError] = useState(""),
     [notice, setNotice] = useState("");
   const [students, setStudents] = useState<
-    { id: number; research_id: string }[]
+    { id: number; research_id: string; name?: string }[]
   >([]);
   const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
   const [studentTotal, setStudentTotal] = useState<number>();
+  const studentRequest = useRef(0);
   const [studentMajor, setStudentMajor] = useState("");
   const [majorFilters, setMajorFilters] = useState<{
     majors: string[];
@@ -258,13 +259,16 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
     setSnapshots((await call("/api/evaluation-snapshots")).items);
   }
   async function fetchStudents(major: string) {
+    const requestId = ++studentRequest.current;
     setStudents([]);
     setStudentTotal(undefined);
     const data = await call(
       `/api/students?limit=200&offset=0&major=${encodeURIComponent(major)}`,
     );
-    setStudents(data.items);
-    setStudentTotal(data.total);
+    if (requestId === studentRequest.current) {
+      setStudents(data.items);
+      setStudentTotal(data.total);
+    }
   }
   const otherMajors = majorFilters.majors.filter(
     (name) => !tongjiMajorNames.has(name),
@@ -272,6 +276,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
   useEffect(() => {
     void perform(load);
     void perform(loadSnapshots);
+    void fetchStudents("").catch(() => {});
     void call("/api/students?include_filters=true&limit=1")
       .then((value: { filters: { majors: string[]; levels: string[] } }) =>
         setMajorFilters(value.filters),
@@ -281,21 +286,102 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
   const rule = rules.find((r) => r.id === selected);
   return (
     <section className="evaluation-panel">
-      <p className="eyebrow">SIMULATION / 版本与证据</p>
       <p>
-        当前只支持模拟演示，不构成正式人才识别。正式业务规则与业务验收尚未接入。权重和阈值由配置者明确提供，平台不预设官方权重。
+        评分仅供模拟研究。
       </p>
       {error && <p role="alert">{error}</p>}
       {notice && <p className="notice compact-notice" role="status">{notice}</p>}
-      <EvaluationDashboard refresh={snapshots[0]?.id ?? 0} openSnapshot={(id) => {
-        setSnapshot(undefined);
-        void perform(async () => {
-          setSnapshot(await call(`/api/evaluation-snapshots/${id}`));
-          window.requestAnimationFrame(() => document.getElementById("evaluation-evidence")?.scrollIntoView());
-        });
-      }} />
+
       <article className="card">
-        <h3>规则版本（进入本页自动读取）</h3>
+        <h3>为学生生成模拟评分</h3>
+        <p>{rule ? `当前规则：${rule.config.name} / v${rule.version}` : "暂无可用评分规则。"}</p>
+        <details className="task-details"><summary>按专业缩小学生列表</summary>
+        <label>
+          学生列表专业筛选
+          <select
+            aria-label="学生列表专业筛选"
+            value={studentMajor}
+            onChange={(e) => {
+              setStudentMajor(e.target.value);
+              void perform(() => fetchStudents(e.target.value));
+            }}
+          >
+            <option value="">全部专业（超过200人时请选择具体专业）</option>
+            <optgroup label="同济大学硕士招生专业">
+              {tongjiMajors.map((option) => (
+                <option key={option}>{option}</option>
+              ))}
+            </optgroup>
+            {otherMajors.length > 0 && (
+              <optgroup label="其他已导入专业">
+                {otherMajors.map((option) => (
+                  <option key={option}>{option}</option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+        </label>
+        </details>
+        {studentTotal !== undefined && studentTotal > students.length && (
+          <p>目前显示前 {students.length} 人，可按专业缩小范围。</p>
+        )}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const f = new FormData(e.currentTarget);
+            setSnapshot(undefined);
+            void perform(async () => {
+              const saved = await call("/api/evaluation-snapshots", {
+                student_id: Number(f.get("student_id")),
+                rule_id: selected,
+              });
+              setSnapshot(saved);
+              await loadSnapshots();
+            });
+          }}
+        >
+          <label>
+            学生研究编号
+            <select aria-label="学生研究编号" name="student_id" required defaultValue="">
+              <option value="">请选择已读取的授权学生</option>
+              {students.map((student) => (
+                <option key={student.id} value={student.id}>
+                  {student.name ? `${student.name} · ${student.research_id}` : student.research_id}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button disabled={!rule || !rule.enabled}>保存新评分快照</button>
+        </form>
+        <details className="task-details"><summary>查看历史评分</summary>
+        <label>
+          历史快照（进入本页自动读取，选中即重查当前授权）
+          <select
+            aria-label="历史快照"
+            value={snapshot?.id ?? ""}
+            onChange={(e) => {
+              if (!e.target.value) return;
+              setSnapshot(undefined);
+              void perform(async () =>
+                setSnapshot(
+                  await call(`/api/evaluation-snapshots/${e.target.value}`),
+                ),
+              );
+            }}
+          >
+            <option value="">请选择历史快照</option>
+            {snapshots.map((s) => (
+              <option key={s.id} value={s.id}>
+                #{s.id} · {s.research_id} ·{" "}
+                {s.total === null ? "未形成总分" : s.total.toFixed(2)} ·{" "}
+                {new Date(s.as_of * 1000).toLocaleDateString()}
+              </option>
+            ))}
+          </select>
+        </label>
+        </details>
+      </article>
+      <details className="card task-details"><summary>查看或更换评分规则</summary>
         <p>
           规则草稿与独立授权启用已集中到「业务规则管理」；本页选择已授权规则进行评分。
         </p>
@@ -335,94 +421,14 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
             ))}
           </tbody>
         </table></div></div>
-      </article>
-      <article className="card">
-        <h3>按真实数据版本评分</h3>
-        <label>
-          学生列表专业筛选
-          <select
-            aria-label="学生列表专业筛选"
-            value={studentMajor}
-            onChange={(e) => {
-              setStudentMajor(e.target.value);
-              void perform(() => fetchStudents(e.target.value));
-            }}
-          >
-            <option value="">全部专业（超过200人时请选择具体专业）</option>
-            <optgroup label="同济大学硕士招生专业">
-              {tongjiMajors.map((option) => (
-                <option key={option}>{option}</option>
-              ))}
-            </optgroup>
-            {otherMajors.length > 0 && (
-              <optgroup label="其他已导入专业">
-                {otherMajors.map((option) => (
-                  <option key={option}>{option}</option>
-                ))}
-              </optgroup>
-            )}
-          </select>
-        </label>
-        <p>
-          {studentTotal === undefined
-            ? "选择专业后自动读取学生列表"
-            : `当前授权和专业筛选下共${studentTotal}人，仅显示前${students.length}人；超过200人请按专业缩小范围`}
-          。列表沿用档案脱敏边界，评分时重新核验当前身份和数据权限。
-        </p>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const f = new FormData(e.currentTarget);
-            setSnapshot(undefined);
-            void perform(async () => {
-              const saved = await call("/api/evaluation-snapshots", {
-                student_id: Number(f.get("student_id")),
-                rule_id: selected,
-              });
-              setSnapshot(saved);
-              await loadSnapshots();
-            });
-          }}
-        >
-          <label>
-            学生研究编号
-            <select aria-label="学生研究编号" name="student_id" required defaultValue="">
-              <option value="">请选择已读取的授权学生</option>
-              {students.map((student) => (
-                <option key={student.id} value={student.id}>
-                  {student.research_id}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button disabled={!rule || !rule.enabled}>保存新评分快照</button>
-        </form>
-        <label>
-          历史快照（进入本页自动读取，选中即重查当前授权）
-          <select
-            aria-label="历史快照"
-            value={snapshot?.id ?? ""}
-            onChange={(e) => {
-              if (!e.target.value) return;
-              setSnapshot(undefined);
-              void perform(async () =>
-                setSnapshot(
-                  await call(`/api/evaluation-snapshots/${e.target.value}`),
-                ),
-              );
-            }}
-          >
-            <option value="">请选择历史快照</option>
-            {snapshots.map((s) => (
-              <option key={s.id} value={s.id}>
-                #{s.id} · {s.research_id} ·{" "}
-                {s.total === null ? "未形成总分" : s.total.toFixed(2)} ·{" "}
-                {new Date(s.as_of * 1000).toLocaleDateString()}
-              </option>
-            ))}
-          </select>
-        </label>
-      </article>
+      </details>
+      <EvaluationDashboard refresh={snapshots[0]?.id ?? 0} openSnapshot={(id) => {
+        setSnapshot(undefined);
+        void perform(async () => {
+          setSnapshot(await call(`/api/evaluation-snapshots/${id}`));
+          window.requestAnimationFrame(() => document.getElementById("evaluation-evidence")?.scrollIntoView());
+        });
+      }} />
       {snapshot && (
         <article className="card" id="evaluation-evidence">
           <h3>

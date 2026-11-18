@@ -84,7 +84,7 @@ export function MilestonePanel({ csrf, fetcher }: Props) {
           </select>
         </label>
         <p>
-          标准模板第1行记录类型与版本、第2行为字段名。导入预览不创建正式档案；学号必须以文本保存。
+          先选「选题」或「中期」，用对应模板上传。核对预览后再确认。
         </p>
         {error && (
           <p className="error" role="alert">

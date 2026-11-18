@@ -29,6 +29,7 @@ test("basic Excel preview then confirmed archive", async ({ page }) => {
   const template = await page.request.get("/api/templates/basic?sample=true");
   expect(template.status()).toBe(200);
   await page.getByRole("button", { name: "基础导入与学生档案" }).click();
+  await page.getByText("筛选学生", { exact: true }).click();
   const majorFilter = page.getByLabel("专业筛选", { exact: true });
   expect(await majorFilter.locator("option").allTextContents()).toContain("计算机科学与技术");
   const yearFilter = page.getByLabel("入学年份筛选", { exact: true });
@@ -37,6 +38,7 @@ test("basic Excel preview then confirmed archive", async ({ page }) => {
     "全部年份",
     ...Array.from({ length: 10 }, (_, i) => String(currentYear - i)),
   ]);
+  await page.getByText("导入学生档案", { exact: true }).click();
   await page.getByLabel("来源部门").fill("合成数据源");
   await page.getByLabel("基础信息 Excel").setInputFiles({
     name: "synthetic-basic.xlsx",

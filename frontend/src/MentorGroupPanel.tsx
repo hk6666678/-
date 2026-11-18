@@ -360,12 +360,10 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
   return (
     <section aria-label="导师与课题组">
       <h2>导师与课题组</h2>
-      <p>
-        维护业务目录、学生关系与日期历史，按当前授权查看事实。业务导师与登录账号分别管理。
-      </p>
       {error && <p role="alert">{error}</p>}
       {notice && <p role="status">{notice}</p>}
       <button
+        className="secondary"
         disabled={busy}
         onClick={() =>
           void act(async () => {
@@ -377,7 +375,128 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
       >
         刷新当前授权范围
       </button>
-      <h3>业务目录</h3>
+      <h3>查看指导情况</h3>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const f = new FormData(e.currentTarget);
+          void act(async () => {
+            const q = new URLSearchParams({ as_of: String(f.get("as_of")) });
+            const [kind, id] = String(f.get("subject")).split(":");
+            if (id) q.set(kind, id);
+            setFacts(await api<Facts>(`facts?${q}`));
+            setDrill("");
+          });
+        }}
+      >
+        <label>导师或课题组
+          <select aria-label="导师或课题组" name="subject">
+            <option value="">全部授权关系</option>
+            <optgroup label="导师">
+              {mentors.map((m) => <option key={m.id} value={`mentor_id:${m.id}`}>{m.name ?? `导师 ${m.id}`}</option>)}
+            </optgroup>
+            <optgroup label="课题组">
+              {groups.map((g) => <option key={g.id} value={`group_id:${g.id}`}>{g.name ?? `课题组 ${g.id}`}</option>)}
+            </optgroup>
+          </select>
+        </label>
+        <label>
+          关系统计日期
+          <input name="as_of" type="date" defaultValue={new Date().toLocaleDateString("sv-SE")} required />
+        </label>
+        <button disabled={busy}>查询关系事实</button>
+      </form>
+      {facts && (
+        <div aria-label="关系事实结果">
+          <p className="mentor-fact-summary">
+            截至 {facts.as_of} · 去重学生数：{facts.student_count} ·
+            有效指导关系：{facts.relation_ids.length}
+          </p>
+          <h4>导师与课题组效能</h4>
+          {facts.effectiveness?.annual_counts ? (
+            <>
+              <p>评分覆盖 {facts.effectiveness.scored}/{facts.effectiveness.students} 人，涉及 {facts.effectiveness.cohorts} 届。按方案 85 分口径统计模拟评价，混用规则版本时暂停分数比较。</p>
+              <p>前三个完整年度的授权可见成果数 · {Object.entries(facts.effectiveness.annual_counts).map(([year, count]) => `${year} 年 ${count} 项`).join(" · ")}。仅计可确认发生于指导关系期间的成果。</p>
+              <table>
+                <thead><tr><th>指标</th><th>当前值</th><th>同学院同类单位均值</th></tr></thead>
+                <tbody>
+                  {(["rate", "acceleration", "stability"] as const).map((key) => {
+                    const value = facts.effectiveness?.[key];
+                    const peer = facts.effectiveness?.benchmark[key];
+                    const unit = key === "rate" ? "%" : "";
+                    return <tr key={key}>
+                      <td>{{rate: "模拟拔尖产出率", acceleration: "成果增量变化", stability: "培养稳定性（各届平均分方差）"}[key]}</td>
+                      <td>{value == null ? "条件不足" : value.toFixed(2) + unit}</td>
+                      <td>{peer?.mean == null ? "暂无可比单位" : `${peer.mean.toFixed(2)}${unit}（${peer.count} 个）`}</td>
+                    </tr>;
+                  })}
+                </tbody>
+              </table>
+            </>
+          ) : <p>请选择一名导师或一个课题组，并确认所选日期有授权可见的有效指导关系。</p>}
+          <p>影响力转化缺少毕业后跟踪数据。</p>
+          <table>
+            <thead>
+              <tr>
+                <th>成果类别</th>
+                <th>参与学生人数</th>
+                <th>去重成果数</th>
+                <th>证据</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(facts.categories).map(([k, v]) => (
+                <tr key={k}>
+                  <td>{labels[k]}</td>
+                  <td>{v.student_count}</td>
+                  <td>{v.distinct_outputs}</td>
+                  <td>
+                    <button
+                      className="mentor-detail-action"
+                      aria-label={`${labels[k]}查看明细`}
+                      onClick={() => setDrill(k)}
+                    >
+                      查看明细
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="mentor-missing">
+            <p>毕业：条件缺失，{facts.graduation.reason}。</p>
+            <p>延期：条件缺失，{facts.delay.reason}。</p>
+          </div>
+          <p>{facts.basis}</p>
+          {drill && (
+            <div>
+              <h4>{labels[drill]}事实证据</h4>
+              <table>
+                <thead>
+                  <tr>
+                    <th>业务编号</th>
+                    <th>成果</th>
+                    <th>授权参与人数</th>
+                    <th>版本</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {facts.categories[drill].items.map((i) => (
+                    <tr key={i.id}>
+                      <td>{i.business_key}</td>
+                      <td>{i.title}</td>
+                      <td>{i.participant_count}</td>
+                      <td>{i.version}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+      <details className="task-details"><summary>业务目录</summary>
+
       <label>
         目录类型
         <select
@@ -449,7 +568,9 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
           </button>
         )}
       </form>
-      <h3>学生关系与历史</h3>
+      </details>
+      <details className="task-details"><summary>学生关系与历史</summary>
+
       <table>
         <thead>
           <tr>
@@ -622,7 +743,9 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
           </table>
         </div>
       )}
-      <h3>标准 Excel 导入</h3>
+      </details>
+      <details className="task-details"><summary>标准 Excel 导入</summary>
+
       <p>
         先预览再确认写入；任一行无效则整批不写入。重复编号或日期冲突需人工核对，通过更正表单保留历史。
       </p>
@@ -677,7 +800,8 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
           <button onClick={() => setPreview(null)}>取消导入</button>
         </div>
       )}
-      <details className="card" open>
+      </details>
+      <details className="task-details">
         <summary>课题组归属图谱（学院 → 课题组 → 导师 → 学生）</summary>
         <p className="muted">
           仅绘制当前有效关系（无结束日期）且在当前授权范围内的归属；身份未授权时导师与课题组以编号显示，学生显示研究编号。每名导师最多直接展示
@@ -709,138 +833,6 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
           个（无当前有效关系，不在图中）。
         </p>
       </details>
-      <h3>事实统计与下钻</h3>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          const f = new FormData(e.currentTarget);
-          void act(async () => {
-            const q = new URLSearchParams({ as_of: String(f.get("as_of")) });
-            if (f.get("mentor_id"))
-              q.set("mentor_id", String(f.get("mentor_id")));
-            if (f.get("group_id")) q.set("group_id", String(f.get("group_id")));
-            setFacts(await api<Facts>(`facts?${q}`));
-            setDrill("");
-          });
-        }}
-      >
-        <label>
-          关系统计日期
-          <input name="as_of" type="date" required />
-        </label>
-        <label>
-          统计导师
-          <select name="mentor_id">
-            <option value="">全部授权导师</option>
-            {mentors.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name ?? `导师 ${m.id}`}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          统计课题组
-          <select name="group_id">
-            <option value="">全部授权课题组</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name ?? `课题组 ${g.id}`}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button disabled={busy}>查询关系事实</button>
-      </form>
-      {facts && (
-        <div aria-label="关系事实结果">
-          <p className="mentor-fact-summary">
-            截至 {facts.as_of} · 去重学生数：{facts.student_count} ·
-            有效指导关系：{facts.relation_ids.length}
-          </p>
-          <h4>导师与课题组效能</h4>
-          {facts.effectiveness?.annual_counts ? (
-            <>
-              <p>评分覆盖 {facts.effectiveness.scored}/{facts.effectiveness.students} 人，涉及 {facts.effectiveness.cohorts} 届。按方案 85 分口径统计模拟评价，混用规则版本时暂停分数比较。</p>
-              <p>前三个完整年度的授权可见成果数 · {Object.entries(facts.effectiveness.annual_counts).map(([year, count]) => `${year} 年 ${count} 项`).join(" · ")}。仅计可确认发生于指导关系期间的成果。</p>
-              <table>
-                <thead><tr><th>指标</th><th>当前值</th><th>同学院同类单位均值</th></tr></thead>
-                <tbody>
-                  {(["rate", "acceleration", "stability"] as const).map((key) => {
-                    const value = facts.effectiveness?.[key];
-                    const peer = facts.effectiveness?.benchmark[key];
-                    const unit = key === "rate" ? "%" : "";
-                    return <tr key={key}>
-                      <td>{{rate: "模拟拔尖产出率", acceleration: "成果增量变化", stability: "培养稳定性（各届平均分方差）"}[key]}</td>
-                      <td>{value == null ? "条件不足" : value.toFixed(2) + unit}</td>
-                      <td>{peer?.mean == null ? "暂无可比单位" : `${peer.mean.toFixed(2)}${unit}（${peer.count} 个）`}</td>
-                    </tr>;
-                  })}
-                </tbody>
-              </table>
-            </>
-          ) : <p>请选择一名导师或一个课题组，并确认所选日期有授权可见的有效指导关系。</p>}
-          <p>影响力转化缺少毕业后跟踪数据。</p>
-          <table>
-            <thead>
-              <tr>
-                <th>成果类别</th>
-                <th>参与学生人数</th>
-                <th>去重成果数</th>
-                <th>证据</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(facts.categories).map(([k, v]) => (
-                <tr key={k}>
-                  <td>{labels[k]}</td>
-                  <td>{v.student_count}</td>
-                  <td>{v.distinct_outputs}</td>
-                  <td>
-                    <button
-                      className="mentor-detail-action"
-                      aria-label={`${labels[k]}查看明细`}
-                      onClick={() => setDrill(k)}
-                    >
-                      查看明细
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="mentor-missing">
-            <p>毕业：条件缺失，{facts.graduation.reason}。</p>
-            <p>延期：条件缺失，{facts.delay.reason}。</p>
-          </div>
-          <p>{facts.basis}</p>
-          {drill && (
-            <div>
-              <h4>{labels[drill]}事实证据</h4>
-              <table>
-                <thead>
-                  <tr>
-                    <th>业务编号</th>
-                    <th>成果</th>
-                    <th>授权参与人数</th>
-                    <th>版本</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {facts.categories[drill].items.map((i) => (
-                    <tr key={i.id}>
-                      <td>{i.business_key}</td>
-                      <td>{i.title}</td>
-                      <td>{i.participant_count}</td>
-                      <td>{i.version}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
     </section>
   );
 }

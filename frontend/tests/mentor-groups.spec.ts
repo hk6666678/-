@@ -60,6 +60,7 @@ test("mentor directories relationships facts and revocation", async ({
   const student = (await (await page.request.get("/api/students")).json())
     .items[0];
   await page.getByRole("button", { name: "导师与课题组数据", exact: true }).click();
+  await page.getByText("业务目录", { exact: true }).click();
   for (const [kind, number, name] of [
     ["mentors", "SYN-MENTOR-1", "合成导师"],
     ["groups", "SYN-GROUP-1", "合成课题组"],
@@ -75,6 +76,7 @@ test("mentor directories relationships facts and revocation", async ({
     await page.getByRole("button", { name: "保存目录", exact: true }).click();
     await expect(page.getByRole("status")).toContainText("目录已保存");
   }
+  await page.getByText("学生关系与历史", { exact: true }).click();
   await page
     .getByRole("combobox", { name: "关系学生", exact: true })
     .selectOption(String(student.id));
@@ -96,7 +98,7 @@ test("mentor directories relationships facts and revocation", async ({
     .scrollIntoViewIfNeeded();
   await page.screenshot({ path: "test-results/mentor-groups-directory.png" });
   await page
-    .getByRole("heading", { name: "学生关系与历史", exact: true })
+    .getByText("学生关系与历史", { exact: true })
     .scrollIntoViewIfNeeded();
   await page.screenshot({ path: "test-results/mentor-groups-relations.png" });
   await page.getByRole("button", { name: /关系历史 \d+/ }).click();

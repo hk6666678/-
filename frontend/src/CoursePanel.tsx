@@ -43,7 +43,7 @@ export function CoursePanel({ csrf }: { csrf: string }) {
     <section className="card">
       <h2>课程导入与待关联记录</h2>
       <p>
-        记录键：学号、课程编号、修读学期、考核次数。空成绩保留为空。缺基础档案时须明确来源学院和专业；身份或范围冲突需人工确认。
+        下载模板，上传 Excel，核对预览后确认。学号请保存为文本，缺失成绩可留空。
       </p>
       <a href="/api/templates/courses">下载课程模板 v1</a>
       {error && (
