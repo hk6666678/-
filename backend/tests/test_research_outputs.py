@@ -55,6 +55,15 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
                     "major": "合成专业",
                 }
                 for op in ["maintain", "view"]
+            ]
+            + [
+                {
+                    "category": "topic",
+                    "operation": op,
+                    "college": "合成学院",
+                    "major": "合成专业",
+                }
+                for op in ["maintain", "view"]
             ],
         },
     )
@@ -167,6 +176,43 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
         "2025",
         "无法比较",
         "无法比较",
+    )
+    topic = load_workbook(
+        BytesIO(client.get("/api/templates/milestones/topic").content)
+    )
+    columns = [cell.value for cell in topic.active[2]]
+    values = {
+        "学号": "001",
+        "姓名": "合成人员",
+        "所属学院": "合成学院",
+        "专业": "合成专业",
+        "考核批次": "模拟选题",
+        "选题标题": "合成题目",
+        "评分制度": "百分制",
+        "原始成绩": 85,
+        "实际日期": "2025-04-01",
+    }
+    topic.active.append([values.get(column) for column in columns])
+    topic_stream = BytesIO()
+    topic.save(topic_stream)
+    topic_preview = client.post(
+        "/api/milestones/topic/preview",
+        headers=headers,
+        data={"source_department": "合成来源"},
+        files={"file": ("topic.xlsx", topic_stream.getvalue())},
+    )
+    assert topic_preview.status_code == 200, topic_preview.text
+    assert (
+        client.post(
+            f"/api/milestone-imports/{topic_preview.json()['id']}/confirm",
+            headers=headers,
+        ).status_code
+        == 200
+    )
+    rows = client.get("/api/research-outputs/cohort").json()["items"]
+    assert (
+        next(row["outputs"][0]["topic"] for row in rows if row["outputs"])
+        == "同年（先后未知）"
     )
     output_id = result["items"][0]["id"]
     citation_template = client.get("/api/research-outputs/citations/template")

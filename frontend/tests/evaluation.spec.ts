@@ -306,6 +306,11 @@ test("simulation rule, scoring, history, charts and authorized export", async ({
     page.getByRole("heading", { name: /快照 #2 · 13\.33 \/ 100/ }),
   ).toBeVisible();
   await expect(page.getByText("共2个有效快照点。")).toBeVisible();
+  const evidenceButton = page.getByRole("button", { name: "查看快照 #2 的证据" });
+  await expect(evidenceButton).toBeVisible();
+  await expect(page.getByRole("button", { name: "查看快照 #1 的证据" })).toHaveCount(0);
+  await evidenceButton.click();
+  await expect(page.getByRole("heading", { name: /快照 #2 · 13\.33 \/ 100/ })).toBeVisible();
   // Snapshots saved within the same second overlap on the honest time axis,
   // so assert the plotted points rather than a zero-width connecting line.
   await expect(
