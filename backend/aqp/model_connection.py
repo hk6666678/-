@@ -5,6 +5,7 @@ import os
 import sqlite3
 import time
 from collections.abc import Callable
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlsplit
@@ -19,6 +20,23 @@ from starlette.responses import Response
 
 from aqp.accounts import require_admin
 from aqp.store import audit, connection
+
+# Set only around requests made by the in-process fixture harness. Neither a
+# saved configuration nor a request header can grant this permission.
+synthetic_fixture_db: ContextVar[Path | None] = ContextVar(
+    "synthetic_fixture_db", default=None
+)
+LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
+
+def model_target_allowed(path: Path, config: "ModelConfig") -> bool:
+    if urlsplit(config.endpoint).hostname in LOOPBACK_HOSTS:
+        return True
+    return (
+        synthetic_fixture_db.get() == path.resolve()
+        and config.endpoint == "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        and config.model == "qwen3.8-max-0902"
+    )
 
 
 class ModelConfig(BaseModel):
@@ -50,7 +68,7 @@ class ModelConfig(BaseModel):
                 or url.fragment
             ):
                 raise ValueError("仅允许不含凭证和查询参数的 HTTP(S) 模型地址")
-            local = url.hostname in {"localhost", "127.0.0.1", "::1"}
+            local = url.hostname in LOOPBACK_HOSTS
             if not local and not self.external_authorized:
                 raise ValueError("非回环服务需要明确外部网络授权")
             if not local and url.scheme != "https":
@@ -122,6 +140,8 @@ def invoke_model(path: Path, purpose: str, text: str) -> str:
         or purpose not in config.allowed_purposes
     ):
         raise HTTPException(503, "模型未启用或用途未获准")
+    if not model_target_allowed(path, config):
+        raise HTTPException(403, "外部模型仅允许处理隔离验证生成的模拟材料")
     try:
         return default_runner(config, text)
     except HTTPException:
@@ -166,12 +186,17 @@ def register_model_connection(
         with connection(path) as db:
             current(db, request)
             config, version = config_from(db)
+            permitted = config.enabled and model_target_allowed(path, config)
             return {
                 "enabled": config.enabled,
                 "approved": config.approved,
                 "version": version,
-                "available": config.enabled and bool(os.environ.get(config.key_env)),
-                "message": "已配置，需连接验证" if config.enabled else "Agent 未启用",
+                "available": permitted and bool(os.environ.get(config.key_env)),
+                "message": (
+                    "已配置，需连接验证"
+                    if permitted
+                    else "Agent 未启用或外部模型仅供隔离验证"
+                ),
             }
 
     @app.put("/api/model/config")

@@ -1,8 +1,10 @@
 # ruff: noqa: F811
 import pytest
 from aqp import model_connection
+from aqp.paper_worker import run_once
 from fastapi.testclient import TestClient
 from test_accounts import client, login_admin  # noqa: F401
+from test_papers import paper_setup, text_pdf, update_grants, upload_paper
 
 
 def test_model_disabled_by_default(client: TestClient) -> None:
@@ -69,3 +71,52 @@ def test_external_endpoint_needs_approval(client: TestClient) -> None:
         ).status_code
         == 422
     )
+
+
+def test_external_config_cannot_send_from_ordinary_app(client, tmp_path, monkeypatch):
+    headers = login_admin(client)
+    monkeypatch.setenv("AQP_MODEL_KEY_BAILIAN", "Synthetic-secret")
+    sent = []
+    monkeypatch.setattr(
+        model_connection,
+        "default_runner",
+        lambda config, text: sent.append(text) or "OK",
+    )
+    assert (
+        client.put(
+            "/api/model/config",
+            headers=headers,
+            json={
+                "enabled": True,
+                "approved": True,
+                "external_authorized": True,
+                "approval_reference": "synthetic only",
+                "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                "model": "qwen3.8-max-0902",
+                "key_env": "AQP_MODEL_KEY_BAILIAN",
+                "allowed_purposes": ["agent", "papers"],
+            },
+        ).status_code
+        == 200
+    )
+    assert client.post("/api/model/check", headers=headers).status_code == 403
+    assert (
+        client.post(
+            "/api/agent/query",
+            headers=headers,
+            json={
+                "question": "来源未经确认的测试文本",
+            },
+        ).status_code
+        == 403
+    )
+    headers = paper_setup(client)
+    paper = upload_paper(client, headers, text_pdf()).json()
+    assert run_once(tmp_path / "accounts.sqlite3")
+    update_grants(
+        client, headers, ["view", "maintain", "analyze", "identity", "download"]
+    )
+    result = client.post(f"/api/papers/{paper['id']}/semantic", headers=headers)
+    assert result.status_code == 200
+    assert result.json()["status"] == "failed"
+    assert sent == []

@@ -73,13 +73,32 @@ def test_live_synthetic_flow(client, tmp_path, monkeypatch, caplog):
 
     monkeypatch.setattr(model_connection, "default_runner", limited)
     caplog.set_level(logging.INFO, logger="aqp.model_connection")
+    fixture_db = (tmp_path / "accounts.sqlite3").resolve()
+
+    def post_fixture(url, **kwargs):
+        # Only fixed requests constructed below reach this helper. The test
+        # client has no listener and accepts no operator-supplied materials.
+        token = model_connection.synthetic_fixture_db.set(fixture_db)
+        try:
+            return client.post(url, headers=headers, **kwargs)
+        finally:
+            model_connection.synthetic_fixture_db.reset(token)
+
     try:
-        checked = client.post("/api/model/check", headers=headers)
+        assert (
+            client.post(
+                "/api/agent/query",
+                headers=headers,
+                json={"question": "来源未经确认的输入"},
+            ).status_code
+            == 403
+        )
+        assert calls == []
+        checked = post_fixture("/api/model/check")
         print(f"Connection HTTP status: {checked.status_code}")
         assert checked.status_code == 200
-        result = client.post(
+        result = post_fixture(
             "/api/agent/query",
-            headers=headers,
             json={"question": "统计示例学院计算机专业学生人数，这是模拟数据测试。"},
         )
         print(f"Agent HTTP status: {result.status_code}")
@@ -110,7 +129,7 @@ def test_live_synthetic_flow(client, tmp_path, monkeypatch, caplog):
         update_grants(
             client, headers, ["view", "maintain", "analyze", "identity", "download"]
         )
-        response = client.post(f"/api/papers/{paper['id']}/semantic", headers=headers)
+        response = post_fixture(f"/api/papers/{paper['id']}/semantic")
         assert response.status_code == 200
         features = response.json()
         print(f"Paper extraction status: {features['status']}")
