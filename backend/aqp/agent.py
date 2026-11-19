@@ -109,7 +109,6 @@ class AgentPlan(BaseModel):
         if (
             self.tool
             in {
-                "student_counts",
                 "training_statistics",
                 "output_statistics",
                 "correlation_analysis",
@@ -245,7 +244,7 @@ def has_basic_view(db: sqlite3.Connection, actor: int, college: str, major: str)
     if school_operation_allowed(db, actor, "view"):
         return True
     return any(
-        grant["college"] == college
+        (not college or grant["college"] == college)
         and (
             not major
             or grant["major"] in {"", major}
@@ -641,7 +640,7 @@ def student_counts(
     total = 0
     for row in db.execute("SELECT * FROM students WHERE active=1"):
         payload = json.loads(row["payload"])
-        if payload.get("所属学院") != plan.college:
+        if plan.college and payload.get("所属学院") != plan.college:
             continue
         if plan.major and payload.get("专业") != plan.major:
             continue
@@ -1095,6 +1094,24 @@ def register_agent(
                 audit(db, actor["id"], "agent.query", "disabled", "denied")
                 raise HTTPException(503, "Agent 未启用")
             audit(db, actor["id"], "agent.query", str(version))
+
+        if re.fullmatch(
+            r"(?:请问[，, ]*)?(?:目前|现在|当前)?(?:系统(?:里|中)?|全校)?(?:一共|总共)?(?:有)?(?:多少(?:名|位)?(?:研究生|学生)|(?:研究生|学生)(?:总)?人数(?:是多少)?)[？?。]?",
+            body.question.strip(),
+        ):
+            with connection(path) as db:
+                actor, _ = current(db, request)
+                deny_unauthorized_question(db, actor["id"], body.question)
+                plan = AgentPlan(tool="student_counts")
+                result = student_counts(db, actor["id"], plan)
+                worldwide = school_operation_allowed(db, actor["id"], "view")
+                scope = "当前系统在册" if worldwide and "mentor" not in json.loads(actor["roles"]) else "当前授权范围内在册"
+                audit(db, actor["id"], "agent.answer", plan.tool)
+                return {
+                    "answer": f"{scope}学生共 {result['total']} 名。",
+                    "plan": plan.model_dump(), "tool_result": result, "evidence_links": [],
+                    "model_version": version, "generated_at": int(time.time()),
+                }
 
         with connection(path) as db:
             deny_unauthorized_question(db, actor["id"], body.question)

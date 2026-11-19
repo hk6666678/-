@@ -405,8 +405,7 @@ def main(extended: bool = False) -> None:
         if extended:
             profile = client.post(
                 f"/api/mentor-groups/directory/mentors/{mentors[number]}/profile",
-                json={"direction": "智能计算" if college == CS[0] else "软件质量工程",
-                      "title": "副教授", "effective_on": "2020-01-01"},
+                json=demo_mentor_profile(number, college),
                 headers=headers,
             )
             assert profile.status_code == 200, profile.text
@@ -565,6 +564,16 @@ def seed_evaluation_and_papers(client, headers, student_ids):
             assert response.status_code == 200, response.text
 
 
+def demo_mentor_profile(number: str, college: str) -> dict[str, str]:
+    group = int(number[4:])
+    base = "智能计算" if college == CS[0] else "软件质量工程"
+    return {
+        "direction": (base, f"{base}与系统", f"{base}应用")[((group - 1) // 4)],
+        "title": "教授" if group in (9, 10, 11) else "副教授" if group != 12 else "讲师",
+        "effective_on": "2020-01-01",
+    }
+
+
 def prepare_extended_demo():
     STUDENTS.clear()
     TOPICS.clear()
@@ -592,18 +601,25 @@ def prepare_extended_demo():
     )
     schools = ("南京大学", "浙江大学", "厦门大学", "西安交通大学", "东南大学", "四川大学")
     for scope_index, (college, major) in enumerate((CS, SE), 1):
-        for group in range(1, 3):
+        mentor_names = (
+            ("梁文博", "沈静怡", "贺明宇", "秦雅楠", "杜志远", "赵秋宁", "罗彦博", "韩思敏", "许明川", "曹昕然", "周弘毅", "陈嘉平"),
+            ("许嘉明", "周雨薇", "田子恒", "薛晓琳", "宋文清", "陆静怡", "吴博涵", "程佳琪", "邓志宏", "严晓峰", "顾书宁", "蒋怡君"),
+        )
+        group_names = (
+            ("智能计算与感知", "数据科学与知识工程", "计算成像", "自然语言处理", "视觉计算", "知识推理", "边缘智能", "智能系统", "学习理论", "模式识别", "计算优化", "科学计算"),
+            ("软件质量工程", "服务计算与系统", "程序分析", "可信软件", "云原生系统", "软件测试", "数据工程", "系统架构", "服务治理", "工程自动化", "软件演化", "人机交互"),
+        )
+        for group in range(1, 13):
             mentor = f"T10{scope_index}{group}"
             team = f"RG{scope_index}0{group}"
-            directory_index = (scope_index - 1) * 2 + group - 1
-            MENTORS.append((mentor, ("梁文博", "沈静怡", "许嘉明", "周雨薇")[directory_index], (college, major)))
-            GROUPS.append((team, ("智能计算与感知", "数据科学与知识工程", "软件质量工程", "服务计算与系统")[directory_index], (college, major)))
+            MENTORS.append((mentor, mentor_names[scope_index - 1][group - 1], (college, major)))
+            GROUPS.append((team, group_names[scope_index - 1][group - 1], (college, major)))
         for year in range(2020, 2025):
             for index in range(1, 25):
                 number = f"{year % 100}50{scope_index}{index:03}"
                 name_index = (scope_index - 1) * 12 + index - 1
                 name = surnames[name_index % 24] + given_names[(name_index + scope_index * 3 + (year - 2020) * 4) % 24]
-                group = 1 if index <= 12 else 2
+                group = (index - 1) // 2 + 1
                 STUDENTS.append((number, name, (college, major), str(year), schools[(index + year) % len(schools)],
                                  "统一考试", "学术型学位", "正常", "转导师" if index == 5 else "",
                                  f"{year + 1}-09-01" if index == 5 else ""))

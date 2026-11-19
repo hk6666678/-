@@ -125,6 +125,14 @@ def test_agent_counts_students_from_controlled_tool(
     assert result["model_version"] >= 1
     assert '"total": 1' in prompts[1]
 
+    total_question = {"question": "目前系统多少学生"}
+    direct = client.post("/api/agent/query", headers=headers, json=total_question)
+    assert direct.status_code == 200, direct.text
+    assert direct.json()["tool_result"]["total"] == 1
+    assert len(prompts) == 2
+    replace_grants(client, headers, [])
+    assert client.post("/api/agent/query", headers=headers, json=total_question).status_code == 403
+
 
 @pytest.mark.parametrize("remaining_major, expected_status", [(None, 403), ("数学", 409)])
 def test_agent_does_not_send_summary_after_tool_scope_changes(
