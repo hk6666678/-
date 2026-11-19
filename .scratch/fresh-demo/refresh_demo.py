@@ -241,6 +241,15 @@ def main(extended: bool = False) -> None:
     csrf = login.json()["csrf_token"]
     headers = {"X-CSRF-Token": csrf}
     source = "模拟演示数据（研究生院）"
+    if extended:
+        for (college, major), credits in ((CS, 20), (SE, 16)):
+            response = client.post(
+                "/api/training-requirements",
+                json={"college": college, "major": major, "required_credits": credits,
+                      "repeat_policy": "max_passed_credits", "confirmed": True, "reason": "合成演示口径"},
+                headers=headers,
+            )
+            assert response.status_code == 200, response.text
 
     def import_basic(rows, url_preview, url_confirm, extra=None):
         template = client.get(template_url).content
