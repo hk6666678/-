@@ -5,6 +5,7 @@ import json
 import time
 from collections.abc import Callable
 from pathlib import Path
+from statistics import quantiles
 from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Request
@@ -16,6 +17,26 @@ from aqp.authorization import allowed, student_allowed
 from aqp.exports import excel_report
 from aqp.research_outputs import current_participant
 from aqp.store import audit, connection
+
+
+def simulation_band(total: float | None, dimensions: list[float]) -> str:
+    if total is None:
+        return "数据不完整"
+    if total >= 85:
+        return "拔尖潜力（模拟分数段）"
+    if total < 70:
+        return "常规培养（模拟分数段）"
+    if sum(value >= 0.8 for value in dimensions) >= 2:
+        return "偏科特长型（模拟分数段）"
+    return "待核查维度表现"
+
+
+def simulation_percentiles(scores: list[float]) -> dict[str, float] | None:
+    if len(scores) < 5:
+        return None
+    cutoffs = quantiles(scores, n=100, method="inclusive")
+    return {f"p{p}": round(cutoffs[p - 1], 2) for p in (50, 75, 90)}
+
 
 SOURCE_CATEGORY = {
     "research_paper_count": "research_papers",
@@ -325,9 +346,15 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
         _, digest = inputs(
             db, actor, saved["student_id"], config
         )
+        result = json.loads(saved["result"])
         return {
             "id": ident,
-            **json.loads(saved["result"]),
+            **result,
+            "band": simulation_band(result["total"], [
+                dimension["normalized"]
+                for dimension in result.get("ahp", {}).get("dimensions", [])
+                if dimension["normalized"] is not None
+            ]),
             "family_id": rule["family_id"],
             "stale": digest != saved["data_digest"],
             "rule_currently_enabled": bool(rule["enabled"]),
@@ -401,6 +428,10 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                     )
                     dimensions.append({**dimension, "normalized": normalized})
                 result["ahp"] = {**ahp, "dimensions": dimensions}
+            result["band"] = simulation_band(total, [
+                dimension["normalized"] for dimension in result.get("ahp", {}).get("dimensions", [])
+                if dimension["normalized"] is not None
+            ])
             cursor = db.execute(
                 "INSERT INTO evaluation_snapshots(student_id,rule_id,result,data_digest,created_by,created_at) VALUES(?,?,?,?,?,?)",
                 (
@@ -441,10 +472,15 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                     **dict(row), "rule_version": result["rule_version"], "as_of": result["as_of"],
                     "total": result["total"] if current_score else None,
                     "current": current_score,
+                    "band": result["band"] if current_score else None,
                 })
             audit(db, actor["id"], "evaluation.dashboard", "simulation")
             db.commit()
-            return {"items": items}
+            benchmarks = {}
+            for rule_id in {row["rule_id"] for row in items}:
+                scores = [row["total"] for row in items if row["rule_id"] == rule_id and row["total"] is not None]
+                benchmarks[rule_id] = {"count": len(scores), "percentiles": simulation_percentiles(scores)}
+            return {"items": items, **({"benchmarks": benchmarks} if benchmarks else {})}
 
     @app.get("/api/evaluation-snapshots/{ident}")
     def snapshot(ident: int, request: Request) -> dict[str, Any]:

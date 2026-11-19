@@ -2,6 +2,17 @@
 from test_accounts import client, login_admin  # noqa: F401
 
 
+def test_simulation_bands_and_peer_percentiles():
+    from aqp.evaluation import simulation_band, simulation_percentiles
+
+    assert simulation_band(None, []) == "数据不完整"
+    assert simulation_band(85, []) == "拔尖潜力（模拟分数段）"
+    assert simulation_band(73, [0.8, 0.91, 0.4]) == "偏科特长型（模拟分数段）"
+    assert simulation_band(73, [0.8]) == "待核查维度表现"
+    assert simulation_band(69.9, []) == "常规培养（模拟分数段）"
+    assert simulation_percentiles([10, 20, 30, 40, 50]) == {"p50": 30, "p75": 40, "p90": 46}
+    assert simulation_percentiles([20, 30]) is None
+
 def test_automatic_simulation_reuses_builtin_rule_without_activation_permission(client, tmp_path):
     from uuid import uuid4
 

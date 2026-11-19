@@ -10,7 +10,9 @@ type Row = {
   as_of: number;
   total: number | null;
   current: boolean;
+  band?: string | null;
 };
+type Benchmark = { count: number; percentiles: { p50: number; p75: number; p90: number } | null };
 
 export function EvaluationDashboard({ refresh, openSnapshot }: {
   refresh: number;
@@ -19,6 +21,7 @@ export function EvaluationDashboard({ refresh, openSnapshot }: {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [rule, setRule] = useState("");
   const [error, setError] = useState(false);
+  const [benchmarks, setBenchmarks] = useState<Record<number, Benchmark>>({});
   useEffect(() => {
     const controller = new AbortController();
     setRows(null);
@@ -28,7 +31,7 @@ export function EvaluationDashboard({ refresh, openSnapshot }: {
         if (!response.ok) throw new Error();
         return response.json();
       })
-      .then(({ items }) => setRows(items))
+      .then(({ items, benchmarks }) => { setRows(items); setBenchmarks(benchmarks ?? {}); })
       .catch(() => { if (!controller.signal.aborted) setError(true); });
     return () => controller.abort();
   }, [refresh]);
@@ -37,6 +40,7 @@ export function EvaluationDashboard({ refresh, openSnapshot }: {
     rules.set(row.rule_id, `${row.college} · ${row.major} · 规则 ${row.rule_id} / v${row.rule_version}`);
   }
   const selected = rules.has(Number(rule)) ? Number(rule) : rules.keys().next().value;
+  const benchmark = selected === undefined ? undefined : benchmarks[selected];
   const ranked = (rows ?? []).filter((row) => row.rule_id === selected)
     .sort((a, b) => (b.total ?? -1) - (a.total ?? -1) || a.research_id.localeCompare(b.research_id));
   let rank = 0;
@@ -53,9 +57,13 @@ export function EvaluationDashboard({ refresh, openSnapshot }: {
               {[...rules].map(([id, label]) => <option value={id} key={id}>{label}</option>)}
             </select>
           </label>
+          {benchmark && <p>当前同规则有效快照 {benchmark.count} 份
+            {benchmark.percentiles
+              ? ` · P50 ${benchmark.percentiles.p50} · P75 ${benchmark.percentiles.p75} · P90 ${benchmark.percentiles.p90}`
+              : " · 不足 5 份，暂不计算分位"}。</p>}
           <div className="table-wrap">
             <table>
-              <thead><tr><th>排名</th><th>研究编号</th><th>模拟总分</th><th>评分时间</th><th>操作</th></tr></thead>
+              <thead><tr><th>排名</th><th>研究编号</th><th>模拟总分</th><th>模拟分层</th><th>评分时间</th><th>操作</th></tr></thead>
               <tbody>{ranked.map((row, i) => {
                 if (i === 0 || ranked[i - 1].total !== row.total) rank = i + 1;
                 return (
@@ -63,6 +71,7 @@ export function EvaluationDashboard({ refresh, openSnapshot }: {
                     <td>{row.total === null ? "—" : rank}</td>
                     <td>{row.research_id}</td>
                     <td>{!row.current ? "数据已变更或规则已停用" : row.total === null ? "数据不完整" : row.total.toFixed(2)}</td>
+                    <td>{row.band ?? "—"}</td>
                     <td>{new Date(row.as_of * 1000).toLocaleString()}</td>
                     <td><button className="secondary" onClick={() => openSnapshot(row.id)}>查看快照 #{row.id} 的证据</button></td>
                   </tr>

@@ -10,6 +10,7 @@ type Rule = {
   config: { name: string; college: string; major: string; mode: string };
 };
 type Snapshot = {
+  band?: string;
   rule_name?: string;
   ahp?: {
     matrix: number[][];
@@ -457,6 +458,9 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
             </section>
           )}
           <p>{snapshot.notice}</p>
+          {snapshot.band && snapshot.total !== null && (
+            <p>{snapshot.band} · 70–85 分段按至少两个维度达到 80% 判定。学分、学籍和同届排名门槛尚待核查。</p>
+          )}
           <p>
             {snapshot.stale
               ? "来源已更新，请重新评分生成新快照"
