@@ -285,6 +285,9 @@ def main(extended: bool = False) -> None:
                 "毕业去向": ("工业界", "学术界", "创业")[int(number[-2:]) % 3],
                 "成果核对起始学期": f"{year}秋",
                 "成果核对截止学期": f"{int(year) + 2}春",
+                "研究方向": ("智能计算" if college == CS[0] else "软件质量工程")
+                    if int(number[-2:]) <= 12 else
+                    ("数据科学" if college == CS[0] else "服务计算"),
             } if extended else {}),
         }
         for number, name, (college, major), year, prior, entry, degree, status, mobility, mobility_date in STUDENTS

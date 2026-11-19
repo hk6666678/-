@@ -5,7 +5,7 @@ import json
 import time
 from collections.abc import Callable
 from pathlib import Path
-from statistics import quantiles
+from statistics import mean, quantiles
 from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -59,6 +59,57 @@ def simulation_signals(inputs: list[dict[str, Any]]) -> list[dict[str, Any]]:
         }
         for name, features, note in definitions
     ]
+
+
+def course_rank_screening(
+    db: Any, actor: int, student: Any, direction: str,
+) -> dict[str, str]:
+    check = {"name": "同届同方向课程排名", "status": "待核查"}
+    if not direction:
+        return {**check, "reason": "未登记学生研究方向"}
+    scope = student["college"], student["major"]
+    if not all(allowed(db, actor, category, op, *scope)
+               for category in ("basic", "courses") for op in ("view", "analyze")):
+        return {**check, "reason": "当前授权不足以核查同方向课程排名"}
+    averages = {}
+    for peer in db.execute(
+        """SELECT id,payload FROM students
+           WHERE active=1 AND college=? AND major=? AND entry_year=?
+             AND trim(json_extract(payload,'$.研究方向'))=?""",
+        (*scope, student["entry_year"], direction),
+    ):
+        if not student_allowed(db, actor, peer["id"]):
+            continue
+        courses: dict[str, list[float]] = {}
+        for record in db.execute(
+            "SELECT course_code,payload FROM course_records WHERE student_id=? AND active=1 AND state='linked'",
+            (peer["id"],),
+        ):
+            payload = json.loads(record["payload"])
+            if payload.get("评分制度") != "百分制" or (
+                payload.get("所属学院", payload.get("学院")), payload.get("专业")
+            ) != scope:
+                continue
+            try:
+                score = float(payload.get("原始成绩") or "")
+            except (TypeError, ValueError):
+                continue
+            if 0 <= score <= 100:
+                courses.setdefault(record["course_code"], []).append(score)
+        if courses:
+            averages[peer["id"]] = round(mean(mean(values) for values in courses.values()), 2)
+    if student["id"] not in averages:
+        return {**check, "reason": "该学生没有可比较的百分制课程成绩"}
+    count = len(averages)
+    if count < 5:
+        return {**check, "reason": f"当前只有 {count} 名可比学生，至少需要 5 名"}
+    own = averages[student["id"]]
+    rank = 1 + sum(value > own for value in averages.values())
+    return {
+        **check,
+        "status": "通过" if rank * 10 <= count * 7 else "未通过",
+        "reason": f"均分 {own:.2f}，同院同专业同届同方向第 {rank}/{count} 名；同分并列，前 70% 通过",
+    }
 
 
 SOURCE_CATEGORY = {
@@ -543,7 +594,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
             result = load_snapshot(db, actor["id"], ident)
             result["signals"] = simulation_signals(result["inputs"])
             student = db.execute(
-                "SELECT college,major,payload FROM students WHERE id=?", (result["student_id"],)
+                "SELECT id,college,major,entry_year,payload FROM students WHERE id=?", (result["student_id"],)
             ).fetchone()
             payload = json.loads(student["payload"])
             state = payload.get("学籍状态")
@@ -574,7 +625,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                 credits,
                 {"name": "学籍状态", "status": enrollment,
                  "reason": f"登记状态：{state or '缺失'}" + (f"；异动：{mobility}" if mobility else "")},
-                {"name": "同届同方向课程排名", "status": "待核查", "reason": "同方向课程排名尚未接入"},
+                course_rank_screening(db, actor["id"], student, str(payload.get("研究方向") or "").strip()),
             ]
             audit(db, actor["id"], "evaluation.read", str(ident))
             db.commit()
