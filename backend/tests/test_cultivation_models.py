@@ -116,4 +116,5 @@ def test_personal_signals_compare_authorized_peers_without_revealing_their_recor
             "below": True,
             "sources": [],
         },
+        "output_trend": {"observations": [], "signal": "登记覆盖未确认"},
     }

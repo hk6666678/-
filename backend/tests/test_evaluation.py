@@ -3,7 +3,11 @@ from test_accounts import client, login_admin  # noqa: F401
 
 
 def test_six_signal_trial_uses_milestones_and_withholds_incomplete_total():
-    from aqp.evaluation import SOURCE_CATEGORY, screened_trial_decision, six_signal_trial
+    from aqp.evaluation import (
+        SOURCE_CATEGORY,
+        screened_trial_decision,
+        six_signal_trial,
+    )
 
     inputs = [{"feature": feature, "normalized": 1, "value": 1} for feature in SOURCE_CATEGORY]
     signals = {
@@ -22,7 +26,7 @@ def test_six_signal_trial_uses_milestones_and_withholds_incomplete_total():
 def test_student_clusters_use_separate_holdout_and_respect_missing_scores():
     from aqp.student_clustering_demo import DIMENSIONS, cluster_student_demo
 
-    inputs = [dict(name=name, normalized=value) for name, value in zip(DIMENSIONS, (0.88, 0.36, 0.41), strict=True)]
+    inputs = [{"name": name, "normalized": value} for name, value in zip(DIMENSIONS, (0.88, 0.36, 0.41), strict=True)]
     snapshot = {"ahp": {"dimensions": inputs}, "total": 58, "stale": False, "rule_currently_enabled": True}
     result = cluster_student_demo(snapshot)
     assert result["cluster"]["name"] == "学术基础较强"
@@ -911,3 +915,84 @@ def test_course_and_citation_versions_and_mentor_binding(client, tmp_path):
         )
         db.commit()
     assert client.get(f"/api/evaluation-snapshots/{result['id']}").status_code == 200
+
+
+def test_course_scope_mismatch_excluded_with_disclosure(client, tmp_path):
+    import json
+    from uuid import uuid4
+
+    from aqp.store import connection
+
+    headers = login_admin(client)
+    me = client.get("/api/me").json()["user"]
+    grants = [
+        {"category": cat, "operation": op, "college": "synthetic", "major": "synthetic"}
+        for cat in [
+            "basic",
+            "talent_evaluation",
+            "courses",
+            "research_papers",
+            "patents",
+            "awards",
+            "conferences",
+        ]
+        for op in ["view", "identity", "analyze"]
+    ]
+    assert (
+        client.put(
+            f"/api/users/{me['id']}/grants",
+            headers=headers,
+            json={
+                "expected_version": me["version"],
+                "request_id": str(uuid4()),
+                "grants": grants,
+            },
+        ).status_code
+        == 200
+    )
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        db.execute(
+            "INSERT INTO students(id,research_id,student_number,name,college,major,level,entry_year,payload) VALUES(1,'R1','S1','Synthetic','synthetic','synthetic','master',2025,'{}')"
+        )
+        db.execute(
+            "INSERT INTO import_batches(id,category,template_version,source_department,filename,file_hash,original_file,uploaded_by,created_at) VALUES(1,'courses','1','synthetic','synthetic','synthetic',X'00',?,1)",
+            (me["id"],),
+        )
+        for ident, college, result in [
+            (1, "synthetic", "通过"),
+            (2, "旧学院", "通过"),
+        ]:
+            db.execute(
+                "INSERT INTO import_rows(id,batch_id,sheet,row_number,raw_json,normalized_json,state) VALUES(?,1,'sheet',?,'{}','{}','linked')",
+                (ident, ident),
+            )
+            db.execute(
+                "INSERT INTO course_records(id,student_number,course_code,term,attempt,student_id,payload,state,source_row_id) VALUES(?,'S1',?,'2025',1,1,?,'linked',?)",
+                (
+                    ident,
+                    str(ident),
+                    json.dumps(
+                        {
+                            "所属学院": college,
+                            "专业": "synthetic",
+                            "评分制度": "百分制",
+                            "业务通过结果": result,
+                        }
+                    ),
+                    ident,
+                ),
+            )
+    response = client.post(
+        "/api/evaluation-snapshots", headers=headers, json={"student_id": 1}
+    )
+    assert response.status_code == 200, response.text
+    snapshot = response.json()
+    ratio = next(
+        input for input in snapshot["inputs"] if input["feature"] == "course_pass_ratio"
+    )
+    assert ratio["value"] == 1.0
+    statuses = {
+        (entry["record_id"], entry["status"]) for entry in ratio["evidence"]
+    }
+    assert (1, "通过") in statuses
+    assert (2, "范围不一致已排除") in statuses

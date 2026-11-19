@@ -364,7 +364,22 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                         payload.get("所属学院", payload.get("学院")) != student["college"]
                         or payload.get("专业") != student["major"]
                     ):
-                        deny(db, actor, str(row["id"]), "课程来源范围已变化")
+                        # 学生档案更正学院/专业后，旧课程记录口径不一致：
+                        # 排除出通过比例并在证据中披露，交由数据纠错流程处理。
+                        evidence.append(
+                            {
+                                "category": "courses",
+                                "record_id": row["id"],
+                                "course_code": row["course_code"],
+                                "term": row["term"],
+                                "attempt": row["attempt"],
+                                "version": row["version"],
+                                "source_row_id": row["source_row_id"],
+                                "status": "范围不一致已排除",
+                                "pass_rule_id": None,
+                            }
+                        )
+                        continue
                     status, pass_rule = outcome(payload, rules)
                     statuses.append(status)
                     evidence.append(
