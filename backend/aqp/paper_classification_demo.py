@@ -8,6 +8,7 @@ from scipy.optimize import minimize  # type: ignore[import-untyped]
 from scipy.special import expit  # type: ignore[import-untyped]
 
 FEATURES = ("page_count", "character_count", "section_count", "reference_count")
+PAPER_MODEL_VERSIONS = {"synthetic-logistic-v1": 1.0, "synthetic-logistic-v2": 8.0}
 
 
 def synthetic_samples(seed: int, count: int) -> tuple[np.ndarray, np.ndarray]:
@@ -22,8 +23,9 @@ def synthetic_samples(seed: int, count: int) -> tuple[np.ndarray, np.ndarray]:
     return values, labels
 
 
-@lru_cache(maxsize=1)
-def train_demo() -> tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, int]]:
+@lru_cache(maxsize=len(PAPER_MODEL_VERSIONS))
+def train_demo(model_version: str = "synthetic-logistic-v1") -> tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, int]]:
+    regularization = PAPER_MODEL_VERSIONS[model_version]
     train, labels = synthetic_samples(314, 240)
     holdout, expected = synthetic_samples(159, 80)
     center, scale = train.mean(axis=0), train.std(axis=0)
@@ -33,8 +35,8 @@ def train_demo() -> tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, int]]:
         logits = design @ weights
         penalty = weights.copy()
         penalty[0] = 0
-        loss = np.logaddexp(0, logits).sum() - labels @ logits + (penalty @ penalty) / 2
-        return float(loss), design.T @ (expit(logits) - labels) + penalty
+        loss = np.logaddexp(0, logits).sum() - labels @ logits + regularization * (penalty @ penalty) / 2
+        return float(loss), design.T @ (expit(logits) - labels) + regularization * penalty
 
     fitted = minimize(objective, np.zeros(len(FEATURES) + 1), jac=True, method="BFGS")
     if not fitted.success:
@@ -51,8 +53,8 @@ def train_demo() -> tuple[np.ndarray, np.ndarray, np.ndarray, dict[str, int]]:
     return weights, center, scale, validation
 
 
-def classify_demo(result: dict[str, Any]) -> dict[str, Any]:
-    weights, center, scale, validation = train_demo()
+def classify_demo(result: dict[str, Any], model_version: str = "synthetic-logistic-v1") -> dict[str, Any]:
+    weights, center, scale, validation = train_demo(model_version)
     inputs = {key: result.get(key) for key in FEATURES}
     missing = [key for key, value in inputs.items() if value is None]
     probability = None
@@ -60,7 +62,9 @@ def classify_demo(result: dict[str, Any]) -> dict[str, Any]:
         values = np.asarray(list(inputs.values()), dtype=float)
         probability = float(expit(weights[0] + ((values - center) / scale) @ weights[1:]))
     return {
-        "model_version": "synthetic-logistic-v1",
+        "model_version": model_version,
+        "recipe": {"algorithm": "L2 logistic regression", "l2": PAPER_MODEL_VERSIONS[model_version],
+                   "training_seed": 314, "holdout_seed": 159},
         "inputs": inputs,
         "missing": missing,
         "score": probability,

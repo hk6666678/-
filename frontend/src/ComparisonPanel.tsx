@@ -14,6 +14,7 @@ type TextComparison = {
 };
 type Classification = {
   model_version: string; label: string | null; score: number | null;
+  recipe: { algorithm: string; l2: number; training_seed: number; holdout_seed: number };
   inputs: Record<string, number | null>;
   validation: { training_count: number; holdout_count: number; correct: number; false_positive: number; false_negative: number };
 };
@@ -30,6 +31,8 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
   const [result, setResult] = useState<Comparison>();
   const [textResult, setTextResult] = useState<TextComparison>();
   const [classification, setClassification] = useState<Classification>();
+  const [classifier, setClassifier] = useState("synthetic-logistic-v1");
+  const [classificationRuns, setClassificationRuns] = useState<Record<string, Classification>>({});
   const [busy, setBusy] = useState(false);
 
   async function call(url: string, body?: unknown) {
@@ -68,6 +71,7 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
           setResult(undefined);
           setTextResult(undefined);
           setClassification(undefined);
+          setClassificationRuns({});
           setError("");
         }}>
           <option value="">请选择论文</option>
@@ -101,12 +105,18 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
       {id && <details className="task-details" key={`classify-${id}`}>
         <summary>优秀论文训练与推理演练</summary>
         <p>本地逻辑回归使用合成标签训练。仅供流程演示。</p>
+        <label>论文分类模型版本<select value={classifier} disabled={busy} onChange={(e) => setClassifier(e.target.value)}>
+          <option value="synthetic-logistic-v1">v1 · 基准正则化</option>
+          <option value="synthetic-logistic-v2">v2 · 较强正则化</option>
+        </select></label>
         <button type="button" disabled={busy} onClick={async () => {
           setBusy(true);
           setError("");
           setClassification(undefined);
           try {
-            setClassification(await call(`/api/papers/${id}/classification-demo`));
+            const next: Classification = await call(`/api/papers/${id}/classification-demo?model_version=${classifier}`);
+            setClassification(next);
+            setClassificationRuns((runs) => ({ ...runs, [next.model_version]: next }));
           } catch (err) {
             setError(String(err));
           } finally {
@@ -115,11 +125,19 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
         }}>运行模拟分类</button>
         {classification && <>
           <p>{classification.label ?? "输入缺失"}{classification.score == null ? "" : ` · 模型输出 ${classification.score.toFixed(3)}`} · {classification.model_version}</p>
+          <p>L2 {classification.recipe.l2} · 训练种子 {classification.recipe.training_seed} · 留出种子 {classification.recipe.holdout_seed}</p>
           <p>合成训练样本 {classification.validation.training_count} 条 · 合成留出样本 {classification.validation.holdout_count} 条 · 判对 {classification.validation.correct} 条 · 误判优秀 {classification.validation.false_positive} 条 · 漏判优秀 {classification.validation.false_negative} 条。</p>
           <ul>{Object.entries(classification.inputs).map(([key, value]) => (
             <li key={key}>{features[key] ?? key} · {value ?? "缺失"}</li>
           ))}</ul>
         </>}
+        {Object.keys(classificationRuns).length > 1 && <table>
+          <thead><tr><th>版本</th><th>同一论文的输出</th><th>同一留出集判对</th><th>误判优秀</th><th>漏判优秀</th></tr></thead>
+          <tbody>{Object.values(classificationRuns).map((run) => <tr key={run.model_version}>
+            <td>{run.model_version}</td><td>{run.score?.toFixed(3) ?? "缺失"}</td><td>{run.validation.correct}/{run.validation.holdout_count}</td>
+            <td>{run.validation.false_positive}</td><td>{run.validation.false_negative}</td>
+          </tr>)}</tbody>
+        </table>}
       </details>}
       {id && (
         <details className="task-details" key={`text-${id}`}>

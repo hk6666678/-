@@ -34,6 +34,11 @@ def test_student_clusters_use_separate_holdout_and_respect_missing_scores():
     assert result["validation"]["matching_profiles"] <= 90
     assert cluster_student_demo({**snapshot, "stale": True})["cluster"] is None
     assert cluster_student_demo({**snapshot, "ahp": {}})["cluster"] is None
+    deep = cluster_student_demo(snapshot, "synthetic-autoencoder-v2")
+    assert deep["cluster"]["name"] == "学术基础较强"
+    assert deep["recipe"]["distance_space"] == "latent"
+    assert deep["validation"]["holdout_count"] == result["validation"]["holdout_count"]
+    assert deep == cluster_student_demo(snapshot, "synthetic-autoencoder-v2")
 
 def test_simulation_bands_and_peer_percentiles():
     from aqp.evaluation import simulation_band, simulation_percentiles

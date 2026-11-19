@@ -304,8 +304,10 @@ def register_papers(
             )
 
     @app.get("/api/papers/{version_id}/classification-demo")
-    def classification_demo(version_id: int, request: Request) -> dict[str, Any]:
-        from aqp.paper_classification_demo import classify_demo
+    def classification_demo(
+        version_id: int, request: Request, model_version: str = "synthetic-logistic-v1",
+    ) -> dict[str, Any]:
+        from aqp.paper_classification_demo import PAPER_MODEL_VERSIONS, classify_demo
 
         with connection(path) as db:
             actor, _ = current(db, request)
@@ -313,8 +315,10 @@ def register_papers(
             access(db, actor["id"], row, ("view", "analyze"))
             if row["status"] != "succeeded" or not row["result"]:
                 raise HTTPException(409, "论文需先完成本地解析")
-            audit(db, actor["id"], "paper.classification_demo", str(version_id))
-            return classify_demo(json.loads(row["result"]))
+            if model_version not in PAPER_MODEL_VERSIONS:
+                raise HTTPException(422, "未知的论文分类模型版本")
+            audit(db, actor["id"], "paper.classification_demo", f"{version_id}/{model_version}")
+            return classify_demo(json.loads(row["result"]), model_version)
 
     def text_comparison_data(db: sqlite3.Connection, actor: int, version_id: int, other_id: int) -> dict[str, Any]:
         if version_id == other_id:

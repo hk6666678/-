@@ -61,6 +61,7 @@ const features: Record<string, string> = {
 
 type ClusterResult = {
   model_version: string;
+  recipe: { algorithm: string; distance_space: "latent" | "input"; training_seed: number; holdout_seed: number };
   inputs: Record<string, number | null>;
   cluster: { name: string; distance: number; center: Record<string, number> } | null;
   validation: { training_count: number; holdout_count: number; matching_profiles: number };
@@ -68,19 +69,27 @@ type ClusterResult = {
 
 function StudentClusterDemo({ id }: { id: number }) {
   const [result, setResult] = useState<ClusterResult>();
+  const [version, setVersion] = useState("synthetic-kmeans-v1");
+  const [runs, setRuns] = useState<Record<string, ClusterResult>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   return <details className="task-details">
     <summary>学生分群训练与推理演练</summary>
-    <p>使用合成评分向量训练 K-means，以三项归一化维度匹配最接近的组。</p>
+    <p>使用合成评分向量训练。两个版本共用一份留出集，距离分别在输入空间和潜在空间计算。</p>
+    <label>学生分群模型版本<select value={version} disabled={busy} onChange={(e) => setVersion(e.target.value)}>
+      <option value="synthetic-kmeans-v1">v1 · K-means</option>
+      <option value="synthetic-autoencoder-v2">v2 · 自编码器 + K-means</option>
+    </select></label>
     <button type="button" disabled={busy} onClick={async () => {
       setError("");
       setResult(undefined);
       setBusy(true);
       try {
-        const response = await fetch(`/api/evaluation-snapshots/${id}/cluster-demo`);
+        const response = await fetch(`/api/evaluation-snapshots/${id}/cluster-demo?model_version=${version}`);
         if (!response.ok) throw Error("无法读取分群结果，请检查授权或刷新页面。");
-        setResult(await response.json());
+        const next: ClusterResult = await response.json();
+        setResult(next);
+        setRuns((saved) => ({ ...saved, [next.model_version]: next }));
       } catch (err) {
         setError(String(err));
       } finally {
@@ -91,10 +100,18 @@ function StudentClusterDemo({ id }: { id: number }) {
     {result && <>
       <p>{result.cluster ? `模拟分组：${result.cluster.name} · 距离 ${result.cluster.distance}` : "维度缺失、快照过时或规则停用，暂不分群。"}</p>
       <p>训练 {result.validation.training_count} 条 · 留出 {result.validation.holdout_count} 条 · 与合成预设分组一致 {result.validation.matching_profiles} 条 · {result.model_version}</p>
+      <p>{result.recipe.algorithm} · 训练种子 {result.recipe.training_seed} · 留出种子 {result.recipe.holdout_seed}</p>
       <ul>{Object.entries(result.inputs).map(([name, value]) => (
         <li key={name}>{name} · 学生 {value?.toFixed(3) ?? "待核查"}{result.cluster && ` · 组中心 ${result.cluster.center[name]}`}</li>
       ))}</ul>
     </>}
+    {Object.keys(runs).length > 1 && <table>
+      <thead><tr><th>版本</th><th>同一学生的分组</th><th>同一留出集分组一致</th></tr></thead>
+      <tbody>{Object.values(runs).map((run) => <tr key={run.model_version}>
+        <td>{run.model_version}</td><td>{run.cluster?.name ?? "待核查"}</td>
+        <td>{run.validation.matching_profiles}/{run.validation.holdout_count}</td>
+      </tr>)}</tbody>
+    </table>}
   </details>;
 }
 

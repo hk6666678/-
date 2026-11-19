@@ -209,6 +209,11 @@ def test_demo_classifier_uses_holdout_and_requires_analysis_access(client, tmp_p
     validation = demo["validation"]
     assert validation["training_count"] == 240 and validation["holdout_count"] == 80
     assert validation["correct"] + validation["false_positive"] + validation["false_negative"] == 80
+    second = client.get(url, params={"model_version": "synthetic-logistic-v2"}).json()
+    assert second["inputs"] == demo["inputs"]
+    assert second["recipe"]["holdout_seed"] == demo["recipe"]["holdout_seed"]
+    assert second["recipe"]["l2"] > demo["recipe"]["l2"] and second["score"] != demo["score"]
+    assert client.get(url, params={"model_version": "unknown"}).status_code == 422
 
 
 def test_independent_worker_cli_and_concurrent_claim(client, tmp_path):
