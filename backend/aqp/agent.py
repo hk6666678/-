@@ -1146,6 +1146,41 @@ def register_agent(
                     }
                 )
             ]
+        direct_alert = re.fullmatch(
+            r"(?:请问\s*)?学号\s*([0-9]{3,20})\s*(?:的学生|的研究生)?\s*(?:有|触发了)(?:哪些|什么|没有)?(?:培养)?预警[？?。]?",
+            body.question.strip(),
+        )
+        if direct_alert:
+            with connection(path) as db:
+                actor, _ = current(db, request)
+                deny_unauthorized_question(db, actor["id"], body.question)
+                plan = AgentPlan(tool="student_alerts", student_lookup=direct_alert[1])
+                direct_result, direct_links = execute_plan(db, actor["id"], plan, loaders)
+                assert direct_result is not None
+                lines = []
+                if trend := direct_result.get("course_trend"):
+                    lines.append(f"课程趋势：{trend['signal']}")
+                for trend in direct_result.get("milestone_trends", []):
+                    lines.append(f"{trend['label']}趋势：{trend['signal']}")
+                if trend := direct_result.get("output_trend"):
+                    lines.append(f"成果增量：{trend['signal']}")
+                    if trend.get("declining"):
+                        lines.append("最近三个已核对学期的成果数量连续下降。")
+                if review := direct_result.get("blind_review"):
+                    lines.append(f"盲审送审：{review['status']}")
+                if mobility := direct_result.get("mobility"):
+                    lines.append(f"学籍异动：{mobility['type']}")
+                if direct_result.get("peer_outputs") and direct_result["peer_outputs"]["below"]:
+                    lines.append("已登记成果数低于同届同专业学生中位数。")
+                if notice := direct_result.get("notice"):
+                    lines.append(notice)
+                audit(db, actor["id"], "agent.answer", plan.tool)
+                return {
+                    "answer": "\n".join(lines) or "当前资料不足以判断个人预警。",
+                    "plan": plan.model_dump(), "tool_result": direct_result, "evidence_links": direct_links,
+                    "model_version": version, "generated_at": int(time.time()),
+                }
+
         plan_text = invoke_model(
             path,
             "agent",

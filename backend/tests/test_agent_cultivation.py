@@ -180,6 +180,11 @@ def test_agent_student_alerts_dispatch_links_and_revocation(
     assert events.status_code == 200
     assert events.json()["items"], "cultivation.signals audit missing"
 
+    calls.clear()
+    direct = ask(client, headers, "学号001的学生有哪些培养预警？")
+    assert direct.status_code == 200
+    assert "未提交且已逾期" in direct.json()["answer"]
+    assert calls == []
     for lookup in ("001", "合成学生"):
         calls.clear()
         plan_runner(monkeypatch, {"tool": "student_alerts", "student_lookup": lookup}, "模拟预警摘要", calls)
