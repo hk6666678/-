@@ -182,7 +182,8 @@ export function AssessmentPanel({ csrf }: { csrf: string }) {
             setKeywordBusy(false);
           }
         }}>
-          <label>关键词（逗号分隔）<input name="terms" required maxLength={1600} /></label>
+          <label>关键词（逗号分隔）<input name="terms" required maxLength={1600}
+            defaultValue="创新性,创新点,研究方法,数据不足,论证不足,写作规范,参考文献" /></label>
           <button disabled={keywordBusy}>统计关键词</button>
         </form>
         {keywordResult && <>
