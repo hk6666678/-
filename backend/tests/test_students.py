@@ -71,6 +71,8 @@ def test_preview_confirm_and_masked_source(client: TestClient) -> None:  # noqa:
     }
     student = rows["items"][0]
     assert "student_number" not in student and "姓名" not in str(student)
+    assert client.get("/api/students", params={"q": student["research_id"]}).json()["total"] == 1
+    assert client.get("/api/students", params={"q": "001"}).json()["total"] == 0
     detail = client.get(f"/api/students/{student['id']}").json()
     assert "学号" not in detail["data"]
     assert "学号" not in detail["history"][0]["original_row"]

@@ -411,6 +411,7 @@ def register_students(
         offset: int = 0,
         limit: int = 50,
         include_filters: bool = False,
+        q: str = "",
     ) -> dict[str, object]:
         if offset < 0 or not 1 <= limit <= 200:
             raise HTTPException(422, "分页范围无效")
@@ -421,6 +422,7 @@ def register_students(
             majors: set[str] = set()
             years: set[int] = set()
             levels: set[str] = set()
+            keyword = q.strip().casefold()
             for row in db.execute("SELECT * FROM students WHERE active=1 ORDER BY id"):
                 matches = not (
                     (major and row["major"] != major)
@@ -435,7 +437,13 @@ def register_students(
                         years.add(row["entry_year"])
                         levels.add(row["level"])
                     if matches:
-                        items.append(student_view(db, actor["id"], row))
+                        item = student_view(db, actor["id"], row)
+                        if not keyword or any(
+                            keyword in str(value).casefold()
+                            for value in (item.get("name"), item["research_id"], item.get("student_number"))
+                            if value is not None
+                        ):
+                            items.append(item)
             audit(db, actor["id"], "student.list", "students")
             result: dict[str, object] = {
                 "total": len(items),

@@ -8,7 +8,7 @@ test("selecting a student loads their cultivation stages and evidence", async ({
     mobility: { type: "转导师", date: "2025-06-01" },
     peer_outputs: { count: 0, peer_median: 2, peer_count: 4, below: true, sources: [] },
   }}));
-  await page.route("**/api/students?limit=50&offset=0", (route) => route.fulfill({ json: {
+  await page.route("**/api/students?limit=50&q=R42", (route) => route.fulfill({ json: {
     items: [{ id: 42, research_id: "R42", data: { 所属学院: scope.college, 专业: "合成专业" } }],
     total: 1,
   }}));
@@ -31,6 +31,8 @@ test("selecting a student loads their cultivation stages and evidence", async ({
   await page.getByLabel("密码", { exact: true }).fill("Synthetic-password-123!");
   await page.getByRole("button", { name: "登录平台" }).click();
   await page.getByRole("button", { name: "培养过程分析", exact: true }).click();
+  await expect(page.getByRole("button", { name: "下一页" })).toHaveCount(0);
+  await page.getByLabel("查找研究生").fill("R42");
   await page.getByLabel("研究生", { exact: true }).selectOption("42");
   await page.getByRole("button", { name: "查看培养过程" }).click();
   await expect(page.getByRole("heading", { name: "个人培养过程" })).toBeVisible();

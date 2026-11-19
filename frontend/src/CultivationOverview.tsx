@@ -11,7 +11,7 @@ const stages = [
 
 type Outcome = { snapshot: Snapshot } | { error: string };
 type Scope = { college: string; major: string; student_id: number };
-type Student = { id: number; research_id: string; name?: string; data: Record<string, string> };
+type Student = { id: number; research_id: string; name?: string; student_number?: string; data: Record<string, string> };
 type Signals = {
   blind_review?: { batch: string; due: string; status: string };
   mobility?: { type: string; date?: string } | null;
@@ -21,14 +21,14 @@ type Signals = {
 const pageSize = 50;
 
 function studentLabel(student: Student) {
-  return [student.name, student.research_id, student.data["所属学院"], student.data["专业"]].filter(Boolean).join(" · ");
+  return [student.name, student.student_number || student.research_id, student.data["所属学院"], student.data["专业"]].filter(Boolean).join(" · ");
 }
 
 export function CultivationOverview({ csrf, showSnapshot }: {
   csrf: string;
   showSnapshot: (snapshot: Snapshot | null) => void;
 }) {
-  const [page, setPage] = useState(0);
+  const [query, setQuery] = useState("");
   const [roster, setRoster] = useState<{ items: Student[]; total: number }>();
   const [rosterError, setRosterError] = useState(false);
   const [studentId, setStudentId] = useState("");
@@ -41,15 +41,17 @@ export function CultivationOverview({ csrf, showSnapshot }: {
     const controller = new AbortController();
     setRoster(undefined);
     setRosterError(false);
-    void fetch(`/api/students?limit=${pageSize}&offset=${page * pageSize}`, { signal: controller.signal })
-      .then((response) => {
-        if (!response.ok) throw new Error();
-        return response.json();
-      })
-      .then(setRoster)
-      .catch(() => { if (!controller.signal.aborted) setRosterError(true); });
-    return () => controller.abort();
-  }, [page]);
+    const timer = window.setTimeout(() => {
+      void fetch(`/api/students?${new URLSearchParams({ limit: String(pageSize), q: query.trim() })}`, { signal: controller.signal })
+        .then((response) => {
+          if (!response.ok) throw new Error();
+          return response.json();
+        })
+        .then(setRoster)
+        .catch(() => { if (!controller.signal.aborted) setRosterError(true); });
+    }, query ? 250 : 0);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [query]);
 
   async function load(scope: Scope, student: Student) {
     setRunning(true);
@@ -83,13 +85,6 @@ export function CultivationOverview({ csrf, showSnapshot }: {
     setRunning(false);
   }
 
-  function changePage(next: number) {
-    setStudentId("");
-    setResult(undefined);
-    showSnapshot(null);
-    setPage(next);
-  }
-
   const snapshots = result?.outcomes.flatMap((item) => "snapshot" in item ? [item.snapshot] : []) ?? [];
   return (
     <>
@@ -101,6 +96,14 @@ export function CultivationOverview({ csrf, showSnapshot }: {
         }, student);
       }}>
         <fieldset disabled={running}>
+          <label>查找研究生
+            <input placeholder="输入姓名、学号或研究编号" value={query} onChange={(event) => {
+              setQuery(event.target.value);
+              setStudentId("");
+              setResult(undefined);
+              showSnapshot(null);
+            }} />
+          </label>
           <label>研究生
             <select aria-label="研究生" value={studentId} onChange={(event) => {
               setStudentId(event.target.value);
@@ -113,12 +116,8 @@ export function CultivationOverview({ csrf, showSnapshot }: {
           </label>
           {rosterError ? <p role="alert">无法读取学生档案，请核对账号是否有基础档案查看权限。</p>
             : !roster ? <p role="status">正在读取授权范围内的学生</p>
-            : roster.total === 0 ? <p>授权范围内暂无学生档案。</p> : null}
-          {roster && roster.total > pageSize && <div>
-            <button type="button" disabled={page === 0} onClick={() => changePage(page - 1)}>上一页</button>
-            <button type="button" disabled={(page + 1) * pageSize >= roster.total} onClick={() => changePage(page + 1)}>下一页</button>
-            <p>第 {page + 1}/{Math.ceil(roster.total / pageSize)} 页</p>
-          </div>}
+            : roster.total === 0 ? <p>{query.trim() ? "未找到匹配的学生。" : "授权范围内暂无学生档案。"}</p>
+            : roster.total > pageSize ? <p>共 {roster.total} 人，输入姓名或编号缩小范围。</p> : null}
           <button disabled={!studentId}>查看培养过程</button>
         </fieldset>
       </form>

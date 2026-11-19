@@ -292,7 +292,7 @@ def main(extended: bool = False) -> None:
         rows = []
         for number, (title, score) in TOPICS.items():
             name, (college, major) = by_number[number]
-            year = int(number[3:7]) if extended else 2023 if number.startswith("235") else 2024
+            year = 2000 + int(number[:2]) if extended else 2023 if number.startswith("235") else 2024
             term = f"{year + 1}春"
             if category == "midterm" and number.startswith("235"):
                 term = "2025春"
@@ -489,7 +489,7 @@ def seed_evaluation_and_papers(client, headers, student_ids):
         writer.write(pdf)
         response = client.post(
             "/api/papers", headers=headers,
-            data={"title": f"模拟学位论文 {number}", "student_id": student_id,
+            data={"title": TOPICS[number][0], "student_id": student_id,
                   "expected_version": 0, "covered_student_ids": json.dumps([student_id])},
             files={"file": (f"{number}.pdf", pdf.getvalue(), "application/pdf")},
         )
@@ -520,34 +520,51 @@ def prepare_extended_demo():
     AWARDS.clear()
     CONFERENCES.clear()
     CITATIONS.clear()
+    surnames = "陈林赵孙周吴郑何许高朱梁沈冯宋蒋韩罗谢唐邓叶姜徐"
+    given_names = ("思远", "雨桐", "启铭", "嘉宁", "子墨", "婧怡", "博文", "晓萌",
+                   "亦航", "书瑶", "明澈", "若岚", "一帆", "清越", "景行", "知夏",
+                   "昱辰", "安然", "昕妍", "宇谦", "泽言", "舒宁", "晨曦", "子谦")
+    subjects = (
+        ("联邦学习的非独立同分布优化", "低资源跨语言信息检索", "医学影像的弱监督分割",
+         "图神经网络的被动异常检测", "视觉问答中的跨模态对齐", "边缘设备上的模型量化",
+         "多视角点云配准", "知识图谱的实体对齐", "时序数据的自监督表示",
+         "低照度图像增强", "稀疏注意力的长文本建模", "面向科学文献的信息抽取"),
+        ("微服务调用链的故障定位", "大规模软件仓库中的缺陷预测", "分布式日志的异常检测",
+         "面向持续交付的测试用例选择", "云原生应用的弹性调度", "基于语义的代码检索",
+         "需求变更的影响分析", "开源依赖库的版本演化", "软件架构的自动化违例检测",
+         "移动应用界面的可访问性测试", "服务负载的在线性能诊断", "持续集成流水线的资源优化"),
+    )
+    schools = ("南京大学", "浙江大学", "厦门大学", "西安交通大学", "东南大学", "四川大学")
     for scope_index, (college, major) in enumerate((CS, SE), 1):
         for group in range(1, 3):
-            mentor = f"SIM-T{scope_index}{group}"
-            team = f"SIM-G{scope_index}{group}"
-            MENTORS.append((mentor, f"模拟导师 {scope_index}-{group}", (college, major)))
-            GROUPS.append((team, f"模拟课题组 {scope_index}-{group}", (college, major)))
+            mentor = f"T10{scope_index}{group}"
+            team = f"RG{scope_index}0{group}"
+            directory_index = (scope_index - 1) * 2 + group - 1
+            MENTORS.append((mentor, ("梁文博", "沈静怡", "许嘉明", "周雨薇")[directory_index], (college, major)))
+            GROUPS.append((team, ("智能计算与感知", "数据科学与知识工程", "软件质量工程", "服务计算与系统")[directory_index], (college, major)))
         for year in (2023, 2024, 2025):
             for index in range(1, 13):
-                number = f"SIM{year}{scope_index}{index:02}"
-                name = f"模拟学生 {year}-{scope_index}-{index:02}"
+                number = f"{year % 100}50{scope_index}{index:03}"
+                name_index = (scope_index - 1) * 12 + index - 1
+                name = surnames[name_index] + given_names[(name_index + (year - 2023) * 7) % 24]
                 group = 1 if index <= 6 else 2
-                STUDENTS.append((number, name, (college, major), str(year), "模拟前置院校",
+                STUDENTS.append((number, name, (college, major), str(year), schools[(index + year) % len(schools)],
                                  "统一考试", "学术型学位", "正常", "转导师" if index == 5 else "",
                                  f"{year + 1}-09-01" if index == 5 else ""))
-                title = f"{major}智能分析方法研究 {index:02}"
+                title = f"{subjects[scope_index - 1][(index + year - 2024) % 12]}研究"
                 TOPICS[number] = (title, 61 + (index * 7) % 37)
-                RELATIONS.append((number, f"SIM-T{scope_index}{group}", f"SIM-G{scope_index}{group}",
+                RELATIONS.append((number, f"T10{scope_index}{group}", f"RG{scope_index}0{group}",
                                   f"{year}-09-01", "", "合成指导关系"))
                 people = [(number, name, 1, "第一参与人")]
                 papers = 1 + index % 3
                 for paper in range(papers):
-                    key = f"sim-paper-{number.lower()}-{paper}"
-                    PAPERS.append((key, f"{title}：模拟成果 {paper + 1}", year + 1, people))
+                    key = f"rp-{number}-{paper + 1:02}"
+                    PAPERS.append((key, f"{title}：{('方法设计', '实验分析', '应用评估')[paper]}", year + 1, people))
                     CITATIONS[key] = paper * 4 + index
                 if index != 12:
-                    PATENTS.append((f"SIM-P-{number}", f"模拟发明 {number}", "发明", f"{year + 1}-08-01", people))
-                AWARDS.append((f"SIM-A-{number}", f"模拟奖项 {number}", "校级", year + 1, people))
-                CONFERENCES.append((f"SIM-C-{number}", f"模拟会议 {number}", "口头报告", f"{year + 1}-09-01", people))
+                    PATENTS.append((f"P-{number}", f"一种用于{title.removesuffix('研究')}的方法及系统", "发明", f"{year + 1}-08-01", people))
+                AWARDS.append((f"A-{number}", "研究生创新实践竞赛", "校级", year + 1, people))
+                CONFERENCES.append((f"C-{number}", "研究生学术论坛", "口头报告", f"{year + 1}-09-01", people))
 
 
 if __name__ == "__main__":
