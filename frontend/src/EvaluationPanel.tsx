@@ -61,6 +61,7 @@ const features: Record<string, string> = {
 
 type ClusterResult = {
   model_version: string;
+  trained_at: number;
   recipe: { algorithm: string; distance_space: "latent" | "input"; training_seed: number; holdout_seed: number };
   inputs: Record<string, number | null>;
   cluster: { name: string; distance: number; center: Record<string, number> } | null;
@@ -101,6 +102,7 @@ function StudentClusterDemo({ id }: { id: number }) {
       <p>{result.cluster ? `模拟分组：${result.cluster.name} · 距离 ${result.cluster.distance}` : "维度缺失、快照过时或规则停用，暂不分群。"}</p>
       <p>训练 {result.validation.training_count} 条 · 留出 {result.validation.holdout_count} 条 · 与合成预设分组一致 {result.validation.matching_profiles} 条 · {result.model_version}</p>
       <p>{result.recipe.algorithm} · 训练种子 {result.recipe.training_seed} · 留出种子 {result.recipe.holdout_seed}</p>
+      <p>训练档案保存于 {new Date(result.trained_at * 1000).toLocaleString()}。</p>
       <ul>{Object.entries(result.inputs).map(([name, value]) => (
         <li key={name}>{name} · 学生 {value?.toFixed(3) ?? "待核查"}{result.cluster && ` · 组中心 ${result.cluster.center[name]}`}</li>
       ))}</ul>

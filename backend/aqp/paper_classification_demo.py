@@ -53,21 +53,30 @@ def train_demo(model_version: str = "synthetic-logistic-v1") -> tuple[np.ndarray
     return weights, center, scale, validation
 
 
-def classify_demo(result: dict[str, Any], model_version: str = "synthetic-logistic-v1") -> dict[str, Any]:
+def classifier_artifact(model_version: str) -> dict[str, Any]:
     weights, center, scale, validation = train_demo(model_version)
+    return {"weights": weights.tolist(), "center": center.tolist(), "scale": scale.tolist(),
+            "validation": validation,
+            "recipe": {"algorithm": "L2 logistic regression", "l2": PAPER_MODEL_VERSIONS[model_version],
+                       "training_seed": 314, "holdout_seed": 159}}
+
+
+def classify_demo(
+    result: dict[str, Any], model_version: str, artifact: dict[str, Any],
+) -> dict[str, Any]:
     inputs = {key: result.get(key) for key in FEATURES}
     missing = [key for key, value in inputs.items() if value is None]
     probability = None
     if not missing:
         values = np.asarray(list(inputs.values()), dtype=float)
-        probability = float(expit(weights[0] + ((values - center) / scale) @ weights[1:]))
+        weights = np.asarray(artifact["weights"])
+        probability = float(expit(weights[0] + ((values - artifact["center"]) / artifact["scale"]) @ weights[1:]))
     return {
         "model_version": model_version,
-        "recipe": {"algorithm": "L2 logistic regression", "l2": PAPER_MODEL_VERSIONS[model_version],
-                   "training_seed": 314, "holdout_seed": 159},
+        "recipe": artifact["recipe"],
         "inputs": inputs,
         "missing": missing,
         "score": probability,
         "label": None if probability is None else "模拟优秀类" if probability >= 0.5 else "模拟普通类",
-        "validation": validation,
+        "validation": artifact["validation"],
     }

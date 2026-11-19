@@ -40,6 +40,24 @@ def test_student_clusters_use_separate_holdout_and_respect_missing_scores():
     assert deep["validation"]["holdout_count"] == result["validation"]["holdout_count"]
     assert deep == cluster_student_demo(snapshot, "synthetic-autoencoder-v2")
 
+
+def test_student_cluster_artifact_is_reloaded_from_database(tmp_path):
+    from aqp.simulation_model_artifacts import load_or_train
+    from aqp.store import connection, migrate
+    from aqp.student_clustering_demo import cluster_artifact
+
+    path = tmp_path / "archive.sqlite3"
+    migrate(path)
+    with connection(path) as db:
+        trained = load_or_train(db, "synthetic-autoencoder-v2", cluster_artifact)
+
+    def unexpected_training(version):
+        raise AssertionError(f"Stored model {version} should load without training")
+
+    with connection(path) as db:
+        assert load_or_train(db, "synthetic-autoencoder-v2", unexpected_training) == trained
+    assert trained[0]["encoder"]["weights"]
+
 def test_simulation_bands_and_peer_percentiles():
     from aqp.evaluation import simulation_band, simulation_percentiles
 

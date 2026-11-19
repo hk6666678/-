@@ -14,6 +14,7 @@ type TextComparison = {
 };
 type Classification = {
   model_version: string; label: string | null; score: number | null;
+  trained_at: number;
   recipe: { algorithm: string; l2: number; training_seed: number; holdout_seed: number };
   inputs: Record<string, number | null>;
   validation: { training_count: number; holdout_count: number; correct: number; false_positive: number; false_negative: number };
@@ -126,6 +127,7 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
         {classification && <>
           <p>{classification.label ?? "输入缺失"}{classification.score == null ? "" : ` · 模型输出 ${classification.score.toFixed(3)}`} · {classification.model_version}</p>
           <p>L2 {classification.recipe.l2} · 训练种子 {classification.recipe.training_seed} · 留出种子 {classification.recipe.holdout_seed}</p>
+          <p>训练档案保存于 {new Date(classification.trained_at * 1000).toLocaleString()}。</p>
           <p>合成训练样本 {classification.validation.training_count} 条 · 合成留出样本 {classification.validation.holdout_count} 条 · 判对 {classification.validation.correct} 条 · 误判优秀 {classification.validation.false_positive} 条 · 漏判优秀 {classification.validation.false_negative} 条。</p>
           <ul>{Object.entries(classification.inputs).map(([key, value]) => (
             <li key={key}>{features[key] ?? key} · {value ?? "缺失"}</li>

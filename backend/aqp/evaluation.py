@@ -693,8 +693,10 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
 
     @app.get("/api/evaluation-snapshots/{ident}/cluster-demo")
     def cluster_demo(ident: int, request: Request, model_version: str = "synthetic-kmeans-v1") -> dict[str, Any]:
+        from aqp.simulation_model_artifacts import load_or_train
         from aqp.student_clustering_demo import (
             STUDENT_MODEL_VERSIONS,
+            cluster_artifact,
             cluster_student_demo,
         )
 
@@ -703,8 +705,9 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
             result = load_snapshot(db, actor["id"], ident)
             if model_version not in STUDENT_MODEL_VERSIONS:
                 raise HTTPException(422, "未知的学生分群模型版本")
+            artifact, trained_at = load_or_train(db, model_version, cluster_artifact)
             audit(db, actor["id"], "evaluation.cluster_demo", f"{ident}/{model_version}")
-            return cluster_student_demo(result, model_version)
+            return {**cluster_student_demo(result, model_version, artifact), "trained_at": trained_at}
 
     @app.get("/api/evaluation-snapshots/{ident}/six-signal-trial")
     def signal_trial(ident: int, request: Request) -> dict[str, Any]:

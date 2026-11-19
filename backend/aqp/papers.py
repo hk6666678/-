@@ -307,7 +307,12 @@ def register_papers(
     def classification_demo(
         version_id: int, request: Request, model_version: str = "synthetic-logistic-v1",
     ) -> dict[str, Any]:
-        from aqp.paper_classification_demo import PAPER_MODEL_VERSIONS, classify_demo
+        from aqp.paper_classification_demo import (
+            PAPER_MODEL_VERSIONS,
+            classifier_artifact,
+            classify_demo,
+        )
+        from aqp.simulation_model_artifacts import load_or_train
 
         with connection(path) as db:
             actor, _ = current(db, request)
@@ -317,8 +322,9 @@ def register_papers(
                 raise HTTPException(409, "论文需先完成本地解析")
             if model_version not in PAPER_MODEL_VERSIONS:
                 raise HTTPException(422, "未知的论文分类模型版本")
+            artifact, trained_at = load_or_train(db, model_version, classifier_artifact)
             audit(db, actor["id"], "paper.classification_demo", f"{version_id}/{model_version}")
-            return classify_demo(json.loads(row["result"]), model_version)
+            return {**classify_demo(json.loads(row["result"]), model_version, artifact), "trained_at": trained_at}
 
     def text_comparison_data(db: sqlite3.Connection, actor: int, version_id: int, other_id: int) -> dict[str, Any]:
         if version_id == other_id:

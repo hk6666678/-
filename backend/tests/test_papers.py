@@ -193,7 +193,8 @@ def test_text_comparison_returns_page_evidence_and_rechecks_both_versions(client
     assert client.get(url).status_code == 403
 
 
-def test_demo_classifier_uses_holdout_and_requires_analysis_access(client, tmp_path):
+def test_demo_classifier_uses_holdout_and_requires_analysis_access(client, tmp_path, monkeypatch):
+    from aqp import paper_classification_demo
     from aqp.paper_worker import run_once
 
     headers = paper_setup(client)
@@ -214,6 +215,13 @@ def test_demo_classifier_uses_holdout_and_requires_analysis_access(client, tmp_p
     assert second["recipe"]["holdout_seed"] == demo["recipe"]["holdout_seed"]
     assert second["recipe"]["l2"] > demo["recipe"]["l2"] and second["score"] != demo["score"]
     assert client.get(url, params={"model_version": "unknown"}).status_code == 422
+
+    def unexpected_training(version):
+        raise AssertionError(f"Stored model {version} should load without training")
+
+    monkeypatch.setattr(paper_classification_demo, "classifier_artifact", unexpected_training)
+    assert client.get(url).json() == demo
+    assert client.get(url, params={"model_version": "synthetic-logistic-v2"}).json() == second
 
 
 def test_independent_worker_cli_and_concurrent_claim(client, tmp_path):
