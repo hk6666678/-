@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 
-from aqp.analysis import outcome
+from aqp.analysis import Scope, credit_progress, outcome, sources
 from aqp.authorization import allowed, student_allowed
 from aqp.exports import excel_report
 from aqp.research_outputs import current_participant
@@ -542,6 +542,40 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
             actor, _ = current(db, request)
             result = load_snapshot(db, actor["id"], ident)
             result["signals"] = simulation_signals(result["inputs"])
+            student = db.execute(
+                "SELECT college,major,payload FROM students WHERE id=?", (result["student_id"],)
+            ).fetchone()
+            payload = json.loads(student["payload"])
+            state = payload.get("学籍状态")
+            mobility = payload.get("学籍异动类型")
+            enrollment = "未通过" if state in {"退学", "休学"} else "通过" if state == "正常" and not mobility else "待核查"
+            credits = {"name": "学分进度", "status": "待核查", "reason": "缺少课程查看或分析权限"}
+            if all(allowed(db, actor["id"], "courses", op, student["college"], student["major"])
+                   for op in ("view", "analyze")):
+                scope = Scope(college=student["college"], major=student["major"], student_id=result["student_id"])
+                try:
+                    rows, _, rules, _, requirements = sources(db, scope, actor["id"])
+                except HTTPException as exc:
+                    if exc.status_code != 403:
+                        raise
+                else:
+                    evidence = [
+                        {**row, "status": outcome(row["payload"], rules)[0]}
+                        for row in rows
+                    ]
+                    progress = credit_progress(evidence, requirements, scope)
+                    if progress["students"]:
+                        percentage = progress["students"][0]["progress_percent"]
+                        credits.update(status="通过" if percentage >= 100 else "未通过",
+                                       reason=f"已完成培养要求总学分的 {percentage:.2f}%")
+                    else:
+                        credits["reason"] = "缺少可比较条件：" + "、".join(progress["missing_conditions"])
+            result["screening"] = [
+                credits,
+                {"name": "学籍状态", "status": enrollment,
+                 "reason": f"登记状态：{state or '缺失'}" + (f"；异动：{mobility}" if mobility else "")},
+                {"name": "同届同方向课程排名", "status": "待核查", "reason": "同方向课程排名尚未接入"},
+            ]
             audit(db, actor["id"], "evaluation.read", str(ident))
             db.commit()
             return result

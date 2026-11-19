@@ -10,6 +10,7 @@ type Rule = {
   config: { name: string; college: string; major: string; mode: string };
 };
 type Snapshot = {
+  screening?: { name: string; status: string; reason: string }[];
   signals?: { name: string; note: string; items: { feature: string; value: number | null; missing: string | null }[] }[];
   band?: string;
   rule_name?: string;
@@ -459,6 +460,13 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
             </section>
           )}
           <p>{snapshot.notice}</p>
+          {snapshot.screening && <details className="task-details">
+            <summary>前置条件核查</summary>
+            <p>按当前登记数据核查。学分以完成培养要求总学分为通过条件，核查结果供模拟研究。</p>
+            <ul>{snapshot.screening.map((item) => (
+              <li key={item.name}>{item.name} · {item.status} · {item.reason}</li>
+            ))}</ul>
+          </details>}
           {snapshot.signals && <details className="task-details">
             <summary>六类识别信号与证据覆盖</summary>
             <p>以下依据来自这份快照，点击下方指标表可核对来源。</p>
@@ -475,7 +483,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
             </table>
           </details>}
           {snapshot.band && snapshot.total !== null && (
-            <p>{snapshot.band} · 70–85 分段按至少两个维度达到 80% 判定。学分、学籍和同届排名门槛尚待核查。</p>
+            <p>{snapshot.band} · 70–85 分段按至少两个维度达到 80% 判定。前置条件核查单独显示。</p>
           )}
           <p>
             {snapshot.stale
