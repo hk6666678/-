@@ -1,25 +1,26 @@
-import { EvaluationPanel } from "./EvaluationPanel";
-import { ReportsPanel } from "./ReportsPanel";
-import { AssessmentPanel } from "./AssessmentPanel";
-import { MentorGroupPanel } from "./MentorGroupPanel";
-import { OutputsTabs } from "./OutputsTabs";
-import { ThesisQuality } from "./ThesisQuality";
-import { BusinessRulesPanel } from "./BusinessRulesPanel";
-import { AnalysisPanel } from "./AnalysisPanel";
-import { CultivationFactors } from "./CultivationFactors";
-import { RecordPanel } from "./RecordPanel";
-import React, { useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./style.css";
-import { AccessPanel } from "./AccessPanel";
 import { AgentPanel } from "./AgentPanel";
-import { AuditPanel } from "./AuditPanel";
-import { MilestonePanel } from "./MilestonePanel";
-import { PaperPanel } from "./PaperPanel";
-import { CoursePanel } from "./CoursePanel";
-import { ResolutionPanel } from "./ResolutionPanel";
-import { StudentPanel } from "./StudentPanel";
 import { CollegeSelect } from "./CollegeSelect";
+
+const EvaluationPanel = lazy(() => import("./EvaluationPanel").then((module) => ({ default: module.EvaluationPanel })));
+const ReportsPanel = lazy(() => import("./ReportsPanel").then((module) => ({ default: module.ReportsPanel })));
+const AssessmentPanel = lazy(() => import("./AssessmentPanel").then((module) => ({ default: module.AssessmentPanel })));
+const MentorGroupPanel = lazy(() => import("./MentorGroupPanel").then((module) => ({ default: module.MentorGroupPanel })));
+const OutputsTabs = lazy(() => import("./OutputsTabs").then((module) => ({ default: module.OutputsTabs })));
+const ThesisQuality = lazy(() => import("./ThesisQuality").then((module) => ({ default: module.ThesisQuality })));
+const BusinessRulesPanel = lazy(() => import("./BusinessRulesPanel").then((module) => ({ default: module.BusinessRulesPanel })));
+const AnalysisPanel = lazy(() => import("./AnalysisPanel").then((module) => ({ default: module.AnalysisPanel })));
+const CultivationFactors = lazy(() => import("./CultivationFactors").then((module) => ({ default: module.CultivationFactors })));
+const RecordPanel = lazy(() => import("./RecordPanel").then((module) => ({ default: module.RecordPanel })));
+const AccessPanel = lazy(() => import("./AccessPanel").then((module) => ({ default: module.AccessPanel })));
+const AuditPanel = lazy(() => import("./AuditPanel").then((module) => ({ default: module.AuditPanel })));
+const MilestonePanel = lazy(() => import("./MilestonePanel").then((module) => ({ default: module.MilestonePanel })));
+const PaperPanel = lazy(() => import("./PaperPanel").then((module) => ({ default: module.PaperPanel })));
+const CoursePanel = lazy(() => import("./CoursePanel").then((module) => ({ default: module.CoursePanel })));
+const ResolutionPanel = lazy(() => import("./ResolutionPanel").then((module) => ({ default: module.ResolutionPanel })));
+const StudentPanel = lazy(() => import("./StudentPanel").then((module) => ({ default: module.StudentPanel })));
 
 type Role =
   | "mentor"
@@ -122,8 +123,8 @@ function App() {
     return () => window.removeEventListener("session-expired", expired);
   }, []);
   useEffect(() => {
-    if (session?.user.roles.includes("platform_admin")) void refresh();
-  }, [session]);
+    if (page === "accounts" && session?.user.roles.includes("platform_admin")) void refresh();
+  }, [page, session]);
   async function refresh() {
     try {
       setUsers(await request<User[]>("/api/users"));
@@ -388,189 +389,191 @@ function App() {
           </div>
         </header>
         {alert}
-        {page === "maintenance" && (
-          <ResolutionPanel csrf={session.csrf_token} />
-        )}
-        {page === "maintenance" && <RecordPanel csrf={session.csrf_token} />}
-        {page === "audit" && admin ? (
-          <AuditPanel fetcher={request} />
-        ) : page === "assessments" ? (
-          <AssessmentPanel csrf={session.csrf_token} />
-        ) : page === "milestones" ? (
-          <MilestonePanel csrf={session.csrf_token} fetcher={request} />
-        ) : page === "mentor_groups" ? (<MentorGroupPanel csrf={session.csrf_token} />) : page === "outputs" ? (<OutputsTabs csrf={session.csrf_token} />) : page === "thesis_upload" ? (
-          <PaperPanel csrf={session.csrf_token} />
-        ) : page === "thesis_quality" ? (
-          <ThesisQuality csrf={session.csrf_token} />
-        ) : page === "rules" ? (
-          <BusinessRulesPanel csrf={session.csrf_token} />
-        ) : page === "factors" ? (
-          <CultivationFactors />
-        ) : page === "overview" ? (
-          <AgentPanel csrf={session.csrf_token} />
-        ) : page === "evaluation" ? (
-          <EvaluationPanel csrf={session.csrf_token} />
-        ) : page === "reports" ? (
-          <ReportsPanel csrf={session.csrf_token} />
-        ) : page === "analysis" ? (
-          <AnalysisPanel csrf={session.csrf_token} />
-        ) : page === "courses" ? (
-          <CoursePanel csrf={session.csrf_token} />
-        ) : page === "students" ? (
-          <StudentPanel csrf={session.csrf_token} fetcher={request} />
-        ) : !admin ? (
-          <AgentPanel csrf={session.csrf_token} />
-        ) : (
-          <>
-            <section className="card" ref={accountFormRef}>
-              <h2>{editingAccount ? `更改权限 · ${editingAccount.username}` : "创建个人账号"}</h2>
-              <form className="account-form" onSubmit={create}>
-                {!editingAccount && <>
-                <label>
-                  新账号用户名
-                  <input
-                    value={username}
-                    autoComplete="off"
-                    pattern="[A-Za-z0-9_.-]{3,64}"
-                    title="3～64位字母、数字、点、下划线或短横线"
-                    onChange={(e) => setUsername(e.target.value)}
+        <Suspense fallback={<p role="status">正在加载页面…</p>}>
+          {page === "maintenance" && (
+            <ResolutionPanel csrf={session.csrf_token} />
+          )}
+          {page === "maintenance" && <RecordPanel csrf={session.csrf_token} />}
+          {page === "audit" && admin ? (
+            <AuditPanel fetcher={request} />
+          ) : page === "assessments" ? (
+            <AssessmentPanel csrf={session.csrf_token} />
+          ) : page === "milestones" ? (
+            <MilestonePanel csrf={session.csrf_token} fetcher={request} />
+          ) : page === "mentor_groups" ? (<MentorGroupPanel csrf={session.csrf_token} />) : page === "outputs" ? (<OutputsTabs csrf={session.csrf_token} />) : page === "thesis_upload" ? (
+            <PaperPanel csrf={session.csrf_token} />
+          ) : page === "thesis_quality" ? (
+            <ThesisQuality csrf={session.csrf_token} />
+          ) : page === "rules" ? (
+            <BusinessRulesPanel csrf={session.csrf_token} />
+          ) : page === "factors" ? (
+            <CultivationFactors />
+          ) : page === "overview" ? (
+            <AgentPanel csrf={session.csrf_token} />
+          ) : page === "evaluation" ? (
+            <EvaluationPanel csrf={session.csrf_token} />
+          ) : page === "reports" ? (
+            <ReportsPanel csrf={session.csrf_token} />
+          ) : page === "analysis" ? (
+            <AnalysisPanel csrf={session.csrf_token} />
+          ) : page === "courses" ? (
+            <CoursePanel csrf={session.csrf_token} />
+          ) : page === "students" ? (
+            <StudentPanel csrf={session.csrf_token} fetcher={request} />
+          ) : !admin ? (
+            <AgentPanel csrf={session.csrf_token} />
+          ) : (
+            <>
+              <section className="card" ref={accountFormRef}>
+                <h2>{editingAccount ? `更改权限 · ${editingAccount.username}` : "创建个人账号"}</h2>
+                <form className="account-form" onSubmit={create}>
+                  {!editingAccount && <>
+                  <label>
+                    新账号用户名
+                    <input
+                      value={username}
+                      autoComplete="off"
+                      pattern="[A-Za-z0-9_.-]{3,64}"
+                      title="3～64位字母、数字、点、下划线或短横线"
+                      onChange={(e) => setUsername(e.target.value)}
+                      required
+                    />
+                  </label>
+                  <label>
+                    初始密码
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      value={password}
+                      minLength={12}
+                      maxLength={128}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                  </label>
+                  </>}
+                  <label>
+                    账号权限
+                    <select value={preset} onChange={(e) => setPreset(e.target.value === "full" ? "full" : "ordinary")}>
+                      <option value="ordinary">普通</option>
+                      <option value="full">全权限</option>
+                    </select>
+                  </label>
+                  <label>
+                    操作范围
+                    <select value={accountScope} onChange={(event) => setAccountScope(event.target.value === "school" ? "school" : "college")}>
+                      <option value="college">指定学院</option>
+                      <option value="school">全校</option>
+                    </select>
+                  </label>
+                  {accountScope === "college" && <CollegeSelect
+                    key={editingAccount?.id ?? "new"}
+                    label="所属学院"
+                    value={accountCollege}
+                    onChange={setAccountCollege}
                     required
-                  />
-                </label>
-                <label>
-                  初始密码
-                  <input
-                    type="password"
-                    autoComplete="new-password"
-                    value={password}
-                    minLength={12}
-                    maxLength={128}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                </label>
-                </>}
-                <label>
-                  账号权限
-                  <select value={preset} onChange={(e) => setPreset(e.target.value === "full" ? "full" : "ordinary")}>
-                    <option value="ordinary">普通</option>
-                    <option value="full">全权限</option>
-                  </select>
-                </label>
-                <label>
-                  操作范围
-                  <select value={accountScope} onChange={(event) => setAccountScope(event.target.value === "school" ? "school" : "college")}>
-                    <option value="college">指定学院</option>
-                    <option value="school">全校</option>
-                  </select>
-                </label>
-                {accountScope === "college" && <CollegeSelect
-                  key={editingAccount?.id ?? "new"}
-                  label="所属学院"
-                  value={accountCollege}
-                  onChange={setAccountCollege}
-                  required
-                />}
-                <p className="muted">
-                  新权限：{preset === "ordinary" ? "普通" : "全权限"} · {accountScope === "school" ? "全校" : accountCollege || "请选择学院"}。
-                  {preset === "ordinary" ? "可查看和分析，学生姓名和学号会隐藏。" : "可管理账号，查看、导入、修改和导出数据，也可查看学生身份与下载原件。"}
-                </p>
-                {editingAccount && <p className="muted">
-                  原权限：{editingAccount.account_preset === "full" ? "全权限" : editingAccount.account_preset === "ordinary" ? "普通" : "原有配置"}
-                  {editingAccount.account_scope === "school"
-                    ? " · 全校"
-                    : ` · ${editingAccount.account_colleges?.join("、") || "未配置学院业务权限"}`}
-                  {editingAccount.school_view && editingAccount.account_scope !== "school" && " · 全校查看"}
-                  。保存将替换原有权限。
-                </p>}
-                <button disabled={busy || (accountScope === "college" && !accountCollege.trim())}>
-                  {editingAccount ? "保存权限" : "创建账号"}
-                </button>
-                {editingAccount && <button className="secondary" type="button" onClick={() => setEditingAccount(null)}>取消</button>}
-              </form>
-            </section>
-            <section className="card">
-              <h2>
-                账号列表 <span className="muted">{users.length}</span>
-              </h2>
-              <div className="table-wrap">
-                <table className="accounts-table">
-                  <thead>
-                    <tr>
-                      <th>用户名</th>
-                      <th>账号权限</th>
-                      <th>状态</th>
-                      <th>操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {users.map((user) => (
-                      <tr key={user.id}>
-                        <td>
-                          <strong>{user.username}</strong>
-                          {user.id === session.user.id && (
-                            <small>当前账号</small>
-                          )}
-                        </td>
-                        <td>
-                          {user.account_preset ? (
-                            <>
-                              <span>{user.account_preset === "full" ? "全权限" : "普通"}</span>
-                              <small>{user.account_scope === "school" ? "全校" : user.preset_college}</small>
-                            </>
-                          ) : (
-                            <>原有配置<small>{user.roles.map((role) => roleNames[role]).join("、")}</small></>
-                          )}
-                        </td>
-                        <td>
-                          <span
-                            className={user.active ? "badge" : "badge disabled"}
-                          >
-                            {user.active ? "正常" : "已停用"}
-                          </span>
-                        </td>
-                        <td>
-                          <button
-                            className="secondary"
-                            disabled={busy}
-                            onClick={() => {
-                              setEditingAccount(user);
-                              setPreset(user.roles.includes("platform_admin") ? "full" : "ordinary");
-                              setAccountCollege(user.preset_college ?? "");
-                              setAccountScope(user.account_scope === "school" ? "school" : "college");
-                              accountFormRef.current?.scrollIntoView({ block: "start" });
-                            }}
-                          >
-                            更改权限
-                          </button>{" "}
-                          <button
-                            className="secondary"
-                            disabled={busy}
-                            onClick={() =>
-                              void update(user, user.roles, !user.active)
-                            }
-                          >
-                            {user.active ? "停用" : "启用"}
-                          </button>
-                        </td>
+                  />}
+                  <p className="muted">
+                    新权限：{preset === "ordinary" ? "普通" : "全权限"} · {accountScope === "school" ? "全校" : accountCollege || "请选择学院"}。
+                    {preset === "ordinary" ? "可查看和分析，学生姓名和学号会隐藏。" : "可管理账号，查看、导入、修改和导出数据，也可查看学生身份与下载原件。"}
+                  </p>
+                  {editingAccount && <p className="muted">
+                    原权限：{editingAccount.account_preset === "full" ? "全权限" : editingAccount.account_preset === "ordinary" ? "普通" : "原有配置"}
+                    {editingAccount.account_scope === "school"
+                      ? " · 全校"
+                      : ` · ${editingAccount.account_colleges?.join("、") || "未配置学院业务权限"}`}
+                    {editingAccount.school_view && editingAccount.account_scope !== "school" && " · 全校查看"}
+                    。保存将替换原有权限。
+                  </p>}
+                  <button disabled={busy || (accountScope === "college" && !accountCollege.trim())}>
+                    {editingAccount ? "保存权限" : "创建账号"}
+                  </button>
+                  {editingAccount && <button className="secondary" type="button" onClick={() => setEditingAccount(null)}>取消</button>}
+                </form>
+              </section>
+              <section className="card">
+                <h2>
+                  账号列表 <span className="muted">{users.length}</span>
+                </h2>
+                <div className="table-wrap">
+                  <table className="accounts-table">
+                    <thead>
+                      <tr>
+                        <th>用户名</th>
+                        <th>账号权限</th>
+                        <th>状态</th>
+                        <th>操作</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-            <details className="card">
-              <summary>高级授权</summary>
-              <AccessPanel
-                key={session.user.id}
-                admin={admin}
-                csrf={session.csrf_token}
-                users={users}
-                fetcher={request}
-              />
-            </details>
-          </>
-        )}
+                    </thead>
+                    <tbody>
+                      {users.map((user) => (
+                        <tr key={user.id}>
+                          <td>
+                            <strong>{user.username}</strong>
+                            {user.id === session.user.id && (
+                              <small>当前账号</small>
+                            )}
+                          </td>
+                          <td>
+                            {user.account_preset ? (
+                              <>
+                                <span>{user.account_preset === "full" ? "全权限" : "普通"}</span>
+                                <small>{user.account_scope === "school" ? "全校" : user.preset_college}</small>
+                              </>
+                            ) : (
+                              <>原有配置<small>{user.roles.map((role) => roleNames[role]).join("、")}</small></>
+                            )}
+                          </td>
+                          <td>
+                            <span
+                              className={user.active ? "badge" : "badge disabled"}
+                            >
+                              {user.active ? "正常" : "已停用"}
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              className="secondary"
+                              disabled={busy}
+                              onClick={() => {
+                                setEditingAccount(user);
+                                setPreset(user.roles.includes("platform_admin") ? "full" : "ordinary");
+                                setAccountCollege(user.preset_college ?? "");
+                                setAccountScope(user.account_scope === "school" ? "school" : "college");
+                                accountFormRef.current?.scrollIntoView({ block: "start" });
+                              }}
+                            >
+                              更改权限
+                            </button>{" "}
+                            <button
+                              className="secondary"
+                              disabled={busy}
+                              onClick={() =>
+                                void update(user, user.roles, !user.active)
+                              }
+                            >
+                              {user.active ? "停用" : "启用"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+              <details className="card">
+                <summary>高级授权</summary>
+                <AccessPanel
+                  key={session.user.id}
+                  admin={admin}
+                  csrf={session.csrf_token}
+                  users={users}
+                  fetcher={request}
+                />
+              </details>
+            </>
+          )}
+        </Suspense>
       </main>
     </div>
   );
