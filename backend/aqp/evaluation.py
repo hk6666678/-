@@ -38,6 +38,29 @@ def simulation_percentiles(scores: list[float]) -> dict[str, float] | None:
     return {f"p{p}": round(cutoffs[p - 1], 2) for p in (50, 75, 90)}
 
 
+def simulation_signals(inputs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    available = {item["feature"]: item for item in inputs}
+    definitions = (
+        ("学术基础", ("course_pass_ratio",), "入学成绩与同届 GPA 排名待核查"),
+        ("科研产出", ("research_paper_count", "patent_count"), "成果质量和产出速度待核查"),
+        ("学术影响", ("latest_citation_count", "conference_count"), "引用增长和国际会议口头报告待核查"),
+        ("创新突破", (), "选题迭代与中期、盲审创新性评价尚未接入评分证据"),
+        ("资源获得", ("award_count",), "奖项仅作参考，人才项目、奖学金和托举计划待核查"),
+        ("成长轨迹", (), "成长加速度与关键节点突破速度尚未接入评分证据"),
+    )
+    return [
+        {
+            "name": name,
+            "note": note,
+            "items": [
+                {key: available[feature].get(key) for key in ("feature", "value", "missing")}
+                for feature in features if feature in available
+            ],
+        }
+        for name, features, note in definitions
+    ]
+
+
 SOURCE_CATEGORY = {
     "research_paper_count": "research_papers",
     "patent_count": "patents",
@@ -447,7 +470,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                 db, actor["id"], "evaluation.score", str(cursor.lastrowid), "simulation"
             )
             db.commit()
-            return {"id": cursor.lastrowid, **result, "stale": False}
+            return {"id": cursor.lastrowid, **result, "signals": simulation_signals(values), "stale": False}
 
     @app.get("/api/evaluation-snapshots/dashboard")
     def dashboard(request: Request) -> dict[str, Any]:
@@ -518,6 +541,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
         with connection(path) as db:
             actor, _ = current(db, request)
             result = load_snapshot(db, actor["id"], ident)
+            result["signals"] = simulation_signals(result["inputs"])
             audit(db, actor["id"], "evaluation.read", str(ident))
             db.commit()
             return result

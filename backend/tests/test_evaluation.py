@@ -48,6 +48,10 @@ def test_automatic_simulation_reuses_builtin_rule_without_activation_permission(
     assert len(first.json()["inputs"]) == 6
     assert second.json()["rule_id"] == first.json()["rule_id"]
     assert first.json()["total"] is None
+    evidence = client.get(f"/api/evaluation-snapshots/{first.json()['id']}").json()["signals"]
+    assert len(evidence) == 6
+    assert evidence[0]["items"][0]["value"] is None
+    assert evidence[3]["items"] == []
     assert first.json()["inputs"][0]["missing"]
 
 

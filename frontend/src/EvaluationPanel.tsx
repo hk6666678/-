@@ -10,6 +10,7 @@ type Rule = {
   config: { name: string; college: string; major: string; mode: string };
 };
 type Snapshot = {
+  signals?: { name: string; note: string; items: { feature: string; value: number | null; missing: string | null }[] }[];
   band?: string;
   rule_name?: string;
   ahp?: {
@@ -458,6 +459,21 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
             </section>
           )}
           <p>{snapshot.notice}</p>
+          {snapshot.signals && <details className="task-details">
+            <summary>六类识别信号与证据覆盖</summary>
+            <p>以下依据来自这份快照，点击下方指标表可核对来源。</p>
+            <table>
+              <thead><tr><th>信号</th><th>可见证据</th><th>待核查项</th></tr></thead>
+              <tbody>{snapshot.signals.map(({ name, items, note }) => (
+                <tr key={name}><th scope="row">{name}</th>
+                  <td>{items.length ? items.map((item) => (
+                    <div key={item.feature}>{features[item.feature] ?? item.feature} · {item.value ?? item.missing ?? "待核查"}</div>
+                  )) : "待核查"}</td>
+                  <td>{note}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </details>}
           {snapshot.band && snapshot.total !== null && (
             <p>{snapshot.band} · 70–85 分段按至少两个维度达到 80% 判定。学分、学籍和同届排名门槛尚待核查。</p>
           )}
