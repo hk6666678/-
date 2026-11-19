@@ -843,17 +843,24 @@ def paper_summary_result(
 
 
 def resolve_directory_id(
-    db: sqlite3.Connection, actor: int, table: str, name: str
+    db: sqlite3.Connection, actor: int, table: str, name: str,
+    college: str = "", major: str = "",
 ) -> int:
     """按名称在当前授权范围内解析导师/课题组；无匹配或重名时报错，不猜测。"""
     rows = db.execute(
-        f"SELECT id,college,major FROM {table} WHERE name=?", (name,)
+        f"SELECT id,name,college,major FROM {table} WHERE name IN (?,?)",
+        (name, name.removesuffix("导师" if table == "mentor_directory" else "课题组").strip()),
     ).fetchall()
     visible = [
         row
         for row in rows
         if allowed(db, actor, "mentor_groups", "view", row["college"], row["major"])
+        and (not college or row["college"] == college)
+        and (not major or row["major"] == major)
     ]
+    exact = [row for row in visible if row["name"] == name]
+    if exact:
+        visible = exact
     if not visible:
         raise HTTPException(404, "未找到该名称的导师或课题组，或当前无权查看")
     if len(visible) > 1:
@@ -886,11 +893,11 @@ def resolve_named_ids(
     updates: dict[str, int] = {}
     if plan.mentor_name.strip() and not plan.mentor_id:
         updates["mentor_id"] = resolve_directory_id(
-            db, actor, "mentor_directory", plan.mentor_name.strip()
+            db, actor, "mentor_directory", plan.mentor_name.strip(), plan.college, plan.major,
         )
     if plan.group_name.strip() and not plan.group_id:
         updates["group_id"] = resolve_directory_id(
-            db, actor, "research_groups", plan.group_name.strip()
+            db, actor, "research_groups", plan.group_name.strip(), plan.college, plan.major,
         )
     if plan.paper_title.strip() and not plan.paper_version_id:
         updates["paper_version_id"] = resolve_paper_version_id(

@@ -600,8 +600,8 @@ def test_agent_mentor_effectiveness_dispatch_and_revocation(
     assert "模拟评价" in tool_result["limitations"]
 
     for field, name, id_field, ident in (
-        ("mentor_name", "合成导师", "mentor_id", mentor["id"]),
-        ("group_name", "合成课题组", "group_id", group["id"]),
+        ("mentor_name", "合成导师导师", "mentor_id", mentor["id"]),
+        ("group_name", "合成课题组课题组", "group_id", group["id"]),
     ):
         plan_runner(monkeypatch, {"tool": "mentor_effectiveness", field: name, "as_of": "2026-11-18"}, "合成摘要", calls)
         named = ask(client, headers, f"{name}的效能情况")
