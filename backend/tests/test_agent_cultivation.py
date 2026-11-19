@@ -599,6 +599,12 @@ def test_agent_mentor_effectiveness_dispatch_and_revocation(
     assert tool_result["filters"] == {"as_of": "2026-11-18", "mentor_id": mentor["id"]}
     assert "模拟评价" in tool_result["limitations"]
 
+    direct = ask(client, headers, "合成课题组课题组截至2026-11-18的培养效能如何？")
+    assert direct.status_code == 200, direct.text
+    assert direct.json()["tool_result"]["students"] == 1
+    assert client.get(direct.json()["evidence_links"][0]["url"]).status_code == 200
+    assert len(calls) == 2
+
     for field, name, id_field, ident in (
         ("mentor_name", "合成导师导师", "mentor_id", mentor["id"]),
         ("group_name", "合成课题组课题组", "group_id", group["id"]),

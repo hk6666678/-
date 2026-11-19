@@ -1304,6 +1304,34 @@ def register_agent(
                     }
                 )
             ]
+        direct_mentor = re.fullmatch(
+            r"(?:请问\s*)?([\w\-· ]{1,99}?)(导师|课题组)\s*(?:截至|截止)\s*(\d{4}-\d{2}-\d{2})\s*的?(?:培养)?效能(?:如何|怎么样)?[？?。]?",
+            body.question.strip(),
+        )
+        if direct_mentor and date_like(direct_mentor[3]):
+            with connection(path) as db:
+                actor, _ = current(db, request)
+                deny_unauthorized_question(db, actor["id"], body.question)
+                field = "mentor_name" if direct_mentor[2] == "导师" else "group_name"
+                direct_plan = AgentPlan.model_validate({
+                    "tool": "mentor_effectiveness", field: direct_mentor[1], "as_of": direct_mentor[3],
+                })
+                outcome, _ = execute_plan(db, actor["id"], direct_plan, loaders)
+                assert outcome is not None
+                notice = outcome.get("notice")
+                evidence = []
+                if not notice:
+                    filters = outcome["filters"]
+                    key = "mentor_id" if "mentor_id" in filters else "group_id"
+                    evidence.append({"label": "导师或课题组效能来源",
+                                     "url": f"/api/mentor-groups/facts?as_of={filters['as_of']}&{key}={filters[key]}"})
+                    notice = f"截至 {direct_mentor[3]}，授权范围内有效指导学生 {outcome['students']} 名，其中 {outcome['scored']} 名有可比较的模拟评分。"
+                    if outcome.get("rate") is not None:
+                        notice += f"可比较样本的模拟拔尖产出率 {outcome['rate']:.1f}%。"
+                audit(db, actor["id"], "agent.answer", direct_plan.tool)
+                return {"answer": notice, "plan": direct_plan.model_dump(), "tool_result": outcome,
+                        "evidence_links": evidence, "model_version": version, "generated_at": int(time.time())}
+
         direct_alert = re.fullmatch(
             r"(?:请问\s*)?学号\s*([0-9]{3,20})\s*(?:的学生|的研究生)?\s*(?:有|触发了)(?:哪些|什么|没有)?(?:培养)?预警[？?。]?",
             body.question.strip(),
