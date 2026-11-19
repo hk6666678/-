@@ -72,7 +72,10 @@ def register_research_outputs(
         "conferences": ("业务编号", "会议名称", ("报告类型", "会议日期")),
     }[category]
     optional_labels = {
-        "research_papers": ("评价体系", "评价年度", "期刊分区", "影响因子"),
+        "research_papers": (
+            "评价体系", "评价年度", "期刊分区", "影响因子",
+            "中科院分区", "中科院分区年度", "JCR分区", "JCR分区年度",
+        ),
         "patents": ("转化状态", "转化日期"),
     }.get(category, ())
     tables = "research" if category == "research_papers" else category
@@ -698,7 +701,10 @@ def register_research_outputs(
                 "专业",
                 *extra_labels,
             )
-            if imported_header not in (expected_header, expected_header + optional_labels) and not (
+            supported_headers: tuple[tuple[str, ...], ...] = (expected_header, expected_header + optional_labels)
+            if category == "research_papers":
+                supported_headers += (expected_header + optional_labels[:4],)
+            if imported_header not in supported_headers and not (
                 category == "research_papers" and imported_header == expected_header[:8]
             ):
                 raise ValueError()
@@ -753,6 +759,16 @@ def register_research_outputs(
                     if impact := details.get("影响因子"):
                         factor = Decimal(impact)
                         if not factor.is_finite() or factor < 0:
+                            raise ValueError()
+                    for scheme in ("中科院", "JCR"):
+                        zone = details.get(f"{scheme}分区")
+                        zone_year = details.get(f"{scheme}分区年度")
+                        if zone and not zone_year:
+                            raise ValueError()
+                        if zone_year and (
+                            re.fullmatch(r"[0-9]{4}", zone_year) is None
+                            or not 1900 <= int(zone_year) <= 2100
+                        ):
                             raise ValueError()
                 if category == "patents" and (conversion_date := details.get("转化日期")):
                     if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", conversion_date) is None:
@@ -814,11 +830,11 @@ def register_research_outputs(
                     )
                     if not old["active"]:
                         raise HTTPException(409, "业务编号已有作废历史，不可重新导入")
-                    if optional_labels and len(imported_header) <= len(expected_header):
+                    if optional_labels:
                         preserved = {
                             label: value
                             for label, value in previous_payload.get("details", {}).items()
-                            if label in optional_labels
+                            if label in optional_labels and label not in imported_labels
                         }
                         if preserved:
                             payload["details"] = {**payload.get("details", {}), **preserved}

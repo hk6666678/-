@@ -467,6 +467,18 @@ def register_students(
             if not row:
                 raise HTTPException(404, "档案不存在或无权查看")
             result = student_view(db, actor["id"], row)
+            visible = masked(db, actor["id"], json.loads(row["payload"]))
+            tracked = [
+                field for field in BASIC_REQUIRED + [
+                    "前置院校", "入学日期", "学制", "入学方式", "学习形式",
+                    "学位类型", "学籍状态", "研究方向",
+                ]
+                if "name" in result or field in SAFE_FIELDS
+            ]
+            result["completeness"] = {
+                "checked": len(tracked),
+                "missing": [field for field in tracked if not str(visible.get(field) or "").strip()],
+            }
             history = []
             for revision in db.execute(
                 "SELECT r.*,i.batch_id,i.row_number,i.sheet,i.raw_json FROM student_revisions r JOIN import_rows i ON i.id=r.source_row_id WHERE r.student_id=?",

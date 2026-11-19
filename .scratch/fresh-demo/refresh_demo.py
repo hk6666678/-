@@ -83,8 +83,22 @@ def courses_rows():
                 (code, title, f"{entry if season == '秋' else entry + 1}{season}", credit)
                 for code, title, season, credit in SEC_COURSES
             ]
+        if number not in scores and entry == 2023:
+            plan.extend(
+                (code, title, term, 2)
+                for code, title, term in (
+                    ("RS61001", "科研方法专题", "2024秋"),
+                    ("RS61002", "高级技术研讨", "2025春"),
+                    ("RS62001", "学术前沿研讨", "2025秋"),
+                    ("RS62002", "工程实践专题", "2026春"),
+                )
+            )
         for index, (code, title, term, credit) in enumerate(plan):
             raw = scores[number][index] if number in scores else 55 + (int(number[-4:]) * 7 + index * 11) % 45
+            if number not in scores and int(number[-2:]) <= 5:
+                raw = 78 + (int(number[-4:]) * 7 + index * 11) % 20
+            if number not in scores and entry == 2023 and number.endswith("006") and term == "2026春":
+                raw = 45
             if raw == "":
                 result = ""
             elif int(raw) >= 60:
@@ -293,6 +307,8 @@ def main(extended: bool = False) -> None:
         for number, (title, score) in TOPICS.items():
             name, (college, major) = by_number[number]
             year = 2000 + int(number[:2]) if extended else 2023 if number.startswith("235") else 2024
+            if extended and category == "midterm":
+                score = max(60, min(99, score + (int(number[-2:]) * 11 % 17) - 8))
             term = f"{year + 1}春"
             if category == "midterm" and number.startswith("235"):
                 term = "2025春"
@@ -556,15 +572,19 @@ def prepare_extended_demo():
                 RELATIONS.append((number, f"T10{scope_index}{group}", f"RG{scope_index}0{group}",
                                   f"{year}-09-01", "", "合成指导关系"))
                 people = [(number, name, 1, "第一参与人")]
-                papers = 1 + index % 3
+                papers = 3 if index <= 5 else 1 + index % 3
                 for paper in range(papers):
                     key = f"rp-{number}-{paper + 1:02}"
                     PAPERS.append((key, f"{title}：{('方法设计', '实验分析', '应用评估')[paper]}", year + 1, people))
-                    CITATIONS[key] = paper * 4 + index
+                    CITATIONS[key] = (10 if index <= 5 else 0) + paper * 4 + index
                 if index != 12:
                     PATENTS.append((f"P-{number}", f"一种用于{title.removesuffix('研究')}的方法及系统", "发明", f"{year + 1}-08-01", people))
                 AWARDS.append((f"A-{number}", "研究生创新实践竞赛", "校级", year + 1, people))
                 CONFERENCES.append((f"C-{number}", "研究生学术论坛", "口头报告", f"{year + 1}-09-01", people))
+                if index <= 5:
+                    PATENTS.append((f"P-{number}-02", f"一种{title.removesuffix('研究')}实现装置", "发明", f"{year + 1}-10-01", people))
+                    AWARDS.append((f"A-{number}-02", "研究生学术成果奖", "校级", year + 1, people))
+                    CONFERENCES.append((f"C-{number}-02", "青年学者学术交流会", "口头报告", f"{year + 1}-11-01", people))
 
 
 if __name__ == "__main__":

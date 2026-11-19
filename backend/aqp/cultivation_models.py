@@ -9,7 +9,9 @@ from typing import Any
 
 import numpy as np
 from fastapi import FastAPI, HTTPException, Query, Request
-from scipy.stats import t  # type: ignore[import-untyped]
+from scipy.optimize import minimize  # type: ignore[import-untyped]
+from scipy.special import expit  # type: ignore[import-untyped]
+from scipy.stats import spearmanr, t  # type: ignore[import-untyped]
 
 from aqp.agent import OUTPUT_TABLES, agent_scope_students
 from aqp.authorization import allowed, student_allowed
@@ -24,9 +26,16 @@ def fit_factors(points: list[tuple[float, float, float]]) -> dict[str, Any]:
     observations = np.asarray(points, dtype=float)
     design = np.column_stack((np.ones(len(points)), observations[:, :2]))
     target = observations[:, 2]
+    names = ("选题成绩", "中期成绩")
+    associations = [
+        {"factor": label, "rho": float(spearmanr(values, target).statistic)
+         if np.ptp(values) and np.ptp(target) else None}
+        for label, values in zip(names, observations[:, :2].T, strict=True)
+    ]
+    outcome = {"rank_correlations": associations, "logistic": fit_simulation_logistic(design, target)}
     coefficients, _, rank, _ = np.linalg.lstsq(design, target, rcond=None)
     if rank < design.shape[1] or np.ptp(target) == 0:
-        return {"notice": "分数没有变化，或两项因素无法独立估计。"}
+        return {**outcome, "notice": "分数没有变化，或两项因素无法独立估计。"}
     degrees = len(points) - design.shape[1]
     residuals = target - design @ coefficients
     residual_variance = float(residuals @ residuals) / degrees
@@ -34,7 +43,7 @@ def fit_factors(points: list[tuple[float, float, float]]) -> dict[str, Any]:
     critical = float(t.ppf(0.975, degrees))
     rows = []
     for label, coefficient, error in zip(
-        ("选题成绩", "中期成绩"), coefficients[1:], errors[1:], strict=True
+        names, coefficients[1:], errors[1:], strict=True
     ):
         estimate, se = float(coefficient), float(error)
         # A perfect numerical fit does not provide a meaningful sampling error.
@@ -51,7 +60,34 @@ def fit_factors(points: list[tuple[float, float, float]]) -> dict[str, Any]:
                 else None,
             }
         )
-    return {"factors": rows}
+    return {**outcome, "factors": rows}
+
+
+def fit_simulation_logistic(design: np.ndarray, target: np.ndarray) -> dict[str, Any]:
+    binary = (target >= 85).astype(float)
+    positive = int(binary.sum())
+    counts = {"positive": positive, "negative": len(target) - positive}
+    if min(counts.values()) < 5:
+        return {**counts, "notice": "达到和未达到85分均需至少5人。"}
+    predictors = design.copy()
+    predictors[:, 1:] = (predictors[:, 1:] - predictors[:, 1:].mean(axis=0)) / 10
+    if np.linalg.matrix_rank(predictors) < predictors.shape[1]:
+        return {**counts, "notice": "两项因素无法独立估计。"}
+
+    def objective(weights: np.ndarray) -> tuple[float, np.ndarray]:
+        logits = predictors @ weights
+        penalty = weights.copy()
+        penalty[0] = 0
+        loss = np.logaddexp(0, logits).sum() - binary @ logits + 0.5 * (penalty @ penalty)
+        return float(loss), predictors.T @ (expit(logits) - binary) + penalty
+
+    fitted = minimize(objective, np.zeros(predictors.shape[1]), jac=True, method="BFGS")
+    if not fitted.success:
+        return {**counts, "notice": "拟合未收敛。"}
+    return {**counts, "factors": [
+        {"factor": name, "odds_ratio": float(np.exp(coefficient))}
+        for name, coefficient in zip(("选题成绩", "中期成绩"), fitted.x[1:], strict=True)
+    ]}
 
 
 def cultivation_factors(
@@ -130,6 +166,23 @@ def cultivation_factors(
     }
 
 
+def personal_control_limits(values: list[float]) -> dict[str, Any]:
+    baseline = values[:-1]
+    if len(baseline) < 5:
+        return {"signal": "历史观测不足", "baseline_count": len(baseline)}
+    center = mean(baseline)
+    spread = pstdev(baseline)
+    if not spread:
+        return {"signal": "历史观测无波动", "baseline_count": len(baseline)}
+    lower, upper = center - 3 * spread, center + 3 * spread
+    current = values[-1]
+    return {
+        "baseline_count": len(baseline),
+        "limits": [round(lower, 2), round(upper, 2)],
+        "signal": "低于控制下限" if current < lower else "高于控制上限" if current > upper else "在控制限内",
+    }
+
+
 def student_signals(db: sqlite3.Connection, aid: int, student_id: int) -> dict[str, Any]:
     student = db.execute(
         "SELECT * FROM students WHERE id=? AND active=1", (student_id,)
@@ -156,6 +209,39 @@ def student_signals(db: sqlite3.Connection, aid: int, student_id: int) -> dict[s
         else None,
         "peer_outputs": None,
     }
+    if all(allowed(db, aid, "courses", op, student["college"], student["major"])
+           for op in ("view", "analyze")):
+        terms: dict[str, list[float]] = defaultdict(list)
+        for record in db.execute(
+            "SELECT term,payload FROM course_records WHERE student_id=? AND active=1 AND state='linked'",
+            (student_id,),
+        ):
+            grade = json.loads(record["payload"])
+            if (
+                grade.get("评分制度") != "百分制"
+                or grade.get("所属学院", grade.get("学院")) != student["college"]
+                or grade.get("专业") != student["major"]
+                or len(record["term"]) != 5
+                or not record["term"][:4].isdigit()
+                or record["term"][-1] not in "春秋"
+            ):
+                continue
+            try:
+                score = float(grade.get("原始成绩") or "")
+            except ValueError:
+                continue
+            if 0 <= score <= 100:
+                terms[record["term"]].append(score)
+        ordered = sorted(terms, key=lambda term: (term[:4], term[-1] == "秋"))
+        if ordered:
+            values = [mean(terms[term]) for term in ordered]
+            result["course_trend"] = {
+                **personal_control_limits(values),
+                "observations": [
+                    {"term": term, "mean": round(value, 2), "records": len(terms[term])}
+                    for term, value in zip(ordered, values, strict=True)
+                ],
+            }
     if all(
         allowed(db, aid, "papers", op, student["college"], student["major"])
         for op in ("view", "analyze")

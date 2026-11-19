@@ -6,6 +6,8 @@ type Result = {
   excluded: number;
   notice?: string;
   factors?: { factor: string; coefficient: number; interval: [number, number] | null; p_value: number | null }[];
+  rank_correlations?: { factor: string; rho: number | null }[];
+  logistic?: { positive: number; negative: number; notice?: string; factors?: { factor: string; odds_ratio: number }[] };
 };
 
 export function CultivationFactors() {
@@ -57,6 +59,17 @@ export function CultivationFactors() {
               </tr>
             ))}</tbody>
           </table></div>}
+          {result.rank_correlations && (
+            <p>Spearman 秩相关 · {result.rank_correlations.map(({ factor, rho }) => `${factor} ${rho?.toFixed(3) ?? "不可估计"}`).join(" · ")}</p>
+          )}
+          {result.logistic && (
+            <>
+              <h4>85 分模拟达标关联</h4>
+              <p>达标 {result.logistic.positive} 人 · 未达标 {result.logistic.negative} 人</p>
+              {result.logistic.notice && <p>{result.logistic.notice}</p>}
+              {result.logistic.factors && <p>每增加 10 分的优势比 · {result.logistic.factors.map(({ factor, odds_ratio }) => `${factor} ${odds_ratio.toFixed(3)}`).join(" · ")}。采用带 L2 惩罚的 Logistic 回归，仅供探索。</p>}
+            </>
+          )}
           <details className="task-details">
             <summary>计算口径</summary>
             <p>以最近录入的有效百分制选题、中期成绩为自变量，以最新有效且同一规则版本的模拟总分为因变量。系数表示另一因素固定时，成绩每增加一分对应的模拟总分差异。缺分、过时或无权读取的快照不进入计算。区间与 p 值基于线性回归的常规假设，仅用于探索变量关联。</p>

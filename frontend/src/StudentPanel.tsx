@@ -30,6 +30,7 @@ type Batch = {
 type Filters = { majors: string[]; levels: string[] };
 type MilestoneItem = { category: string; data: Record<string, string> };
 type ArchiveView = Row & {
+  completeness?: { checked: number; missing: string[] };
   student_number?: string;
   milestones?: MilestoneItem[];
 };
@@ -415,6 +416,12 @@ export function StudentPanel({ csrf, fetcher }: Props) {
         {detail !== null && (
           <>
             <h3 ref={detailHeading} tabIndex={-1}>培养时间线 · {detail.archive.name || detail.archive.research_id}</h3>
+            {detail.archive.completeness && (
+              <p>
+                基础档案缺项 {detail.archive.completeness.missing.length}/{detail.archive.completeness.checked}
+                {detail.archive.completeness.missing.length > 0 && ` · ${detail.archive.completeness.missing.join("、")}`}
+              </p>
+            )}
             <p className="muted">
               按年份汇总入学、学籍异动、修读学期、选题、中期、盲审与答辩；缺失字段如实留空。
               {detail.assessmentsNote ||

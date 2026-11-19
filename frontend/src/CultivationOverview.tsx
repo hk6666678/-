@@ -13,6 +13,7 @@ type Outcome = { snapshot: Snapshot } | { error: string };
 type Scope = { college: string; major: string; student_id: number };
 type Student = { id: number; research_id: string; name?: string; student_number?: string; data: Record<string, string> };
 type Signals = {
+  course_trend?: { signal: string; baseline_count: number; limits?: [number, number]; observations: { term: string; mean: number; records: number }[] };
   blind_review?: { batch: string; due: string; status: string };
   mobility?: { type: string; date?: string } | null;
   peer_outputs?: { count: number; peer_median: number; peer_count: number; below: boolean; sources: string[] };
@@ -179,6 +180,19 @@ export function CultivationOverview({ csrf, showSnapshot }: {
               </>
             ) : <p>{result.signals.notice}</p>}
           </details>
+          {result.signals.course_trend && (
+            <details className="task-details">
+              <summary>个人课程趋势 · {result.signals.course_trend.signal}</summary>
+              <p>按百分制学期均分比较，最近一学期与至少 5 个历史学期的均值 ± 3σ 比对，只用于核查。</p>
+              {result.signals.course_trend.limits && <p>控制限 {result.signals.course_trend.limits.join(" 至 ")} 分</p>}
+              <table>
+                <thead><tr><th>学期</th><th>平均分</th><th>成绩条数</th></tr></thead>
+                <tbody>{result.signals.course_trend.observations.map((row) => (
+                  <tr key={row.term}><td>{row.term}</td><td>{row.mean}</td><td>{row.records}</td></tr>
+                ))}</tbody>
+              </table>
+            </details>
+          )}
         </>
       )}
     </>

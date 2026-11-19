@@ -12,6 +12,28 @@ from test_students import workbook
 SCOPE = {"college": "示例学院", "major": "计算机"}
 
 
+def test_rank_correlation_and_logistic_simulation():
+    from aqp.cultivation_models import fit_factors
+
+    points = [
+        (float(i), float((i * 7) % 11), float(70 + 2 * i))
+        for i in range(1, 15)
+    ]
+    fitted = fit_factors(points)
+    assert fitted["rank_correlations"][0]["rho"] == pytest.approx(1)
+    binary = fitted["logistic"]
+    assert binary["positive"] == 7 and binary["negative"] == 7
+    assert binary["factors"][0]["odds_ratio"] > 1
+    assert "notice" in fit_factors(points[:6])["logistic"]
+
+
+def test_personal_control_limits_exclude_the_current_observation():
+    from aqp.cultivation_models import personal_control_limits
+
+    assert personal_control_limits([79, 80, 81, 80, 80, 60])["signal"] == "低于控制下限"
+    assert personal_control_limits([79, 80])["signal"] == "历史观测不足"
+
+
 def grants_for(categories: list[str], operations: list[str]) -> list[dict]:
     return [
         {"category": category, "operation": operation, **SCOPE}
