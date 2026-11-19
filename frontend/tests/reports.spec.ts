@@ -65,9 +65,9 @@ test("three-level reports with charts drilldown and authorized export", async ({
     ),
   });
   await page.getByRole("button", { name: "上传并预览" }).click();
-  await expect(page.getByText("ready: 1 / invalid: 1")).toBeVisible();
+  await expect(page.getByText("可导入 1 条 / 校验未通过 1 条")).toBeVisible();
   await page.getByRole("button", { name: "确认导入有效行" }).click();
-  await expect(page.getByText(/imported: 1/)).toBeVisible();
+  await expect(page.getByText(/已导入 1 条/)).toBeVisible();
   await page.getByRole("button", { name: "科研成果导入", exact: true }).click();
   await page.getByRole("tab", { name: "专利", exact: true }).click();
   await page.getByText("导入专利", { exact: true }).click();

@@ -13,13 +13,16 @@ test('synthetic semantic disabled history',async({page})=>{
   // 授权列表可能同时包含其他用例学生的论文，所有交互限定在本用例论文的条目内
   const first=(await(await page.request.get('/api/papers')).json()).items.find((p:{student_id:number})=>p.student_id===student.id);expect(first).toBeTruthy();
   const firstArticle=page.locator('article').filter({has:page.locator(`a[href="/api/papers/${first.id}/download"]`)});
-  await expect(firstArticle.getByText('文件损坏或不可用',{exact:false})).toBeVisible();await firstArticle.getByRole('button',{name:'重试',exact:true}).click();await expect(firstArticle.getByText('文件损坏或不可用',{exact:false})).toBeVisible();const [download]=await Promise.all([page.waitForEvent('download'),firstArticle.getByRole('link',{name:'下载原件'}).click()]);expect(download.suggestedFilename()).toBe('synthetic.pdf');
+  await expect(firstArticle.getByText('文件损坏或不可用',{exact:false})).toBeVisible();await firstArticle.getByRole('button',{name:'重试解析',exact:true}).click();await expect(firstArticle.getByText('文件损坏或不可用',{exact:false})).toBeVisible();const [download]=await Promise.all([page.waitForEvent('download'),firstArticle.getByRole('link',{name:'下载原件'}).click()]);expect(download.suggestedFilename()).toBe('synthetic.pdf');
 
  const pdf=execFileSync('../.venv/Scripts/python.exe',['-c',"import sys;sys.path.insert(0,'../backend/tests');from test_papers import text_pdf;sys.stdout.buffer.write(text_pdf())"],{env:{...process.env,PYTHONUTF8:'1',PYTHONPATH:'../backend'}});
  const uploaded=await page.request.post('/api/papers',{headers,multipart:{student_id:String(student.id),title:'合成语义论文',expected_version:'1',covered_student_ids:JSON.stringify([student.id]),file:{name:'synthetic-text.pdf',mimeType:'application/pdf',buffer:pdf}}});expect(uploaded.status()).toBe(200);
  const secondArticle=page.locator('article').filter({has:page.locator(`a[href="/api/papers/${(await uploaded.json()).id}/download"]`)});
  await page.getByRole('button',{name:'刷新进度'}).click();
- await secondArticle.getByRole('button',{name:'提取／重试智能特征'}).click();
+ await expect(secondArticle.getByText('页数',{exact:true})).toBeVisible();
+ await expect(secondArticle.getByText('字符数',{exact:true})).toBeVisible();
+ await expect(secondArticle.locator('pre')).toHaveCount(0);
+ await secondArticle.getByRole('button',{name:'提取智能特征'}).click();
  await expect(page.getByText('智能解析未启用；本地结果保留',{exact:false})).toBeVisible();
  await secondArticle.getByRole('button',{name:'智能特征与历史依据'}).click();
  await expect(page.getByText('paper-semantic-v1-exact-page-quote',{exact:false})).toBeVisible();

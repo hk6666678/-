@@ -158,7 +158,7 @@ test("milestone analysis preserves distribution and immutable evidence", async (
       .getByRole("button", { name: "确认新规则版本" })
       .click();
     await expect(
-      passRules.locator("pre").filter({ hasText: "version" }).first(),
+      passRules.getByText("版本", { exact: true }).first(),
     ).toBeVisible();
     const old = await (await page.request.get(`/api/analyses/${oldId}`)).json();
     expect(old.stale).toBe(true);

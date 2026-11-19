@@ -1,3 +1,4 @@
+import { EvidenceDetails } from "./EvidenceDetails";
 import { useState } from "react";
 type Event = {
   id: number;
@@ -145,7 +146,7 @@ export function AuditPanel({
                       {event.outcome}
                       <details>
                         <summary>版本及原因信息</summary>
-                        <pre>{JSON.stringify(event.details, null, 2)}</pre>
+                        <EvidenceDetails data={event.details} />
                       </details>
                     </td>
                   </tr>

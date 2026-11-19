@@ -43,7 +43,7 @@ test("milestone pending import with missing score and attachment", async ({
     buffer: await template.body(),
   });
   await page.getByRole("button", { name: "上传并预览" }).click();
-  await expect(page.getByText("pending: 1 / invalid: 1")).toBeVisible();
+  await expect(page.getByText("待处理 1 条 / 校验未通过 1 条")).toBeVisible();
   await page.getByRole("button", { name: "确认导入有效行" }).click();
-  await expect(page.getByText(/pending: 1/)).toBeVisible();
+  await expect(page.getByText(/待处理 1 条/)).toBeVisible();
 });

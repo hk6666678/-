@@ -1,3 +1,4 @@
+import { EvidenceDetails } from "./EvidenceDetails";
 import { useState } from "react";
 type Entry = {
   id: number;
@@ -209,9 +210,7 @@ export function RecordPanel({ csrf }: { csrf: string }) {
           </button>
           {proposal && (
             <>
-              <pre aria-label="新旧差异">
-                {JSON.stringify(proposal.changes, null, 2)}
-              </pre>
+              <EvidenceDetails data={proposal.changes} label="新旧差异" />
               <button onClick={() => void run(() => finish("confirm"))}>
                 确认此更正
               </button>
@@ -230,13 +229,7 @@ export function RecordPanel({ csrf }: { csrf: string }) {
                 版本{v.version} · {v.operation} · 操作者{v.actor_id} ·{" "}
                 {v.reason}
               </p>
-              <pre>
-                {JSON.stringify(
-                  { 原值: v.before, 新值: v.after, 来源: v.source },
-                  null,
-                  2,
-                )}
-              </pre>
+              <EvidenceDetails data={{ 原值: v.before, 新值: v.after, 来源: v.source }} />
             </article>
           ))}
         </div>

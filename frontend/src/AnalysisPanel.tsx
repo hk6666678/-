@@ -1,3 +1,4 @@
+import { EvidenceDetails } from "./EvidenceDetails";
 import { useEffect, useRef, useState } from "react";
 import { ProcessAlerts, ProcessAlertSummary } from "./ProcessAlerts";
 import { CultivationOverview } from "./CultivationOverview";
@@ -289,7 +290,7 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
                   {e.source.sheet} 第 {e.source.row_number} 行 ·{" "}
                   {e.source.source_department}
                 </p>
-                <pre>{JSON.stringify(e.payload, null, 2)}</pre>
+                <EvidenceDetails data={e.payload} />
                 <a href={`/api/imports/${e.source.batch_id}/download`}>下载原始 Excel（全文件范围及身份授权）</a>
                 <a
                   href={`/api/records/${snapshot.category}/${e.id}`}

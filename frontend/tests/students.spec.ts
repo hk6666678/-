@@ -57,9 +57,9 @@ test("basic Excel preview then confirmed archive", async ({ page }) => {
     ),
   });
   await page.getByRole("button", { name: "上传并预览" }).click();
-  await expect(page.getByText("ready: 1 / invalid: 1")).toBeVisible();
+  await expect(page.getByText("可导入 1 条 / 校验未通过 1 条")).toBeVisible();
   await page.getByRole("button", { name: "确认导入有效行" }).click();
-  await expect(page.getByText(/imported: 1/)).toBeVisible();
+  await expect(page.getByText(/已导入 1 条/)).toBeVisible();
   await page.getByLabel("专业筛选", { exact: true }).selectOption("合成专业");
   await page.getByLabel("入学年份筛选", { exact: true }).selectOption("2025");
   await page.getByLabel("培养层次筛选", { exact: true }).selectOption("硕士");
@@ -67,6 +67,7 @@ test("basic Excel preview then confirmed archive", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "查看来源" }).first(),
   ).toBeVisible();
-  await page.getByRole("button", { name: "查看来源" }).first().click();
-  await expect(page.locator("pre")).toContainText("original_row");
+  await page.getByRole("row", { name: /档案专项合成学生/ }).getByRole("button", { name: "查看来源" }).click();
+  await page.getByText("来源与原始依据", { exact: true }).click();
+  await expect(page.getByText("原始导入内容", { exact: true })).toBeVisible();
 });

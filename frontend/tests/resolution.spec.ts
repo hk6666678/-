@@ -57,10 +57,10 @@ test("synthetic basic error is corrected with evidence and second confirmation",
     await page.getByLabel("姓名", { exact: true }).fill("合成修复");
     await page.getByLabel("人工核实依据").fill("合成学籍清单人工核实");
     await page.getByRole("button", { name: "保存并重新校验" }).click();
-    await expect(page.getByText(/校验版本1：ready/)).toBeVisible();
+    await expect(page.getByText(/校验版本1：可导入/)).toBeVisible();
     await page.getByRole("button", { name: "再次确认此修复行入库" }).click();
     await expect(
-      page.getByRole("button", { name: /第4行 · imported/ }),
+      page.getByRole("button", { name: /第4行 · 已导入/ }),
     ).toBeVisible();
   } finally {
     const current = await (await page.request.get("/api/me")).json();

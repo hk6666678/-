@@ -1,3 +1,4 @@
+import { EvidenceDetails } from "./EvidenceDetails";
 import { CollegeSelect } from "./CollegeSelect";
 import { useEffect, useState } from "react";
 
@@ -58,7 +59,7 @@ function PassRules({ csrf }: { csrf: string }) {
     [major, setMajor] = useState(""),
     [course, setCourse] = useState(""),
     [term, setTerm] = useState(""),
-    [rules, setRules] = useState(""),
+    [rules, setRules] = useState<unknown>(),
     [error, setError] = useState("");
   async function request(url: string, body?: unknown) {
     setError("");
@@ -164,7 +165,7 @@ function PassRules({ csrf }: { csrf: string }) {
             reason,
             confirmed,
           });
-          if (r) setRules(JSON.stringify(r));
+          if (r) setRules(r);
         }}
       >
         确认新规则版本
@@ -174,7 +175,7 @@ function PassRules({ csrf }: { csrf: string }) {
           const r = await request(
             `/api/pass-rules?category=${category}&college=${encodeURIComponent(college)}&major=${encodeURIComponent(major)}`,
           );
-          if (r) setRules(JSON.stringify(r, null, 2));
+          if (r) setRules(r);
         }}
       >
         查看规则历史
@@ -201,14 +202,14 @@ function PassRules({ csrf }: { csrf: string }) {
                 reason,
                 confirmed,
               });
-              if (r) setRules(JSON.stringify(r));
+              if (r) setRules(r);
             }}
           >
             确认培养要求版本
           </button>
         </>
       )}
-      <pre>{rules}</pre>
+      {rules !== undefined && <EvidenceDetails data={rules} />}
     </article>
   );
 }
@@ -616,7 +617,7 @@ function CandidateRules({ csrf }: { csrf: string }) {
             {r.enabled ? "已启用" : r.confirmed_by ? "历史确认版本" : "草稿"}
             · {r.config.synthetic ? "合成验证规则" : "业务规则"}
           </p>
-          <pre>{JSON.stringify(r.config, null, 2)}</pre>
+          <EvidenceDetails data={r.config} />
           {r.confirmed_by ? (
             <p>
               确认人：{r.confirmed_by}；依据：{r.basis}

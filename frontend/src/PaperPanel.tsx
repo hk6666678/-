@@ -1,8 +1,9 @@
+import { EvidenceDetails, evidenceLabel } from "./EvidenceDetails";
 import { useEffect, useState } from "react";
-type Paper = {id:number;version:number;student_id?:number;title?:string;level:string;discipline:string;year:string;status:string;failure_code?:string;features:Record<string,number>|null;semantic_features:string};
+type Paper = {id:number;version:number;student_id?:number;title?:string;level:string;discipline:string;year:string;status:string;failure_code?:string;features:Record<string,number>|null};
 type StudentOption = { id: number; name?: string; research_id: string; data: Record<string, string> };
 export function PaperPanel({csrf}:{csrf:string}) {
- const [items,setItems]=useState<Paper[]>([]),[error,setError]=useState(""),[evidence,setEvidence]=useState(""),[studentId,setStudentId]=useState("");
+ const [items,setItems]=useState<Paper[]>([]),[error,setError]=useState(""),[evidence,setEvidence]=useState<{ paperId: number; label: string; data: unknown }>(),[studentId,setStudentId]=useState("");
  const [students, setStudents] = useState<StudentOption[]>([]);
  const [rosterError, setRosterError] = useState(false);
  const [covered, setCovered] = useState<string[]>([]);
@@ -12,7 +13,21 @@ export function PaperPanel({csrf}:{csrf:string}) {
  const studentLabel = (student: StudentOption) => [student.name, student.research_id, student.data["专业"]].filter(Boolean).join(" · ");
  async function call(url:string,options:RequestInit={}) {const r=await fetch(url,options);if(!r.ok) {const e=await r.json();throw new Error(typeof e.detail==='string'?e.detail:'请检查输入');}return r.json();}
  async function refresh(){try{setItems((await call('/api/papers')).items);}catch(e){setError(String(e));}}
- useEffect(()=>{void refresh();const t=setInterval(()=>void refresh(),2500);return ()=>clearInterval(t);},[]);
+ useEffect(() => {
+   void refresh();
+   const timer = window.setInterval(() => void refresh(), 2500);
+   return () => window.clearInterval(timer);
+ }, []);
+ async function showEvidence(paperId: number, label: string, path: string, extract = false) {
+   setError("");
+   setEvidence(undefined);
+   try {
+     const data = await call(path, extract ? { method: "POST", headers: { "X-CSRF-Token": csrf } } : {});
+     setEvidence({ paperId, label, data });
+   } catch (error) {
+     setError(error instanceof Error ? error.message : String(error));
+   }
+ }
  useEffect(() => {
    const controller = new AbortController();
    async function loadStudents() {
@@ -79,5 +94,33 @@ export function PaperPanel({csrf}:{csrf:string}) {
    <button disabled={busy || !selected}>上传新版本并排队</button></form>
  <h3>上传记录</h3>
  <button className="secondary" onClick={()=>void refresh()}>刷新进度</button>
- {items.map(p=><article key={p.id}><h3>{p.title||'论文（身份已隐藏）'} · 版本{p.version}</h3><p>{p.level||'层次缺失'} / {p.discipline||'学科缺失'} / {p.year||'年度缺失'}</p><p>{({queued:'排队',processing:'处理中',succeeded:'成功',failed:'失败'} as Record<string,string>)[p.status]} {p.failure_code&&({no_text:'无可提取文字（可能为扫描件）',encrypted:'加密PDF',damaged_or_unavailable:'文件损坏或不可用'} as Record<string,string>)[p.failure_code]}</p><p>{p.semantic_features}</p>{p.features&&<pre>{JSON.stringify(p.features,null,2)}</pre>}<button onClick={()=>void call(`/api/papers/${p.id}/evidence`).then(r=>setEvidence(JSON.stringify(r,null,2))).catch(e=>setError(String(e)))}>查看页序证据</button>{p.status==='succeeded'&&<><button onClick={()=>void call(`/api/papers/${p.id}/semantic`,{method:'POST',headers:{'X-CSRF-Token':csrf}}).then(r=>setEvidence(JSON.stringify(r,null,2))).catch(e=>setError(String(e)))}>提取／重试智能特征</button><button onClick={()=>void call(`/api/papers/${p.id}/semantic`).then(r=>setEvidence(JSON.stringify(r,null,2))).catch(e=>setError(String(e)))}>智能特征与历史依据</button></>}<a href={`/api/papers/${p.id}/download`}>下载原件</a>{p.status==='failed'&&<button onClick={()=>void call(`/api/papers/${p.id}/retry`,{method:'POST',headers:{'X-CSRF-Token':csrf}}).then(refresh).catch(e=>setError(String(e)))}>重试</button>}</article>)}<pre style={{whiteSpace:'pre-wrap'}}>{evidence}</pre></section>;
+ {items.length === 0 && <p className="muted">暂无可查看的论文上传记录。</p>}
+ <div className="paper-records">
+   {items.map((paper) => <article className="card paper-record" key={paper.id}>
+     <header className="paper-record-header">
+       <h3>{paper.title || "论文（身份已隐藏）"}</h3>
+       <span className="paper-status" data-status={paper.status}>{{ queued: "等待解析", processing: "正在解析", succeeded: "解析成功", failed: "解析失败" }[paper.status] ?? "状态待核查"}</span>
+     </header>
+     <p className="muted">版本 {paper.version} / {paper.level || "培养层次未登记"} / {paper.discipline || "学科未登记"} / {paper.year ? `${paper.year} 年` : "年度未登记"}</p>
+     {paper.failure_code && <p>{{ no_text: "PDF 没有可提取的文字，请检查是否为扫描件。", encrypted: "PDF 已加密，请上传可读取的文件。", damaged_or_unavailable: "文件损坏或不可用，请核对原件后重试。" }[paper.failure_code] ?? "无法完成解析，请核对原件后重试。"}</p>}
+     {paper.features && <dl className="paper-metrics">
+       {["page_count", "character_count", "section_count", "reference_count"].map((key) => <div key={key}>
+         <dt>{evidenceLabel(key)}</dt><dd>{paper.features?.[key] ?? "待核查"}</dd>
+       </div>)}
+     </dl>}
+     <div className="action-row paper-record-actions">
+       <button type="button" className="secondary" onClick={() => void showEvidence(paper.id, "页序证据", `/api/papers/${paper.id}/evidence`)}>查看页序证据</button>
+       {paper.status === "succeeded" && <>
+         <button type="button" className="secondary" onClick={() => void showEvidence(paper.id, "智能特征", `/api/papers/${paper.id}/semantic`, true)}>提取智能特征</button>
+         <button type="button" className="secondary" onClick={() => void showEvidence(paper.id, "智能特征与历史依据", `/api/papers/${paper.id}/semantic`)}>智能特征与历史依据</button>
+       </>}
+       <a href={`/api/papers/${paper.id}/download`}>下载原件</a>
+       {paper.status === "failed" && <button onClick={() => void call(`/api/papers/${paper.id}/retry`, { method: "POST", headers: { "X-CSRF-Token": csrf } }).then(refresh).catch((error) => setError(String(error)))}>重试解析</button>}
+     </div>
+     {evidence?.paperId === paper.id && <details open className="task-details">
+       <summary>{evidence.label}</summary>
+       <EvidenceDetails data={evidence.data} />
+     </details>}
+   </article>)}
+ </div></section>;
 }

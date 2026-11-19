@@ -18,7 +18,7 @@ export function AttachmentPanel({ csrf }: { csrf: string }) {
     [file, setFile] = useState<File | null>(null),
     [coverage, setCoverage] = useState(""),
     [error, setError] = useState(""),
-    [preview, setPreview] = useState("");
+    [preview, setPreview] = useState<string>();
   async function request(url: string, init?: RequestInit) {
     const response = await fetch(url, init);
     if (!response.ok) {
@@ -31,7 +31,7 @@ export function AttachmentPanel({ csrf }: { csrf: string }) {
   }
   async function load(record: RecordItem) {
     setError("");
-    setPreview("");
+    setPreview(undefined);
     setSelected(record);
     setCoverage(record.student_id ? String(record.student_id) : "");
     setVersions([]);
@@ -163,7 +163,7 @@ export function AttachmentPanel({ csrf }: { csrf: string }) {
               </li>
             ))}
           </ul>
-          <pre>{preview}</pre>
+          {preview !== undefined && <div className="evidence-value" aria-label="附件预览">{preview || "暂无预览内容"}</div>}
         </>
       )}
     </section>

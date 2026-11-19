@@ -92,7 +92,7 @@ test("synthetic attachment upload history preview and download", async ({
     await page.getByRole("button", { name: "上传新版本" }).click();
     await expect(page.getByText("版本 1 · synthetic.docx")).toBeVisible();
     await page.getByRole("button", { name: "预览文字" }).click();
-    await expect(page.locator("pre")).toHaveText("Synthetic evidence only");
+    await expect(page.getByLabel("附件预览")).toHaveText("Synthetic evidence only");
     const [download] = await Promise.all([
       page.waitForEvent("download"),
       page.getByRole("link", { name: "下载", exact: true }).click(),

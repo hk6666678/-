@@ -1,3 +1,4 @@
+import { EvidenceDetails, evidenceValue } from "./EvidenceDetails";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { tongjiMajors } from "./tongjiMajors";
 type Props = {
@@ -258,7 +259,7 @@ export function StudentPanel({ csrf, fetcher }: Props) {
             </h3>
             <p>
               {Object.entries(batch.counts)
-                .map(([state, count]) => `${state}: ${count}`)
+                .map(([state, count]) => `${evidenceValue(state)} ${count} 条`)
                 .join(" / ")}
             </p>
             <button
@@ -293,8 +294,8 @@ export function StudentPanel({ csrf, fetcher }: Props) {
                   {batch.rows.map((row) => (
                     <tr key={row.id}>
                       <td>{row.row_number}</td>
-                      <td>{row.state}</td>
-                      <td>{JSON.stringify(row.data)}</td>
+                      <td>{evidenceValue(row.state)}</td>
+                      <td><EvidenceDetails data={row.data} /></td>
                       <td>{row.error}</td>
                     </tr>
                   ))}
@@ -445,10 +446,8 @@ export function StudentPanel({ csrf, fetcher }: Props) {
               </ul>
             )}
             <details>
-              <summary>来源与原始依据（JSON）</summary>
-              <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
-                {JSON.stringify(detail, null, 2)}
-              </pre>
+              <summary>来源与原始依据</summary>
+              <EvidenceDetails data={detail} />
             </details>
           </>
         )}

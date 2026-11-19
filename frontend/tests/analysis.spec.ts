@@ -157,7 +157,7 @@ test("course analysis preserves source evidence and immutable stale history", as
       .getByRole("button", { name: "确认新规则版本" })
       .click();
     await expect(
-      passRules.locator("pre").filter({ hasText: "version" }).first(),
+      passRules.getByText("版本", { exact: true }).first(),
     ).toBeVisible();
     // Simulate an immutable pre-09 snapshot without the optional progress field.
     const old = await (await page.request.get(`/api/analyses/${oldId}`)).json();

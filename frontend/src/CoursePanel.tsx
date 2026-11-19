@@ -1,3 +1,4 @@
+import { EvidenceDetails, evidenceValue } from "./EvidenceDetails";
 import { CollegeSelect } from "./CollegeSelect";
 import { useState } from "react";
 type Batch = {
@@ -83,7 +84,7 @@ export function CoursePanel({ csrf }: { csrf: string }) {
           </h3>
           <p>
             {Object.entries(batch.counts)
-              .map(([k, v]) => `${k}: ${v}`)
+              .map(([k, v]) => `${evidenceValue(k)} ${v} 条`)
               .join(" / ")}
           </p>
           <button
@@ -107,11 +108,11 @@ export function CoursePanel({ csrf }: { csrf: string }) {
               {batch.rows.map((row) => (
                 <tr key={row.id}>
                   <td>{row.row_number}</td>
-                  <td>{row.state}</td>
+                  <td>{evidenceValue(row.state)}</td>
                   <td>
-                    {JSON.stringify(row.data)}
+                    <EvidenceDetails data={row.data} />
                     {row.existing !== undefined && (
-                      <p>当前版本：{JSON.stringify(row.existing)}</p>
+                      <details><summary>当前版本</summary><EvidenceDetails data={row.existing} /></details>
                     )}
                   </td>
                   <td>{row.error}</td>

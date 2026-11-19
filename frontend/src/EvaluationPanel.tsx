@@ -1,3 +1,4 @@
+import { EvidenceDetails } from "./EvidenceDetails";
 import { useEffect, useRef, useState } from "react";
 import { tongjiMajors } from "./tongjiMajors";
 import { EvaluationDashboard } from "./EvaluationDashboard";
@@ -709,7 +710,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
                     {v.missing || "无缺失"}
                     <details>
                       <summary>记录与版本依据</summary>
-                      <pre>{JSON.stringify(v.evidence, null, 2)}</pre>
+                      <EvidenceDetails data={v.evidence} />
                     </details>
                   </td>
                 </tr>

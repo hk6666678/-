@@ -1,3 +1,4 @@
+import { EvidenceDetails, evidenceValue } from "./EvidenceDetails";
 import { useState } from "react";
 type Revision = {
   version: number;
@@ -75,7 +76,7 @@ export function ResolutionPanel({ csrf }: { csrf: string }) {
             {batch.rows.map((row) => (
               <li key={row.id}>
                 <button onClick={() => choose(row)}>
-                  第{row.row_number}行 · {row.state} {row.error}
+                  第{row.row_number}行 · {evidenceValue(row.state)} {row.error}
                 </button>
               </li>
             ))}
@@ -85,7 +86,7 @@ export function ResolutionPanel({ csrf }: { csrf: string }) {
       {selected && (
         <>
           <h3>原始行（只读）</h3>
-          <pre>{JSON.stringify(selected.original, null, 2)}</pre>
+          <EvidenceDetails data={selected.original} />
           <h3>修正值</h3>
           {Object.entries(values).map(([key, value]) => key === "所属学院" ? (
             <CollegeSelect
@@ -130,9 +131,9 @@ export function ResolutionPanel({ csrf }: { csrf: string }) {
           {latest && (
             <>
               <p>
-                校验版本{latest.version}：{latest.state} {latest.error}
+                校验版本{latest.version}：{evidenceValue(latest.state)} {latest.error}
               </p>
-              <pre>{JSON.stringify(latest.data, null, 2)}</pre>
+              <EvidenceDetails data={latest.data} />
               <p>
                 处理人{latest.actor_id}，时间
                 {new Date(latest.created_at * 1000).toLocaleString()}，依据：

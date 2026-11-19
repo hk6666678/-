@@ -48,7 +48,7 @@ test("course pending import then basic archive links original course", async ({
     ),
   });
   await page.getByRole("button", { name: "预览课程", exact: true }).click();
-  await expect(page.getByText("pending: 1", { exact: true })).toBeVisible();
+  await expect(page.getByText("待处理 1 条", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "确认课程有效及待关联行" }).click();
 
   const preview = await page.request.post("/api/imports/basic/preview", {
@@ -75,6 +75,6 @@ test("course pending import then basic archive links original course", async ({
     ).status(),
   ).toBe(200);
   await page.getByRole("button", { name: "刷新关联状态" }).click();
-  await expect(page.getByText("linked: 1", { exact: true })).toBeVisible();
+  await expect(page.getByText("已关联 1 条", { exact: true })).toBeVisible();
   await expect(page.locator("table")).not.toContainText("SYN0001");
 });

@@ -1,3 +1,4 @@
+import { EvidenceDetails } from "./EvidenceDetails";
 import { CollegeSelect } from "./CollegeSelect";
 import { useEffect, useRef, useState } from "react";
 import { tongjiMajors } from "./tongjiMajors";
@@ -362,7 +363,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
                 </p>
                 <details>
                   <summary>课程依据</summary>
-                  <pre>{JSON.stringify(studentReport.sections.courses.evidence, null, 2)}</pre>
+                  <EvidenceDetails data={studentReport.sections.courses.evidence} />
                 </details>
               </>
             )}
@@ -374,9 +375,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
                 {studentReport.sections.milestones[key].status === "ok" && (
                   <details>
                     <summary>批次依据</summary>
-                    <pre>
-                      {JSON.stringify(studentReport.sections.milestones[key], null, 2)}
-                    </pre>
+                    <EvidenceDetails data={studentReport.sections.milestones[key]} />
                   </details>
                 )}
               </div>
@@ -401,7 +400,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
                       />
                       <details>
                         <summary>成果依据（{section.count}项）</summary>
-                        <pre>{JSON.stringify(section.items, null, 2)}</pre>
+                        <EvidenceDetails data={section.items} />
                       </details>
                     </>
                   )}
@@ -530,7 +529,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
                   />
                   <details>
                     <summary>成果依据</summary>
-                    <pre>{JSON.stringify(value.items, null, 2)}</pre>
+                    <EvidenceDetails data={value.items} />
                   </details>
                 </div>
               ))}

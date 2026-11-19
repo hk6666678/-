@@ -1,3 +1,4 @@
+import { EvidenceDetails, evidenceValue } from "./EvidenceDetails";
 import { CollegeSelect } from "./CollegeSelect";
 import { AttachmentPanel } from "./AttachmentPanel";
 import { useState } from "react";
@@ -138,7 +139,7 @@ export function MilestonePanel({ csrf, fetcher }: Props) {
             </h3>
             <p>
               {Object.entries(batch.counts)
-                .map(([state, count]) => `${state}: ${count}`)
+                .map(([state, count]) => `${evidenceValue(state)} ${count} 条`)
                 .join(" / ")}
             </p>
             <button
@@ -172,8 +173,8 @@ export function MilestonePanel({ csrf, fetcher }: Props) {
                   {batch.rows.map((row) => (
                     <tr key={row.id}>
                       <td>{row.row_number}</td>
-                      <td>{row.state}</td>
-                      <td>{JSON.stringify(row.data)}</td>
+                      <td>{evidenceValue(row.state)}</td>
+                      <td><EvidenceDetails data={row.data} /></td>
                       <td>{row.error}</td>
                     </tr>
                   ))}

@@ -1,3 +1,4 @@
+import { EvidenceDetails } from "./EvidenceDetails";
 import { useEffect, useRef, useState } from "react";
 
 type ModelStatus = { available: boolean; message: string };
@@ -81,7 +82,7 @@ export function AgentPanel({ csrf }: { csrf: string }) {
                   </div>
                   <details>
                     <summary>查看计算依据</summary>
-                    <pre>{JSON.stringify(turn.result.tool_result, null, 2)}</pre>
+                    <EvidenceDetails data={turn.result.tool_result} />
                   </details>
                 </div>
               )}
