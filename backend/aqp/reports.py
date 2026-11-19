@@ -10,10 +10,11 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import Response
 
 from aqp.analysis import outcome
+from aqp.attachments import authorize_students
 from aqp.authorization import allowed, school_operation_allowed, student_allowed
 from aqp.exports import excel_report
 from aqp.mentor_groups import group_facts
@@ -562,11 +563,94 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any], snap
             db.commit()
             return report
 
+    def cohort_completeness(db: Any, actor: int, college: str, major: str, year: int) -> dict[str, Any]:
+        students = {
+            row["id"]: row for row in db.execute(
+                "SELECT id,student_number,research_id FROM students WHERE active=1 AND college=? AND major=? AND entry_year=? ORDER BY id",
+                (college, major, year),
+            ) if student_allowed(db, actor, row["id"])
+        }
+        by_number = {row["student_number"]: sid for sid, row in students.items()}
+        categories = ("courses", "topic", "midterm", *(key for key, _ in OUTPUT_CATEGORY_TABLE),
+                      "papers", "blind_reviews", "defenses")
+        covered: dict[str, set[int]] = {
+            key: set() for key in categories if section_allowed(db, actor, key, college, major)
+        }
+        for table, predicate, default_category in (
+            ("course_records", "active=1 AND state='linked'", "courses"),
+            ("milestone_records", "active=1", ""),
+        ):
+            for row in db.execute(f"SELECT * FROM {table} WHERE {predicate}"):
+                category = default_category or row["category"]
+                if category not in covered or row["student_id"] not in students:
+                    continue
+                payload = json.loads(row["payload"])
+                if (payload.get("所属学院", payload.get("学院")), payload.get("专业")) != (college, major):
+                    del covered[category]
+                else:
+                    covered[category].add(row["student_id"])
+        for category, table in OUTPUT_CATEGORY_TABLE:
+            if category not in covered:
+                continue
+            for row in db.execute(f"SELECT payload FROM {table}_outputs WHERE active=1"):
+                participants = [
+                    item for item in json.loads(row["payload"])["participants"]
+                    if item["student_number"] in by_number
+                ]
+                if any(not current_participant(db, actor, category, op, item)[0]
+                       for item in participants for op in ("view", "analyze")):
+                    del covered[category]
+                    break
+                covered[category].update(by_number[item["student_number"]] for item in participants)
+        for sid in students:
+            paper = db.execute(
+                "SELECT id,covered_student_ids FROM paper_versions WHERE student_id=? ORDER BY version DESC LIMIT 1",
+                (sid,),
+            ).fetchone()
+            if paper is None:
+                continue
+            subjects = json.loads(paper["covered_student_ids"])
+            for category in ("papers", "blind_reviews", "defenses"):
+                if category not in covered:
+                    continue
+                if category != "papers" and not db.execute(
+                    "SELECT 1 FROM external_assessments WHERE paper_version_id=? AND category=? LIMIT 1",
+                    (paper["id"], category),
+                ).fetchone():
+                    continue
+                try:
+                    authorize_students(db, actor, "papers", subjects, ("view", "analyze"))
+                    if category != "papers":
+                        authorize_students(db, actor, category, subjects, ("view", "analyze"))
+                except HTTPException as exc:
+                    if exc.status_code != 403:
+                        raise
+                    del covered[category]
+                    continue
+                covered[category].add(sid)
+        items = {}
+        for category in categories:
+            if category not in covered:
+                items[category] = unauthorized()
+                continue
+            absent = [row["research_id"] for sid, row in students.items() if sid not in covered[category]]
+            items[category] = {
+                "status": "ok", "missing_count": len(absent),
+                "missing_rate": len(absent) / len(students) if students else None,
+                "research_ids": absent,
+            }
+        return {"entry_year": year, "student_count": len(students), "items": items}
+
     @app.get("/api/reports/colleges")
-    def college(request: Request, college: str, major: str) -> dict[str, Any]:
+    def college(
+        request: Request, college: str, major: str,
+        entry_year: int | None = Query(default=None, ge=1900, le=2100),
+    ) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
             report = college_report(db, actor["id"], college, major)
+            if entry_year is not None:
+                report["completeness"] = cohort_completeness(db, actor["id"], college, major, entry_year)
             audit(db, actor["id"], "reports.read", f"college:{college}/{major}")
             db.commit()
             return report

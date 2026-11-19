@@ -71,6 +71,10 @@ type GroupReport = {
   basis: string;
 };
 type CollegeReport = {
+  completeness?: {
+    entry_year: number; student_count: number;
+    items: Record<string, Section & { missing_count?: number; missing_rate?: number | null; research_ids?: string[] }>;
+  };
   level: "college";
   generated_at: number;
   scope: { college: string; major: string };
@@ -544,9 +548,10 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
             const f = new FormData(e.currentTarget);
             setCollegeReport(undefined);
             void perform(async () => {
-              const response = await get(
-                `/api/reports/colleges?college=${encodeURIComponent(String(f.get("college")))}&major=${encodeURIComponent(String(f.get("major")))}`,
-              );
+              const params = new URLSearchParams({ college: String(f.get("college")), major: String(f.get("major")) });
+              const entryYear = String(f.get("entry_year") ?? "");
+              if (entryYear) params.set("entry_year", entryYear);
+              const response = await get(`/api/reports/colleges?${params}`);
               setCollegeReport(await response.json());
             });
           }}
@@ -560,6 +565,9 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
               value={major}
               onChange={(e) => setMajor(e.target.value)}
             />
+          </label>
+          <label>缺失率核查届别（可选）
+            <input name="entry_year" type="number" min="1900" max="2100" placeholder="入学年份" />
           </label>
           <div className="action-row">
           <button>查看学院报告</button>
@@ -582,6 +590,26 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
         </form>
         {collegeReport && (
           <div className="report-body">
+            {collegeReport.completeness && (
+              <section>
+                <h4>{collegeReport.completeness.entry_year} 届数据缺失率</h4>
+                <p>授权学生 {collegeReport.completeness.student_count} 人。每类核查是否至少有一条有效登记。</p>
+                <table>
+                  <thead><tr><th>数据类别</th><th>缺失人数</th><th>缺失率</th></tr></thead>
+                  <tbody>{Object.entries(collegeReport.completeness.items).map(([key, item]) => (
+                    <tr key={key}>
+                      <th scope="row">{categoryNames[key] ?? ({ courses: "课程", topic: "选题", midterm: "中期", papers: "学位论文", blind_reviews: "盲审", defenses: "答辩" } as Record<string, string>)[key]}</th>
+                      {item.status === "unauthorized" ? <td colSpan={2}>当前授权不足</td> : <>
+                        <td>{item.research_ids?.length ? <details><summary>{item.missing_count} 人</summary>
+                          <ul>{item.research_ids.map((id) => <li key={id}>{id}</li>)}</ul>
+                        </details> : item.missing_count}</td>
+                        <td>{item.missing_rate == null ? "—" : `${(100 * item.missing_rate).toFixed(1)}%`}</td>
+                      </>}
+                    </tr>
+                  ))}</tbody>
+                </table>
+              </section>
+            )}
             <p>
               {collegeReport.scope.college} / {collegeReport.scope.major}
             </p>

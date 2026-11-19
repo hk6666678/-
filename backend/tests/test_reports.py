@@ -311,6 +311,14 @@ def test_college_report_counts_and_partial_sections(client, tmp_path):
     assert data["sections"]["students"]["count"] == 2
     assert data["sections"]["patents"]["distinct_outputs"] == 2
     assert data["sections"]["patents"]["personal_participations"] == 2
+    coverage = client.get(
+        "/api/reports/colleges?college=synthetic&major=synthetic&entry_year=2025",
+        headers=headers,
+    ).json()["completeness"]
+    assert coverage["student_count"] == 2
+    assert coverage["items"]["patents"]["missing_count"] == 0
+    assert coverage["items"]["courses"]["status"] == "unauthorized"
+    assert "research_ids" not in coverage["items"]["courses"]
     assert data["sections"]["courses"]["status"] == "unauthorized"
     assert data["sections"]["mentor_groups"]["status"] == "unauthorized"
     assert (
