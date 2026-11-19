@@ -102,6 +102,7 @@ function SixSignalTrial({ id }: { id: number }) {
   const [result, setResult] = useState<{
     total: number | null; levels: { name: string; score: number | null; basis: string }[];
     screening: { name: string; status: string; reason: string }[]; decision: string;
+    topic_evidence?: { record_id: number; title_revisions: number[] }[];
   }>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -138,6 +139,15 @@ function SixSignalTrial({ id }: { id: number }) {
           <td>{level.basis.split("、").map((key) => features[key] ?? key).join("、") || "快照缺少该类证据"}</td>
         </tr>)}</tbody>
       </table>
+      {(result.topic_evidence?.length ?? 0) > 0 && <details>
+        <summary>选题标题修订依据</summary>
+        <p>显示有实际日期、当前可核查的百分制选题记录。记录修订次数供人工核查。</p>
+        <ul>{result.topic_evidence?.map((record) => (
+          <li key={record.record_id}><a href={`/api/records/topic/${record.record_id}`}>选题记录 #{record.record_id}</a>
+            {" · "}{record.title_revisions.length ? `标题修订 ${record.title_revisions.length} 次（${record.title_revisions.map((version) => `v${version}`).join("、")}）` : "暂无可见的标题修订"}
+          </li>
+        ))}</ul>
+      </details>}
     </>}
   </details>;
 }

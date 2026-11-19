@@ -683,6 +683,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
     @app.get("/api/evaluation-snapshots/{ident}/six-signal-trial")
     def signal_trial(ident: int, request: Request) -> dict[str, Any]:
         from aqp.cultivation_models import student_signals
+        from aqp.milestones import scope as milestone_scope
 
         with connection(path) as db:
             actor, _ = current(db, request)
@@ -692,8 +693,28 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
             current_signals = student_signals(db, actor["id"], result["student_id"])
             audit(db, actor["id"], "evaluation.six_signal_trial", str(ident))
             trial = six_signal_trial(result["inputs"], current_signals)
+            topic_evidence = []
+            for trend in current_signals.get("milestone_trends", []):
+                if trend["label"] != "选题":
+                    continue
+                for observation in trend["observations"]:
+                    for record_id in observation["record_ids"]:
+                        revisions = []
+                        for row in db.execute(
+                            """SELECT version,before_payload,after_payload FROM record_revisions
+                               WHERE category='topic' AND record_id=? AND operation='correct' ORDER BY version""",
+                            (record_id,),
+                        ):
+                            before, after = json.loads(row["before_payload"]), json.loads(row["after_payload"])
+                            if not all(milestone_scope(db, actor["id"], op, payload, "topic")
+                                       for op in ("view", "analyze") for payload in (before, after)):
+                                continue
+                            if before.get("选题标题") != after.get("选题标题"):
+                                revisions.append(row["version"])
+                        topic_evidence.append({"record_id": record_id, "title_revisions": revisions})
             checks = screening(db, actor["id"], result["student_id"])
-            return {**trial, "screening": checks, "decision": screened_trial_decision(checks, trial)}
+            return {**trial, "screening": checks, "decision": screened_trial_decision(checks, trial),
+                    "topic_evidence": topic_evidence}
 
     @app.get("/api/evaluation-snapshots")
     def snapshot_listing(request: Request) -> dict[str, Any]:
