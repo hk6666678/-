@@ -226,7 +226,7 @@ def builtin_evaluation(college: str, major: str) -> dict[str, Any]:
     }
 
 
-def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -> Callable[..., dict[str, Any]]:
+def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -> tuple[Callable[..., dict[str, Any]], Callable[..., dict[str, Any]], Callable[..., dict[str, Any]]]:
     def deny(db: Any, actor: int, target: str, message: str) -> None:
         # Matches the analysis module: refusals stay auditable.
         audit(db, actor, "evaluation.access", target, "denied")
@@ -574,38 +574,67 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
             db.commit()
             return {"id": cursor.lastrowid, **result, "signals": simulation_signals(values), "stale": False}
 
+    def dashboard_data(db: Any, actor: int) -> dict[str, Any]:
+        items = []
+        for row in db.execute(
+            "SELECT e.id,e.rule_id,st.research_id,st.college,st.major "
+            "FROM evaluation_snapshots e JOIN students st ON st.id=e.student_id "
+            "WHERE st.active=1 AND e.id=(SELECT MAX(id) FROM evaluation_snapshots WHERE student_id=e.student_id)"
+        ):
+            try:
+                result = load_snapshot(db, actor, row["id"])
+            except HTTPException as exc:
+                if exc.status_code == 403:
+                    continue
+                raise
+            if result["mode"] != "simulation":
+                continue
+            current_score = not result["stale"] and result["rule_currently_enabled"]
+            items.append({
+                **dict(row), "rule_version": result["rule_version"], "as_of": result["as_of"],
+                "total": result["total"] if current_score else None,
+                "current": current_score,
+                "band": result["band"] if current_score else None,
+            })
+        audit(db, actor, "evaluation.dashboard", "simulation")
+        db.commit()
+        benchmarks = {}
+        for rule_id in {row["rule_id"] for row in items}:
+            scores = [row["total"] for row in items if row["rule_id"] == rule_id and row["total"] is not None]
+            benchmarks[rule_id] = {"count": len(scores), "percentiles": simulation_percentiles(scores)}
+        return {"items": items, **({"benchmarks": benchmarks} if benchmarks else {})}
+
     @app.get("/api/evaluation-snapshots/dashboard")
     def dashboard(request: Request) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
-            items = []
-            for row in db.execute(
-                "SELECT e.id,e.rule_id,st.research_id,st.college,st.major "
-                "FROM evaluation_snapshots e JOIN students st ON st.id=e.student_id "
-                "WHERE st.active=1 AND e.id=(SELECT MAX(id) FROM evaluation_snapshots WHERE student_id=e.student_id)"
-            ):
-                try:
-                    result = load_snapshot(db, actor["id"], row["id"])
-                except HTTPException as exc:
-                    if exc.status_code == 403:
-                        continue
-                    raise
-                if result["mode"] != "simulation":
+            return dashboard_data(db, actor["id"])
+
+    def rolling_data(db: Any, actor: int, rule_id: int, benchmark_year: int) -> dict[str, Any]:
+        years: set[int] = set()
+        scores = []
+        for row in db.execute(
+            """WITH ranked AS (
+                SELECT e.id, CAST(strftime('%Y',e.created_at,'unixepoch','+8 hours') AS INTEGER) AS year,
+                       ROW_NUMBER() OVER (PARTITION BY e.student_id ORDER BY e.created_at DESC,e.id DESC) AS position
+                FROM evaluation_snapshots e JOIN students s ON s.id=e.student_id
+                WHERE e.rule_id=? AND s.active=1 AND
+                      date(e.created_at,'unixepoch','+8 hours')>=? AND date(e.created_at,'unixepoch','+8 hours')<?
+            ) SELECT id,year FROM ranked WHERE position=1""",
+            (rule_id, f"{benchmark_year - 5}-01-01", f"{benchmark_year}-01-01"),
+        ):
+            try:
+                result = load_snapshot(db, actor, row["id"])
+            except HTTPException as exc:
+                if exc.status_code == 403:
                     continue
-                current_score = not result["stale"] and result["rule_currently_enabled"]
-                items.append({
-                    **dict(row), "rule_version": result["rule_version"], "as_of": result["as_of"],
-                    "total": result["total"] if current_score else None,
-                    "current": current_score,
-                    "band": result["band"] if current_score else None,
-                })
-            audit(db, actor["id"], "evaluation.dashboard", "simulation")
-            db.commit()
-            benchmarks = {}
-            for rule_id in {row["rule_id"] for row in items}:
-                scores = [row["total"] for row in items if row["rule_id"] == rule_id and row["total"] is not None]
-                benchmarks[rule_id] = {"count": len(scores), "percentiles": simulation_percentiles(scores)}
-            return {"items": items, **({"benchmarks": benchmarks} if benchmarks else {})}
+                raise
+            if result["mode"] == "simulation" and not result["stale"] and result["rule_currently_enabled"] and result["total"] is not None:
+                scores.append(result["total"])
+                years.add(row["year"])
+        audit(db, actor, "evaluation.rolling_benchmark", f"{rule_id}/{benchmark_year}")
+        return {"count": len(scores), "start_year": benchmark_year - 5, "end_year": benchmark_year - 1,
+                "covered_years": sorted(years), "percentiles": simulation_percentiles(scores)}
 
     @app.get("/api/evaluation-snapshots/rolling-benchmark")
     def rolling_benchmark(
@@ -613,30 +642,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
     ) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
-            years: set[int] = set()
-            scores = []
-            for row in db.execute(
-                """WITH ranked AS (
-                    SELECT e.id, CAST(strftime('%Y',e.created_at,'unixepoch','+8 hours') AS INTEGER) AS year,
-                           ROW_NUMBER() OVER (PARTITION BY e.student_id ORDER BY e.created_at DESC,e.id DESC) AS position
-                    FROM evaluation_snapshots e JOIN students s ON s.id=e.student_id
-                    WHERE e.rule_id=? AND s.active=1 AND
-                          date(e.created_at,'unixepoch','+8 hours')>=? AND date(e.created_at,'unixepoch','+8 hours')<?
-                ) SELECT id,year FROM ranked WHERE position=1""",
-                (rule_id, f"{benchmark_year - 5}-01-01", f"{benchmark_year}-01-01"),
-            ):
-                try:
-                    result = load_snapshot(db, actor["id"], row["id"])
-                except HTTPException as exc:
-                    if exc.status_code == 403:
-                        continue
-                    raise
-                if result["mode"] == "simulation" and not result["stale"] and result["rule_currently_enabled"] and result["total"] is not None:
-                    scores.append(result["total"])
-                    years.add(row["year"])
-            audit(db, actor["id"], "evaluation.rolling_benchmark", f"{rule_id}/{benchmark_year}")
-            return {"count": len(scores), "start_year": benchmark_year - 5, "end_year": benchmark_year - 1,
-                    "covered_years": sorted(years), "percentiles": simulation_percentiles(scores)}
+            return rolling_data(db, actor["id"], rule_id, benchmark_year)
 
     def screening(db: Any, actor: int, student_id: int) -> list[dict[str, str]]:
         student = db.execute(
@@ -930,7 +936,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                 "notice": "模拟演示，不构成正式人才识别",
             }
 
-    return load_snapshot
+    return load_snapshot, dashboard_data, rolling_data
 
 
 class ScoreInput(BaseModel):

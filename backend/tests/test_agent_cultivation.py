@@ -27,6 +27,45 @@ def test_rank_correlation_and_logistic_simulation():
     assert "notice" in fit_factors(points[:6])["logistic"]
 
 
+def test_agent_resolves_authorized_paper_title(client, tmp_path, monkeypatch):
+    from aqp.paper_worker import run_once
+    from test_papers import paper_setup, text_pdf, update_grants, upload_paper
+
+    headers = paper_setup(client)
+    first = upload_paper(client, headers, text_pdf()).json()["id"]
+    assert run_once(tmp_path / "accounts.sqlite3")
+    latest = upload_paper(client, headers, text_pdf(), 1).json()["id"]
+    assert latest != first and run_once(tmp_path / "accounts.sqlite3")
+    update_grants(client, headers, ["view", "analyze", "identity", "download"])
+    enable_agent(client, headers, monkeypatch)
+    calls: list[str] = []
+    plan_runner(monkeypatch, {"tool": "paper_features", "paper_title": "合成姓名论文"}, "合成摘要", calls)
+    response = ask(client, headers, "《合成姓名论文》的结构特征")
+    assert response.status_code == 200, response.text
+    assert response.json()["tool_result"]["paper_version_id"] == latest
+    assert any(link["url"].endswith(f"/{latest}/evidence") for link in response.json()["evidence_links"])
+    update_grants(client, headers, ["view"])
+    assert ask(client, headers, "《合成姓名论文》的结构特征").status_code == 403
+
+
+def test_agent_evaluation_benchmark_dispatches_to_shared_calculations(client, monkeypatch):
+    headers = login_admin(client)
+    enable_agent(client, headers, monkeypatch)
+    calls: list[str] = []
+    for params in ({}, {"benchmark_year": 2027}):
+        plan_runner(monkeypatch, {"tool": "evaluation_benchmark", "rule_id": 1, **params}, "合成摘要", calls)
+        response = ask(client, headers, "查询规则1模拟评分基准")
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["tool_result"]["count"] == 0
+        assert data["tool_result"]["percentiles"] is None
+        if params:
+            assert data["tool_result"]["start_year"] == 2022 and data["tool_result"]["end_year"] == 2026
+        else:
+            assert data["tool_result"]["top"] == []
+        assert client.get(data["evidence_links"][0]["url"]).status_code == 200
+
+
 def test_personal_control_limits_exclude_the_current_observation():
     from aqp.cultivation_models import personal_control_limits
 
@@ -552,12 +591,24 @@ def test_agent_mentor_effectiveness_dispatch_and_revocation(
     assert tool_result["filters"] == {"as_of": "2026-11-18", "mentor_id": mentor["id"]}
     assert "模拟评价" in tool_result["limitations"]
 
+    for field, name, id_field, ident in (
+        ("mentor_name", "合成导师", "mentor_id", mentor["id"]),
+        ("group_name", "合成课题组", "group_id", group["id"]),
+    ):
+        plan_runner(monkeypatch, {"tool": "mentor_effectiveness", field: name, "as_of": "2026-11-18"}, "合成摘要", calls)
+        named = ask(client, headers, f"{name}的效能情况")
+        assert named.status_code == 200, named.text
+        assert named.json()["tool_result"]["filters"][id_field] == ident
+    plan_runner(monkeypatch, {"tool": "mentor_effectiveness", "mentor_name": "不存在", "as_of": "2026-11-18"}, "合成摘要", calls)
+    assert ask(client, headers, "不存在导师的效能").status_code == 404
+    duplicate = client.post(
+        "/api/mentor-groups/directory/mentors", headers=headers,
+        json={"number": "T-2", "name": "合成导师", **SCOPE},
+    )
+    assert duplicate.status_code == 200
+    plan_runner(monkeypatch, {"tool": "mentor_effectiveness", "mentor_name": "合成导师", "as_of": "2026-11-18"}, "合成摘要", calls)
+    assert ask(client, headers, "合成导师的效能").status_code == 409
+
     replace_grants(client, headers, grants_for(["basic"], ["view", "analyze"]))
     revoked = ask(client, headers, "合成导师的效能情况")
-    assert revoked.status_code in (200, 403)
-    assert len(calls) >= 3
-    if revoked.status_code == 200:
-        assert (
-            revoked.json()["tool_result"].get("notice")
-            == "该导师或课题组在当前授权范围内无有效关系数据。"
-        )
+    assert revoked.status_code == 404
