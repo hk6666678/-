@@ -14,8 +14,7 @@ test("the agent home explains why sending is unavailable", async ({ page }) => {
   await page.getByLabel("问题").fill("看看课程通过情况");
   await expect(page.getByRole("button", { name: "发送问题" })).toBeDisabled();
   await page.screenshot({ path: "test-results/agent-home.png" });
-  await page.getByRole("button", { name: "查看模型设置" }).click();
-  await expect(page.getByRole("heading", { name: "获准模型连接", exact: true, level: 1 })).toBeVisible();
+  await expect(page.getByRole("button", { name: "查看模型设置" })).toHaveCount(0);
 });
 
 test("enabled agent shows separate questions and source links", async ({ page }) => {

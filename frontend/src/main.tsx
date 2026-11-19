@@ -19,7 +19,6 @@ import { PaperPanel } from "./PaperPanel";
 import { CoursePanel } from "./CoursePanel";
 import { ResolutionPanel } from "./ResolutionPanel";
 import { StudentPanel } from "./StudentPanel";
-import { ModelPanel } from "./ModelPanel";
 import { CollegeSelect } from "./CollegeSelect";
 
 type Role =
@@ -313,7 +312,6 @@ function App() {
                 ...(admin
                   ? [
                       ["accounts", "个人账号管理"],
-                      ["model", "获准模型连接"],
                       ["audit", "审计查询"],
                     ]
                   : []),
@@ -366,7 +364,6 @@ function App() {
                   factors: "培养影响因素",
                   courses: "课程导入与待关联",
                   students: "基础导入与学生档案",
-                  model: "获准模型连接",
                 }[page]
               }
             </h1>
@@ -417,10 +414,7 @@ function App() {
         ) : page === "factors" ? (
           <CultivationFactors />
         ) : page === "overview" ? (
-          <AgentPanel csrf={session.csrf_token} openSettings={admin ? () => {
-            setPage("model");
-            setNavLabel("获准模型连接");
-          } : undefined} />
+          <AgentPanel csrf={session.csrf_token} />
         ) : page === "evaluation" ? (
           <EvaluationPanel csrf={session.csrf_token} />
         ) : page === "reports" ? (
@@ -431,8 +425,6 @@ function App() {
           <CoursePanel csrf={session.csrf_token} />
         ) : page === "students" ? (
           <StudentPanel csrf={session.csrf_token} fetcher={request} />
-        ) : page === "model" && admin ? (
-          <ModelPanel csrf={session.csrf_token} fetcher={request} />
         ) : !admin ? (
           <AgentPanel csrf={session.csrf_token} />
         ) : (

@@ -446,6 +446,16 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
               ? "数据不完整，未形成总分"
               : `${snapshot.total.toFixed(2)} / 100`}
           </h3>
+          {snapshot.total === null && (
+            <section aria-label="评分缺项">
+              <h4>补齐以下指标后重新保存评分</h4>
+              <ul>
+                {snapshot.inputs.filter((input) => input.value === null).map((input) => (
+                  <li key={input.feature}>{features[input.feature] ?? input.feature} · {input.missing || "缺少有效记录"}</li>
+                ))}
+              </ul>
+            </section>
+          )}
           <p>{snapshot.notice}</p>
           <p>
             {snapshot.stale

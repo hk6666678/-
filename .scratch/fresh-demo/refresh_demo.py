@@ -2,6 +2,8 @@
 """向演示库灌入真实课程风格的模拟数据：临时管理员走系统导入管线，完成后删除临时账号。"""
 import io
 import json
+import os
+import secrets
 import sqlite3
 import sys
 from pathlib import Path
@@ -82,7 +84,7 @@ def courses_rows():
                 for code, title, season, credit in SEC_COURSES
             ]
         for index, (code, title, term, credit) in enumerate(plan):
-            raw = scores[number][index]
+            raw = scores[number][index] if number in scores else 55 + (int(number[-4:]) * 7 + index * 11) % 45
             if raw == "":
                 result = ""
             elif int(raw) >= 60:
@@ -197,7 +199,7 @@ def fill(template: bytes, rows: list[dict]) -> bytes:
     return out.getvalue()
 
 
-def main() -> None:
+def main(extended: bool = False) -> None:
     from aqp.accounts import create_user
 
     with connection(DB) as db:
@@ -258,6 +260,16 @@ def main() -> None:
             "学籍状态": status,
             "学籍异动类型": mobility or "",
             "学籍异动时间": mobility_date or "",
+            **({
+                "盲审送审批次": f"{int(year) + 2}年模拟送审",
+                "盲审论文应交日期": f"{int(year) + 2}-04-10",
+                "盲审论文实际提交日期": f"{int(year) + 2}-04-09" if int(number[-2:]) % 4 else "",
+                "盲审论文提交状态": "已提交" if int(number[-2:]) % 4 else "未提交",
+                "预计毕业日期": f"{int(year) + 2}-06-30",
+                "实际毕业日期": f"{int(year) + 2}-{'07-15' if int(number[-2:]) % 3 == 0 else '06-25'}"
+                    if int(year) <= 2024 and int(number[-2:]) % 4 else "",
+                "毕业去向": ("工业界", "学术界", "创业")[int(number[-2:]) % 3],
+            } if extended else {}),
         }
         for number, name, (college, major), year, prior, entry, degree, status, mobility, mobility_date in STUDENTS
     ]
@@ -280,7 +292,7 @@ def main() -> None:
         rows = []
         for number, (title, score) in TOPICS.items():
             name, (college, major) = by_number[number]
-            year = 2023 if number.startswith("235") else 2024
+            year = int(number[3:7]) if extended else 2023 if number.startswith("235") else 2024
             term = f"{year + 1}春"
             if category == "midterm" and number.startswith("235"):
                 term = "2025春"
@@ -294,7 +306,10 @@ def main() -> None:
                     "业务通过结果": "通过",
                     "完成状态": "通过",
                     "选题标题": title if category == "topic" else "",
-                    "实际日期": "2025-04-15" if category == "topic" else ("2025-04-18" if number.startswith("235") else "2026-04-20"),
+                    "实际日期": f"{year + (1 if category == 'topic' else 2)}-04-15" if extended else (
+                        "2025-04-15" if category == "topic" else ("2025-04-18" if number.startswith("235") else "2026-04-20")
+                    ),
+                    "计划日期": f"{year + (1 if category == 'topic' else 2)}-04-{'10' if score < 70 else '20'}" if extended else "",
                     "所属学院": college,
                     "专业": major,
                 }
@@ -334,6 +349,10 @@ def main() -> None:
                 }
                 for label, value in zip(extras, extra_values):
                     row[label] = value
+                if extended and category == "research_papers":
+                    row.update({"评价体系": "模拟期刊评价", "评价年度": entry[2], "期刊分区": "Q2", "影响因子": 2.5})
+                if extended and category == "patents":
+                    row.update({"转化状态": "未转化"})
                 rows.append(row)
         template = client.get(f"/api/{endpoint}/template").content
         preview = client.post(
@@ -407,6 +426,9 @@ def main() -> None:
         assert created.status_code == 200, (business_key, created.text)
     print("citations: imported")
 
+    if extended:
+        seed_evaluation_and_papers(client, headers, student_ids)
+
     client.post("/api/logout", headers=headers)
 
     with connection(DB) as db:
@@ -424,5 +446,128 @@ def main() -> None:
             print(table, db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
 
 
+def seed_evaluation_and_papers(client, headers, student_ids):
+    from pypdf import PdfWriter
+    from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
+
+    from aqp.paper_worker import run_once
+
+    totals = 0
+    for number, student_id in student_ids.items():
+        response = client.post(
+            "/api/evaluation-snapshots", headers=headers,
+            json={"student_id": student_id},
+        )
+        assert response.status_code == 200, response.text
+        total = response.json()["total"]
+        assert (total is None) == (int(number[-2:]) == 12), response.json()
+        totals += total is not None
+    print(f"evaluation: {totals} complete, {len(student_ids) - totals} intentional gaps")
+
+    for number, student_id in student_ids.items():
+        if int(number[-2:]) not in (1, 2, 3, 4):
+            continue
+        writer = PdfWriter()
+        page = writer.add_blank_page(595, 842)
+        page[NameObject("/Resources")] = DictionaryObject({
+            NameObject("/Font"): DictionaryObject({
+                NameObject("/F1"): DictionaryObject({
+                    NameObject("/Type"): NameObject("/Font"),
+                    NameObject("/Subtype"): NameObject("/Type1"),
+                    NameObject("/BaseFont"): NameObject("/Helvetica"),
+                }),
+            }),
+        })
+        stream = DecodedStreamObject()
+        stream.set_data(
+            b"BT /F1 12 Tf 40 780 Td (Synthetic Thesis - Demonstration Only) Tj "
+            b"0 -24 Td (1 Introduction) Tj 0 -24 Td (2 Experimental Method) Tj "
+            b"0 -24 Td (3 Conclusion) Tj 0 -24 Td (References) Tj ET"
+        )
+        page[NameObject("/Contents")] = writer._add_object(stream)
+        pdf = io.BytesIO()
+        writer.write(pdf)
+        response = client.post(
+            "/api/papers", headers=headers,
+            data={"title": f"模拟学位论文 {number}", "student_id": student_id,
+                  "expected_version": 0, "covered_student_ids": json.dumps([student_id])},
+            files={"file": (f"{number}.pdf", pdf.getvalue(), "application/pdf")},
+        )
+        assert response.status_code == 200, response.text
+        assert run_once(DB)
+        with connection(DB) as db:
+            paper_version = db.execute("SELECT MAX(id) FROM paper_versions").fetchone()[0]
+        for category, base in (("blind_reviews", 78), ("defenses", 82)):
+            response = client.post(
+                "/api/external-assessments", headers=headers,
+                json={"category": category, "paper_version_id": paper_version,
+                      "batch": "模拟评分批次", "anonymous_code": f"{number}-{category}",
+                      "scores": {"quality": base + int(number[-2:]) * 3},
+                      "comment": "模拟评语：方法清晰，有创新点，参考文献可补充。",
+                      "source": "模拟演示数据（学位办）"},
+            )
+            assert response.status_code == 200, response.text
+
+
+def prepare_extended_demo():
+    STUDENTS.clear()
+    TOPICS.clear()
+    MENTORS.clear()
+    GROUPS.clear()
+    RELATIONS.clear()
+    PAPERS.clear()
+    PATENTS.clear()
+    AWARDS.clear()
+    CONFERENCES.clear()
+    CITATIONS.clear()
+    for scope_index, (college, major) in enumerate((CS, SE), 1):
+        for group in range(1, 3):
+            mentor = f"SIM-T{scope_index}{group}"
+            team = f"SIM-G{scope_index}{group}"
+            MENTORS.append((mentor, f"模拟导师 {scope_index}-{group}", (college, major)))
+            GROUPS.append((team, f"模拟课题组 {scope_index}-{group}", (college, major)))
+        for year in (2023, 2024, 2025):
+            for index in range(1, 13):
+                number = f"SIM{year}{scope_index}{index:02}"
+                name = f"模拟学生 {year}-{scope_index}-{index:02}"
+                group = 1 if index <= 6 else 2
+                STUDENTS.append((number, name, (college, major), str(year), "模拟前置院校",
+                                 "统一考试", "学术型学位", "正常", "转导师" if index == 5 else "",
+                                 f"{year + 1}-09-01" if index == 5 else ""))
+                title = f"{major}智能分析方法研究 {index:02}"
+                TOPICS[number] = (title, 61 + (index * 7) % 37)
+                RELATIONS.append((number, f"SIM-T{scope_index}{group}", f"SIM-G{scope_index}{group}",
+                                  f"{year}-09-01", "", "合成指导关系"))
+                people = [(number, name, 1, "第一参与人")]
+                papers = 1 + index % 3
+                for paper in range(papers):
+                    key = f"sim-paper-{number.lower()}-{paper}"
+                    PAPERS.append((key, f"{title}：模拟成果 {paper + 1}", year + 1, people))
+                    CITATIONS[key] = paper * 4 + index
+                if index != 12:
+                    PATENTS.append((f"SIM-P-{number}", f"模拟发明 {number}", "发明", f"{year + 1}-08-01", people))
+                AWARDS.append((f"SIM-A-{number}", f"模拟奖项 {number}", "校级", year + 1, people))
+                CONFERENCES.append((f"SIM-C-{number}", f"模拟会议 {number}", "口头报告", f"{year + 1}-09-01", people))
+
+
 if __name__ == "__main__":
-    main()
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--isolated-demo", type=Path, required=True, help="新的独立演示目录")
+    args = parser.parse_args()
+    demo_dir = args.isolated_demo.resolve()
+    demo_dir.mkdir(parents=True, exist_ok=False)
+    DB = demo_dir / "demo.sqlite3"
+    os.environ["AQP_ATTACHMENTS"] = str(demo_dir / "attachments")
+    TEMP_PASSWORD = secrets.token_urlsafe(24)
+    create_app(DB)
+    prepare_extended_demo()
+    main(extended=True)
+    from aqp.accounts import create_user
+
+    password = secrets.token_urlsafe(18)
+    with connection(DB) as db:
+        create_user(db, "demo-admin", password, ["platform_admin"])
+        db.execute("UPDATE users SET school_view=1,school_full=1 WHERE username='demo-admin'")
+    (demo_dir / "login.txt").write_text(f"账号 demo-admin\n密码 {password}\n", encoding="utf-8")

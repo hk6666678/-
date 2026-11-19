@@ -11,7 +11,7 @@ type Turn = {
   error?: string;
 };
 
-export function AgentPanel({ csrf, openSettings }: { csrf: string; openSettings?: () => void }) {
+export function AgentPanel({ csrf }: { csrf: string }) {
   const [status, setStatus] = useState<ModelStatus>();
   const [question, setQuestion] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -105,7 +105,6 @@ export function AgentPanel({ csrf, openSettings }: { csrf: string; openSettings?
       </form>
       {!status?.available && <div className="agent-connection" role="status">
         <span>{status?.message ?? "正在检查 Agent 连接…"}</span>
-        {status && openSettings && <button className="secondary" type="button" onClick={openSettings}>查看模型设置</button>}
       </div>}
       <div ref={latest} />
     </section>
