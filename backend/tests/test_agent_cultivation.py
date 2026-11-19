@@ -180,6 +180,20 @@ def test_agent_student_alerts_dispatch_links_and_revocation(
     assert events.status_code == 200
     assert events.json()["items"], "cultivation.signals audit missing"
 
+    for lookup in ("001", "合成学生"):
+        calls.clear()
+        plan_runner(monkeypatch, {"tool": "student_alerts", "student_lookup": lookup}, "模拟预警摘要", calls)
+        matched = ask(client, headers, f"{lookup}有哪些预警？")
+        assert matched.status_code == 200, matched.text
+        assert matched.json()["tool_result"]["filters"] == {"student_id": 1}
+    replace_grants(client, headers, grants_for(["basic"], ["view", "analyze"]))
+    calls.clear()
+    hidden = ask(client, headers, "合成学生有哪些预警？")
+    assert hidden.status_code == 403
+
+    calls.clear()
+    plan_runner(monkeypatch, {"tool": "student_alerts", "student_id": 1}, "模拟预警摘要", calls)
+    assert ask(client, headers, "学生记录编号1有哪些预警？").status_code == 200
     replace_grants(client, headers, grants_for(["courses"], ["view", "analyze"]))
     revoked = ask(client, headers, "001号学生的预警信号")
     assert revoked.status_code == 403
