@@ -156,6 +156,24 @@ def student_signals(db: sqlite3.Connection, aid: int, student_id: int) -> dict[s
         else None,
         "peer_outputs": None,
     }
+    if all(
+        allowed(db, aid, "papers", op, student["college"], student["major"])
+        for op in ("view", "analyze")
+    ) and (batch := payload.get("盲审送审批次")):
+        due_text = payload.get("盲审论文应交日期") or ""
+        actual_text = payload.get("盲审论文实际提交日期") or ""
+        submission = payload.get("盲审论文提交状态")
+        status = "待核查"
+        try:
+            due = date.fromisoformat(due_text[:10])
+            if actual_text and submission != "未提交":
+                actual = date.fromisoformat(actual_text[:10])
+                status = "超期提交" if actual > due else "按期提交"
+            elif not actual_text and submission == "未提交":
+                status = "未提交且已逾期" if date.today() > due else "未提交，尚未逾期"
+        except ValueError:
+            pass
+        result["blind_review"] = {"batch": batch, "due": due_text[:10], "status": status}
     if not all(
         allowed(db, aid, category, op, student["college"], student["major"])
         for category in OUTPUT_TABLES

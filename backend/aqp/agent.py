@@ -886,7 +886,7 @@ def execute_plan(
         result = student_signals(db, actor, row["id"])
         return {
             **result, "filters": {"student_id": row["id"]},
-            "limitations": "此工具覆盖学籍异动和同届成果对比；课程控制图用course_control_chart，培养节点超期与中期未通过用milestone_alerts。",
+            "limitations": "此工具覆盖盲审送审、学籍异动和同届成果对比。盲审按当前登记批次判断；缺失日期或状态时不得推断逾期。课程控制图用course_control_chart，选题中期超期与中期未通过用milestone_alerts。",
         }, [{"label": "学生档案", "url": f"/api/students/{row['id']}"}]
     if plan.tool == "course_control_chart":
         from aqp.cultivation_models import course_control_chart

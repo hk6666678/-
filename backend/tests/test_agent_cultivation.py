@@ -90,11 +90,22 @@ def test_agent_student_alerts_dispatch_links_and_revocation(
     replace_grants(
         client, headers, grants_for(["basic"], ["maintain", "view", "analyze"])
     )
+    from openpyxl import load_workbook
+
+    sample = load_workbook(BytesIO(workbook())).active
+    for offset, (label, value) in enumerate(
+        {"盲审送审批次": "模拟批次", "盲审论文应交日期": "2025-01-01", "盲审论文提交状态": "未提交"}.items(),
+        sample.max_column + 1,
+    ):
+        sample.cell(2, offset, label)
+        sample.cell(3, offset, value)
+    stream = BytesIO()
+    sample.parent.save(stream)
     batch = client.post(
         "/api/imports/basic/preview",
         headers=headers,
         data={"source_department": "Agent synthetic source"},
-        files={"file": ("synthetic.xlsx", workbook())},
+        files={"file": ("synthetic.xlsx", stream.getvalue())},
     ).json()
     assert (
         client.post(f"/api/imports/{batch['id']}/confirm", headers=headers).status_code
@@ -104,6 +115,7 @@ def test_agent_student_alerts_dispatch_links_and_revocation(
         client,
         headers,
         grants_for(["basic"], ["view", "analyze", "identity"])
+        + grants_for(["papers"], ["view", "analyze"])
         + grants_for(
             ["research_papers", "patents", "awards", "conferences"],
             ["view", "analyze"],
@@ -122,6 +134,7 @@ def test_agent_student_alerts_dispatch_links_and_revocation(
     result = response.json()
     tool_result = result["tool_result"]
     assert tool_result["mobility"] is None
+    assert tool_result["blind_review"]["status"] == "未提交且已逾期"
     assert "不足 3 人" in tool_result["notice"]
     assert tool_result["filters"] == {"student_id": 1}
     assert "course_control_chart" in tool_result["limitations"]

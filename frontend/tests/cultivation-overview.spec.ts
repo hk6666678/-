@@ -4,6 +4,7 @@ test("selecting a student loads their cultivation stages and evidence", async ({
   const scope = { college: "合成试用学院", major: "合成专业", student_id: 42 };
   const stages: string[] = [];
   await page.route("**/api/cultivation/students/42/signals", (route) => route.fulfill({ json: {
+    blind_review: { batch: "合成送审批次", due: "2025-05-01", status: "未提交且已逾期" },
     mobility: { type: "转导师", date: "2025-06-01" },
     peer_outputs: { count: 0, peer_median: 2, peer_count: 4, below: true, sources: [] },
   }}));
@@ -45,6 +46,7 @@ test("selecting a student loads their cultivation stages and evidence", async ({
   await page.getByText("同导师组课程对比", { exact: true }).click();
   await expect(page.getByRole("row", { name: /SYN-1.*90.0.*75.0/ })).toBeVisible();
   await expect(page.getByText(/学籍异动 · 转导师/)).toBeVisible();
+  await expect(page.getByText(/合成送审批次.*未提交且已逾期/)).toBeVisible();
   await expect(page.getByText(/低于同届中位数/)).toBeVisible();
   await expect(page.getByText("此范围操作未授权")).toBeVisible();
   await page.getByText("研究记录 42 · 1 条信号").click();

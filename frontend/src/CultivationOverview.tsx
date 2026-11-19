@@ -13,6 +13,7 @@ type Outcome = { snapshot: Snapshot } | { error: string };
 type Scope = { college: string; major: string; student_id: number };
 type Student = { id: number; research_id: string; name?: string; data: Record<string, string> };
 type Signals = {
+  blind_review?: { batch: string; due: string; status: string };
   mobility?: { type: string; date?: string } | null;
   peer_outputs?: { count: number; peer_median: number; peer_count: number; below: boolean; sources: string[] };
   notice?: string;
@@ -159,8 +160,11 @@ export function CultivationOverview({ csrf, showSnapshot }: {
               <StudentAlerts snapshots={snapshots} />
             </>
           )}
-          <details className="task-details" open={Boolean(result.signals.mobility || result.signals.peer_outputs?.below)}>
-            <summary>学籍与成果关注信号</summary>
+          <details className="task-details" open={Boolean(result.signals.blind_review || result.signals.mobility || result.signals.peer_outputs?.below)}>
+            <summary>盲审送审、学籍与成果关注信号</summary>
+            {result.signals.blind_review && (
+              <p>盲审送审 · {result.signals.blind_review.batch} · 应交日期 {result.signals.blind_review.due || "待补充"} · {result.signals.blind_review.status}</p>
+            )}
             {result.signals.mobility ? <p>学籍异动 · {result.signals.mobility.type}
               {result.signals.mobility.date ? ` · ${result.signals.mobility.date}` : ""} ·
               <a href={`/api/students/${result.student.id}`} target="_blank" rel="noreferrer">查看档案来源</a>
