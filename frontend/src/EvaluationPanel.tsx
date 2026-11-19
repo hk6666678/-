@@ -62,10 +62,10 @@ const features: Record<string, string> = {
 type ClusterResult = {
   model_version: string;
   trained_at: number;
-  recipe: { algorithm: string; distance_space: "latent" | "input"; training_seed: number; holdout_seed: number };
+  recipe: { algorithm: string; distance_space: "latent" | "input"; training_seed: number; holdout_seed: number; calibration_seed?: number | null };
   inputs: Record<string, number | null>;
-  cluster: { name: string; distance: number; center: Record<string, number> } | null;
-  validation: { training_count: number; holdout_count: number; matching_profiles: number };
+  cluster: { name: string; distance: number; threshold?: number | null; center: Record<string, number> } | null;
+  validation: { training_count: number; holdout_count: number; matching_profiles: number; calibration_count?: number; false_positive?: number; false_negative?: number };
 };
 
 function StudentClusterDemo({ id }: { id: number }) {
@@ -76,10 +76,12 @@ function StudentClusterDemo({ id }: { id: number }) {
   const [error, setError] = useState("");
   return <details className="task-details">
     <summary>学生分群训练与推理演练</summary>
-    <p>使用合成评分向量训练。两个版本共用一份留出集，距离分别在输入空间和潜在空间计算。</p>
+    <p>使用合成评分向量训练。各版本使用同一份留出样本；One-class 和 Two-class 将这些样本分为参考类和对照类。</p>
     <label>学生分群模型版本<select value={version} disabled={busy} onChange={(e) => setVersion(e.target.value)}>
       <option value="synthetic-kmeans-v1">v1 · K-means</option>
       <option value="synthetic-autoencoder-v2">v2 · 自编码器 + K-means</option>
+      <option value="synthetic-deep-one-class-v1">One-class · 参考类偏离检测</option>
+      <option value="synthetic-deep-two-class-v1">Two-class · 参考类与对照类</option>
     </select></label>
     <button type="button" disabled={busy} onClick={async () => {
       setError("");
@@ -102,6 +104,8 @@ function StudentClusterDemo({ id }: { id: number }) {
       <p>{result.cluster ? `模拟分组：${result.cluster.name} · 距离 ${result.cluster.distance}` : "维度缺失、快照过时或规则停用，暂不分群。"}</p>
       <p>训练 {result.validation.training_count} 条 · 留出 {result.validation.holdout_count} 条 · 与合成预设分组一致 {result.validation.matching_profiles} 条 · {result.model_version}</p>
       <p>{result.recipe.algorithm} · 训练种子 {result.recipe.training_seed} · 留出种子 {result.recipe.holdout_seed}</p>
+      {result.cluster?.threshold != null && <p>参考类距离阈值 {result.cluster.threshold.toFixed(3)} · 独立校准样本 {result.validation.calibration_count} 条。</p>}
+      {result.validation.false_positive !== undefined && <p>误判为参考类 {result.validation.false_positive} 条 · 漏判参考类 {result.validation.false_negative} 条。</p>}
       <p>训练档案保存于 {new Date(result.trained_at * 1000).toLocaleString()}。</p>
       <ul>{Object.entries(result.inputs).map(([name, value]) => (
         <li key={name}>{name} · 学生 {value?.toFixed(3) ?? "待核查"}{result.cluster && ` · 组中心 ${result.cluster.center[name]}`}</li>
@@ -111,7 +115,7 @@ function StudentClusterDemo({ id }: { id: number }) {
       <thead><tr><th>版本</th><th>同一学生的分组</th><th>同一留出集分组一致</th></tr></thead>
       <tbody>{Object.values(runs).map((run) => <tr key={run.model_version}>
         <td>{run.model_version}</td><td>{run.cluster?.name ?? "待核查"}</td>
-        <td>{run.validation.matching_profiles}/{run.validation.holdout_count}</td>
+        <td>{run.validation.matching_profiles}/{run.validation.holdout_count}{run.validation.false_positive !== undefined ? "（两类标签）" : "（三类标签）"}</td>
       </tr>)}</tbody>
     </table>}
   </details>;

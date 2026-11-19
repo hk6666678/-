@@ -71,6 +71,28 @@ def test_student_cluster_artifact_is_reloaded_from_database(tmp_path):
         assert load_or_train(db, "synthetic-autoencoder-v2", unexpected_training) == trained
     assert trained[0]["encoder"]["weights"]
 
+
+def test_deep_one_and_two_class_use_distinct_training_and_independent_validation():
+    from aqp.student_clustering_demo import (
+        DIMENSIONS,
+        cluster_artifact,
+        cluster_student_demo,
+    )
+
+    one, two = "synthetic-deep-one-class-v1", "synthetic-deep-two-class-v1"
+    one_model, two_model = cluster_artifact(one), cluster_artifact(two)
+    assert (len(one_model["centers"]), len(two_model["centers"])) == (1, 2)
+    assert one_model["validation"]["training_count"] == 80
+    assert one_model["validation"]["calibration_count"] == 30
+    assert two_model["validation"]["training_count"] == 240
+    for version, model in ((one, one_model), (two, two_model)):
+        stats = model["validation"]
+        assert stats["matching_profiles"] + stats["false_positive"] + stats["false_negative"] == 90
+        inputs = [{"name": name, "normalized": value} for name, value in zip(DIMENSIONS, (0.71, 0.71, 0.76), strict=True)]
+        prediction = cluster_student_demo({"ahp": {"dimensions": inputs}, "total": 72, "stale": False,
+                                          "rule_currently_enabled": True}, version, model)
+        assert prediction["cluster"]["name"] == "合成参考类"
+
 def test_simulation_bands_and_peer_percentiles():
     from aqp.evaluation import simulation_band, simulation_percentiles
 
