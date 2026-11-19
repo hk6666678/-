@@ -70,10 +70,40 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
                     "major": "合成专业",
                 }
                 for op in ["maintain", "view", "analyze"]
+            ]
+            + [
+                {
+                    "category": "patents",
+                    "operation": op,
+                    "college": "合成学院",
+                    "major": "合成专业",
+                }
+                for op in ["maintain", "view"]
             ],
         },
     )
     assert response.status_code == 200
+    patent = load_workbook(BytesIO(client.get("/api/patents/template").content))
+    patent.active.append([
+        "PAT-DEMO", "合成专利", "001", "合成人员", 1, "发明人",
+        "合成学院", "合成专业", "发明", "2025-01-01", "已转化", "2026-06-01",
+    ])
+    patent_stream = BytesIO()
+    patent.save(patent_stream)
+    patent_preview = client.post(
+        "/api/patents/preview",
+        headers=headers,
+        data={"source_department": "合成科研处"},
+        files={"file": ("patent.xlsx", patent_stream.getvalue())},
+    )
+    assert patent_preview.status_code == 200, patent_preview.text
+    patent_confirm = client.post(
+        f"/api/patents/previews/{patent_preview.json()['id']}/confirm",
+        headers=headers,
+        json={"accept_changes": False},
+    )
+    assert patent_confirm.status_code == 200, patent_confirm.text
+    assert client.get("/api/patents").json()["items"][0]["details"]["转化日期"] == "2026-06-01"
     wb = load_workbook(BytesIO(client.get("/api/research-outputs/template").content))
     wb.active.append(
         [
