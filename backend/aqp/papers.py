@@ -39,7 +39,7 @@ def register_papers(
     app: FastAPI,
     path: Path,
     current: Callable[[sqlite3.Connection, Request], tuple[sqlite3.Row, str]],
-) -> Callable[[sqlite3.Connection, int, int], dict[str, object]]:
+) -> tuple[Callable[..., dict[str, object]], Callable[..., dict[str, Any]]]:
     root = storage_root(path)
 
     def access(
@@ -316,30 +316,34 @@ def register_papers(
             audit(db, actor["id"], "paper.classification_demo", str(version_id))
             return classify_demo(json.loads(row["result"]))
 
-    @app.get("/api/papers/{version_id}/text-comparison")
-    def compare_text(version_id: int, other_id: int, request: Request) -> dict[str, Any]:
+    def text_comparison_data(db: sqlite3.Connection, actor: int, version_id: int, other_id: int) -> dict[str, Any]:
         if version_id == other_id:
             raise HTTPException(422, "请选择两个不同的论文版本")
+        versions = [record(db, ident) for ident in (version_id, other_id)]
+        for row in versions:
+            access(db, actor, row, ("view", "identity", "download"))
+            read_version_blob(root, row)
+            if row["status"] != "succeeded" or not row["result"]:
+                raise HTTPException(409, "两篇论文都需完成本地文字解析")
+        left, right = [comparison_passages(json.loads(row["result"])) for row in versions]
+        matches: list[dict[str, Any]] = []
+        for left_page, left_text, left_pairs in left:
+            for right_page, right_text, right_pairs in right:
+                similarity = len(left_pairs & right_pairs) / len(left_pairs | right_pairs)
+                if similarity >= 0.4:
+                    matches.append({
+                        "left": {"page": left_page, "text": left_text},
+                        "right": {"page": right_page, "text": right_text},
+                        "similarity": round(similarity, 3),
+                    })
+        matches.sort(key=lambda match: match["similarity"], reverse=True)
+        audit(db, actor, "paper.text_compare", f"{version_id}/{other_id}")
+        return {"matches": matches[:10], "passage_counts": [len(left), len(right)]}
+
+    @app.get("/api/papers/{version_id}/text-comparison")
+    def compare_text(version_id: int, other_id: int, request: Request) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
-            versions = [record(db, ident) for ident in (version_id, other_id)]
-            for row in versions:
-                access(db, actor["id"], row, ("view", "identity", "download"))
-                read_version_blob(root, row)
-                if row["status"] != "succeeded" or not row["result"]:
-                    raise HTTPException(409, "两篇论文都需完成本地文字解析")
-            left, right = [comparison_passages(json.loads(row["result"])) for row in versions]
-            matches: list[dict[str, Any]] = []
-            for left_page, left_text, left_pairs in left:
-                for right_page, right_text, right_pairs in right:
-                    similarity = len(left_pairs & right_pairs) / len(left_pairs | right_pairs)
-                    if similarity >= 0.4:
-                        matches.append({
-                            "left": {"page": left_page, "text": left_text},
-                            "right": {"page": right_page, "text": right_text},
-                            "similarity": round(similarity, 3),
-                        })
-            matches.sort(key=lambda match: match["similarity"], reverse=True)
-            audit(db, actor["id"], "paper.text_compare", f"{version_id}/{other_id}")
-            return {"matches": matches[:10], "passage_counts": [len(left), len(right)]}
-    return semantic_history_for
+            return text_comparison_data(db, actor["id"], version_id, other_id)
+
+    return semantic_history_for, text_comparison_data

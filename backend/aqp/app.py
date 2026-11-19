@@ -165,7 +165,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     register_model_connection(app, path, current)
     from aqp.papers import register_papers
 
-    semantic_history = register_papers(app, path, current)
+    semantic_history, paper_text_comparison = register_papers(app, path, current)
     from aqp.comparisons import register_comparisons
 
     paper_access, comparison_snapshot, comparison_history = register_comparisons(
@@ -195,6 +195,9 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     analysis_loader = register_analysis(app, path, current)
     from aqp.agent import AgentLoaders, register_agent
     from aqp.exports import register_original_downloads
+    from aqp.external_assessments import register_external_assessments
+
+    review_keywords = register_external_assessments(app, path, current)
 
     agent_loaders = AgentLoaders(
         snapshot=snapshot_loader,
@@ -208,14 +211,14 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         college_report=college_report,
         evaluation_dashboard=evaluation_dashboard,
         evaluation_rolling=evaluation_rolling,
+        paper_text_comparison=paper_text_comparison,
+        review_keywords=review_keywords,
     )
     register_agent(app, path, current, agent_loaders)
     from aqp.cultivation_models import register_cultivation_models
 
     register_cultivation_models(app, path, current, snapshot_loader)
     register_original_downloads(app, path, current)
-    from aqp.external_assessments import register_external_assessments
-    register_external_assessments(app, path, current)
     from aqp.research_outputs import register_research_outputs
 
     for output_category in ("research_papers", "patents", "awards", "conferences"):

@@ -44,6 +44,14 @@ def test_agent_resolves_authorized_paper_title(client, tmp_path, monkeypatch):
     assert response.status_code == 200, response.text
     assert response.json()["tool_result"]["paper_version_id"] == latest
     assert any(link["url"].endswith(f"/{latest}/evidence") for link in response.json()["evidence_links"])
+    plan_runner(monkeypatch, {"tool": "paper_text_comparison", "paper_version_id": first,
+                            "other_paper_version_id": latest}, "合成比对摘要", calls)
+    compared = ask(client, headers, f"比较论文版本{first}和{latest}正文")
+    assert compared.status_code == 200, compared.text
+    match = compared.json()["tool_result"]["matches"][0]
+    assert match == {"left_page": 1, "right_page": 1, "similarity": 1}
+    assert "Synthetic text" not in calls[-1]
+    assert client.get(compared.json()["evidence_links"][0]["url"]).status_code == 200
     update_grants(client, headers, ["view"])
     assert ask(client, headers, "《合成姓名论文》的结构特征").status_code == 403
 

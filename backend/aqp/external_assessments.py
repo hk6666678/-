@@ -51,7 +51,7 @@ class TemplateActivation(BaseModel):
 
 def register_external_assessments(
     app: FastAPI, path: Path, current: Callable[..., Any]
-) -> None:
+) -> Callable[..., dict[str, Any]]:
     def template(db: sqlite3.Connection, version: str) -> dict[str, Any]:
         row = db.execute(
             "SELECT * FROM external_assessment_templates WHERE version=?", (version,)
@@ -161,8 +161,7 @@ def register_external_assessments(
                 "template": template(db, "simulation-v1"),
             }
 
-    @app.get("/api/external-assessments/keywords")
-    def keywords(request: Request, terms: str, classify: bool = False) -> dict[str, Any]:
+    def keyword_data(db: sqlite3.Connection, actor: int, terms: str, classify: bool, paper_version_id: int | None = None) -> dict[str, Any]:
         words = list(
             dict.fromkeys(
                 word.strip().casefold() for word in terms.split(",") if word.strip()
@@ -170,32 +169,37 @@ def register_external_assessments(
         )
         if not 1 <= len(words) <= 30 or any(len(word) > 50 for word in words):
             raise HTTPException(422, "请输入 1～30 个关键词，每词最长 50 字")
+        counts = dict.fromkeys(words, 0)
+        categories: dict[str, list[dict[str, Any]]] = {topic: [] for topic in REVIEW_TOPICS}
+        scanned = skipped = 0
+        for row in db.execute(
+            "SELECT * FROM external_assessments WHERE category='blind_reviews' AND (? IS NULL OR paper_version_id=?) ORDER BY id",
+            (paper_version_id, paper_version_id),
+        ):
+            if not permitted(db, actor, row, "view"):
+                continue
+            if not permitted(db, actor, row, "download"):
+                skipped += 1
+                continue
+            scanned += 1
+            comment = row["comment"].casefold()
+            for word in words:
+                counts[word] += comment.count(word)
+            if classify:
+                for sentence in re.split(r"(?<=[。！？；])|\r?\n", row["comment"]):
+                    sentence = sentence.strip()
+                    for topic, markers in REVIEW_TOPICS.items():
+                        if len(categories[topic]) < 20 and any(marker in sentence for marker in markers):
+                            categories[topic].append({"review_id": row["id"], "quote": sentence[:500]})
+        audit(db, actor, "external_assessment.keywords", "blind_reviews")
+        return {"counts": counts, "scanned": scanned, "skipped": skipped,
+                **({"categories": categories} if classify else {})}
+
+    @app.get("/api/external-assessments/keywords")
+    def keywords(request: Request, terms: str, classify: bool = False, paper_version_id: int | None = None) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
-            counts = dict.fromkeys(words, 0)
-            categories: dict[str, list[dict[str, Any]]] = {topic: [] for topic in REVIEW_TOPICS}
-            scanned = skipped = 0
-            for row in db.execute(
-                "SELECT * FROM external_assessments WHERE category='blind_reviews' ORDER BY id"
-            ):
-                if not permitted(db, actor["id"], row, "view"):
-                    continue
-                if not permitted(db, actor["id"], row, "download"):
-                    skipped += 1
-                    continue
-                scanned += 1
-                comment = row["comment"].casefold()
-                for word in words:
-                    counts[word] += comment.count(word)
-                if classify:
-                    for sentence in re.split(r"(?<=[。！？；])|\r?\n", row["comment"]):
-                        sentence = sentence.strip()
-                        for topic, markers in REVIEW_TOPICS.items():
-                            if len(categories[topic]) < 20 and any(marker in sentence for marker in markers):
-                                categories[topic].append({"review_id": row["id"], "quote": sentence[:500]})
-            audit(db, actor["id"], "external_assessment.keywords", "blind_reviews")
-            return {"counts": counts, "scanned": scanned, "skipped": skipped,
-                    **({"categories": categories} if classify else {})}
+            return keyword_data(db, actor["id"], terms, classify, paper_version_id)
 
     @app.post("/api/external-assessments")
     def create(body: AssessmentInput, request: Request) -> dict[str, Any]:
@@ -435,3 +439,5 @@ def register_external_assessments(
             )
             audit(db, actor["id"], "external_assessment.template.activate", version)
             return {"version": version, "state": "active"}
+
+    return keyword_data

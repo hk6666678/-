@@ -193,6 +193,10 @@ def test_write_duplicate_conflict_and_current_permissions(client):
         "scanned": 2,
         "skipped": 0,
     }
+    scoped = client.get("/api/external-assessments/keywords", params={
+        "terms": "原文", "classify": True, "paper_version_id": -1,
+    }).json()
+    assert scoped["scanned"] == 0 and scoped["counts"]["原文"] == 0
     assert (
         client.post("/api/external-assessments", headers=headers, json=body).status_code
         == 403
