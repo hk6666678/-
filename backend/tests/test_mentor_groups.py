@@ -44,7 +44,10 @@ def test_directory_requires_explicit_grants_and_redacts_identity(client):
     assert client.get("/api/access/grants").json() == grants
 
 
-def test_relation_dates_history_conflicts_and_current_revocation(client):
+def test_relation_dates_history_conflicts_and_current_revocation(client, tmp_path):
+    import json
+
+    from aqp.store import connection
     from test_students import workbook
 
     headers = login_admin(client)
@@ -59,6 +62,7 @@ def test_relation_dates_history_conflicts_and_current_revocation(client):
         for category in [
             "basic",
             "mentor_groups",
+            "courses",
             "research_papers",
             "patents",
             "awards",
@@ -218,12 +222,49 @@ def test_relation_dates_history_conflicts_and_current_revocation(client):
         ][category]
         assert category_facts["student_count"] == 1
         assert category_facts["distinct_outputs"] == 1
+        assert category_facts["participations_per_student"] == 1
         assert category_facts["items"][0]["title"] == "Synthetic output"
     assert (
         client.get("/api/mentor-groups/facts?as_of=2026-09-01").json()["student_count"]
         == 0
     )
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        db.execute("UPDATE mentor_group_relations SET end_date=NULL WHERE id=?", (rid,))
+        batch_id = db.execute("SELECT id FROM import_batches LIMIT 1").fetchone()["id"]
+        for index, score in enumerate((90, 65, 75, 85)):
+            number = "001" if index == 0 else f"peer{index}"
+            member_id = student_id
+            if index != 0:
+                member_id = db.execute(
+                    """INSERT INTO students(research_id,student_number,name,college,major,level,entry_year,payload)
+                    VALUES(?,?,?,?,?,'硕士',2025,'{}')""",
+                    (number, number, number, "示例学院", "计算机"),
+                ).lastrowid
+                db.execute(
+                    """INSERT INTO mentor_group_relations(student_id,mentor_id,group_id,start_date,source_department)
+                    VALUES(?,?,?,'2025-09-01','Synthetic')""",
+                    (member_id, *directories),
+                )
+            source = db.execute(
+                """INSERT INTO import_rows(batch_id,sheet,row_number,raw_json,normalized_json,state)
+                VALUES(?,'Courses',?,'{}','{}','valid')""",
+                (batch_id, 100 + index),
+            ).lastrowid
+            db.execute(
+                """INSERT INTO course_records(student_number,course_code,term,attempt,student_id,payload,state,source_row_id)
+                VALUES(?,'SYN-COURSE','2025秋',1,?,?,'linked',?)""",
+                (number, member_id, json.dumps({
+                    "所属学院": "示例学院", "专业": "计算机",
+                    "评分制度": "百分制", "原始成绩": str(score),
+                }), source),
+            )
+    comparison_url = f"/api/cultivation/students/{student_id}/mentor-course-comparison"
+    comparison = client.get(comparison_url)
+    assert comparison.status_code == 200, comparison.text
+    course = comparison.json()["items"][0]
+    assert course["score"] == 90 and course["peer_mean"] == 75 and course["peer_count"] == 3
     authorize([])
+    assert client.get(comparison_url).status_code == 403
     assert client.get(endpoint).json()["items"] == []
     assert client.get(f"{endpoint}/{rid}/history").status_code == 404
     assert (

@@ -13,6 +13,7 @@ from scipy.stats import t  # type: ignore[import-untyped]
 
 from aqp.agent import OUTPUT_TABLES, agent_scope_students
 from aqp.authorization import allowed, student_allowed
+from aqp.mentor_groups import relation_allowed
 from aqp.research_outputs import current_participant
 from aqp.store import audit, connection
 
@@ -395,6 +396,69 @@ def milestone_alerts(
     }
 
 
+def mentor_course_comparison(
+    db: sqlite3.Connection, actor: int, student_id: int,
+) -> dict[str, Any]:
+    student = db.execute("SELECT college,major FROM students WHERE id=? AND active=1", (student_id,)).fetchone()
+    if student is None or not student_allowed(db, actor, student_id) or not all(
+        allowed(db, actor, category, operation, student["college"], student["major"])
+        for category, operation in (("basic", "view"), ("courses", "view"), ("courses", "analyze"))
+    ):
+        raise HTTPException(403, "当前无权查看该学生的课程对比")
+    today = date.today().isoformat()
+    relations = db.execute(
+        "SELECT * FROM mentor_group_relations WHERE start_date<=? AND (end_date IS NULL OR end_date>=?)",
+        (today, today),
+    ).fetchall()
+    keys = {
+        (row["mentor_id"], row["group_id"]) for row in relations
+        if row["student_id"] == student_id and all(
+            relation_allowed(db, actor, op, row) for op in ("view", "analyze")
+        )
+    }
+    peers = {
+        row["student_id"] for row in relations
+        if row["student_id"] != student_id and (row["mentor_id"], row["group_id"]) in keys
+        and all(relation_allowed(db, actor, op, row) for op in ("view", "analyze"))
+    }
+    rows: dict[tuple[str, str, str], dict[int, list[tuple[int, float]]]] = defaultdict(lambda: defaultdict(list))
+    for record in db.execute(
+        """SELECT c.*, s.college, s.major FROM course_records c JOIN students s ON s.id=c.student_id
+        WHERE c.active=1 AND c.state='linked' AND s.active=1 AND json_extract(c.payload,'$.评分制度')='百分制'"""
+    ):
+        sid = record["student_id"]
+        if sid != student_id and sid not in peers:
+            continue
+        payload = json.loads(record["payload"])
+        source = (payload.get("所属学院", payload.get("学院")), payload.get("专业"))
+        if not all(isinstance(part, str) and part for part in source) or not all(
+            allowed(db, actor, "courses", op, college, major)
+            for college, major in (source, (record["college"], record["major"]))
+            for op in ("view", "analyze")
+        ):
+            continue
+        try:
+            score = float(payload.get("原始成绩") or "")
+        except ValueError:
+            continue
+        if 0 <= score <= 100:
+            rows[(source[0], record["course_code"], record["term"])][sid].append((record["id"], score))
+    items = []
+    for (college, code, term), grades in sorted(rows.items()):
+        own = grades.get(student_id)
+        if not own:
+            continue
+        peer_scores = [mean(score for _, score in values) for sid, values in grades.items() if sid != student_id]
+        items.append({
+            "college": college, "course_code": code, "term": term,
+            "score": mean(score for _, score in own), "peer_count": len(peer_scores),
+            "peer_mean": mean(peer_scores) if len(peer_scores) >= 3 else None,
+            "record_ids": [record_id for record_id, _ in own],
+        })
+    audit(db, actor, "cultivation.mentor_course_comparison", str(student_id))
+    return {"items": items, "as_of": today, "has_group": bool(keys)}
+
+
 def register_cultivation_models(
     app: FastAPI,
     path: Path,
@@ -417,6 +481,12 @@ def register_cultivation_models(
         with connection(path) as db:
             actor, _ = current(db, request)
             return student_signals(db, actor["id"], student_id)
+
+    @app.get("/api/cultivation/students/{student_id}/mentor-course-comparison")
+    def mentor_courses(request: Request, student_id: int) -> dict[str, Any]:
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            return mentor_course_comparison(db, actor["id"], student_id)
 
     @app.get("/api/cultivation/course-control-chart")
     def control_chart(

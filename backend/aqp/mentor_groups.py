@@ -169,9 +169,18 @@ def group_facts(
                         "participant_count": len(output_students),
                     }
                 )
+        coverage = bool(students) and all(
+            allowed(db, actor, category, op, member["college"], member["major"])
+            for member in students.values()
+            for op in ("view", "analyze")
+        )
         categories[category] = {
             "student_count": len(participants),
             "distinct_outputs": len(outputs),
+            "participations_per_student": (
+                sum(output["participant_count"] for output in outputs) / len(students)
+                if coverage else None
+            ),
             "items": outputs,
         }
     return {

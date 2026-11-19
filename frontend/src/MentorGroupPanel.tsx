@@ -28,6 +28,7 @@ type Facts = {
     {
       student_count: number;
       distinct_outputs: number;
+      participations_per_student?: number | null;
       items: {
         id: number;
         version: number;
@@ -443,6 +444,7 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
                 <th>成果类别</th>
                 <th>参与学生人数</th>
                 <th>去重成果数</th>
+                <th>人均登记成果</th>
                 <th>证据</th>
               </tr>
             </thead>
@@ -452,6 +454,7 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
                   <td>{labels[k]}</td>
                   <td>{v.student_count}</td>
                   <td>{v.distinct_outputs}</td>
+                  <td>{v.participations_per_student?.toFixed(2) ?? "暂无可比口径"}</td>
                   <td>
                     <button
                       className="mentor-detail-action"
@@ -466,6 +469,7 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
             </tbody>
           </table>
           <div className="mentor-missing">
+            <p>人均登记成果按参与人次除以有效指导学生数计算。共同成果按每位参与学生各计一次，成果权限覆盖不足时不计算。</p>
             <p>毕业：条件缺失，{facts.graduation.reason}。</p>
             <p>延期：条件缺失，{facts.delay.reason}。</p>
           </div>

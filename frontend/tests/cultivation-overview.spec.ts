@@ -37,6 +37,13 @@ test("selecting a student loads their cultivation stages and evidence", async ({
   await expect(page.getByRole("button", { name: "按范围查看" })).toHaveCount(0);
   expect(stages.sort()).toEqual(["courses", "midterm", "topic"]);
   await expect(page.getByText("通过率 100%")).toBeVisible();
+  await page.route("**/api/cultivation/students/42/mentor-course-comparison", (route) => route.fulfill({ json: {
+    has_group: true, as_of: "2026-11-19", items: [{
+      college: "合成学院", course_code: "SYN-1", term: "2025秋", score: 90, peer_count: 3, peer_mean: 75, record_ids: [20],
+    }],
+  }}));
+  await page.getByText("同导师组课程对比", { exact: true }).click();
+  await expect(page.getByRole("row", { name: /SYN-1.*90.0.*75.0/ })).toBeVisible();
   await expect(page.getByText(/学籍异动 · 转导师/)).toBeVisible();
   await expect(page.getByText(/低于同届中位数/)).toBeVisible();
   await expect(page.getByText("此范围操作未授权")).toBeVisible();

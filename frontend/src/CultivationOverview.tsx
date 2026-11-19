@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Snapshot } from "./AnalysisPanel";
 import { StudentAlerts } from "./ProcessAlerts";
+import { MentorCourseComparison } from "./MentorCourseComparison";
 
 const stages = [
   { key: "courses", label: "课程" },
@@ -151,6 +152,7 @@ export function CultivationOverview({ csrf, showSnapshot }: {
               );
             })}
           </div>
+          <MentorCourseComparison key={result.student.id} studentId={result.student.id} />
           {snapshots.length > 0 && (
             <>
               {snapshots.length < stages.length && <p>有环节未能完成分析，关注清单仅覆盖已返回的结果。</p>}
