@@ -2,6 +2,7 @@
 
 import io
 import json
+import re
 import sqlite3
 from collections.abc import Callable
 from pathlib import Path
@@ -15,6 +16,12 @@ from pydantic import BaseModel, Field
 
 from aqp.authorization import allowed, student_allowed
 from aqp.store import audit, connection
+
+REVIEW_TOPICS = {
+    "创新性表述": ("创新", "新颖", "原创"),
+    "主要问题": ("不足", "欠缺", "缺少", "不充分", "存在问题"),
+    "修改建议": ("建议", "应补充", "需完善", "可改进"),
+}
 
 
 class AssessmentInput(BaseModel):
@@ -155,7 +162,7 @@ def register_external_assessments(
             }
 
     @app.get("/api/external-assessments/keywords")
-    def keywords(request: Request, terms: str) -> dict[str, Any]:
+    def keywords(request: Request, terms: str, classify: bool = False) -> dict[str, Any]:
         words = list(
             dict.fromkeys(
                 word.strip().casefold() for word in terms.split(",") if word.strip()
@@ -166,9 +173,10 @@ def register_external_assessments(
         with connection(path) as db:
             actor, _ = current(db, request)
             counts = dict.fromkeys(words, 0)
+            categories: dict[str, list[dict[str, Any]]] = {topic: [] for topic in REVIEW_TOPICS}
             scanned = skipped = 0
             for row in db.execute(
-                "SELECT * FROM external_assessments WHERE category='blind_reviews'"
+                "SELECT * FROM external_assessments WHERE category='blind_reviews' ORDER BY id"
             ):
                 if not permitted(db, actor["id"], row, "view"):
                     continue
@@ -179,8 +187,15 @@ def register_external_assessments(
                 comment = row["comment"].casefold()
                 for word in words:
                     counts[word] += comment.count(word)
+                if classify:
+                    for sentence in re.split(r"(?<=[。！？；])|\r?\n", row["comment"]):
+                        sentence = sentence.strip()
+                        for topic, markers in REVIEW_TOPICS.items():
+                            if len(categories[topic]) < 20 and any(marker in sentence for marker in markers):
+                                categories[topic].append({"review_id": row["id"], "quote": sentence[:500]})
             audit(db, actor["id"], "external_assessment.keywords", "blind_reviews")
-            return {"counts": counts, "scanned": scanned, "skipped": skipped}
+            return {"counts": counts, "scanned": scanned, "skipped": skipped,
+                    **({"categories": categories} if classify else {})}
 
     @app.post("/api/external-assessments")
     def create(body: AssessmentInput, request: Request) -> dict[str, Any]:

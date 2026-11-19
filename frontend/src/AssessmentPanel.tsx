@@ -33,6 +33,7 @@ export function AssessmentPanel({ csrf }: { csrf: string }) {
     [templates, setTemplates] = useState<Template[]>([]);
   const [keywordResult, setKeywordResult] = useState<{
     counts: Record<string, number>; scanned: number; skipped: number;
+    categories?: Record<string, { review_id: number; quote: string }[]>;
   }>();
   const [keywordBusy, setKeywordBusy] = useState(false);
   const comparisons = new Map<string, { paper: number; template: string; item: string; blind: number[]; defense: number[] }>();
@@ -175,7 +176,7 @@ export function AssessmentPanel({ csrf }: { csrf: string }) {
           setError("");
           setKeywordBusy(true);
           try {
-            setKeywordResult(await call(`/api/external-assessments/keywords?${new URLSearchParams({ terms })}`));
+            setKeywordResult(await call(`/api/external-assessments/keywords?${new URLSearchParams({ terms, classify: "true" })}`));
           } catch (err) {
             setError(String(err));
           } finally {
@@ -189,6 +190,19 @@ export function AssessmentPanel({ csrf }: { csrf: string }) {
         {keywordResult && <>
           <p>已统计 {keywordResult.scanned} 条，因评语下载未授权跳过 {keywordResult.skipped} 条。按字面匹配出现次数。</p>
           <ul>{Object.entries(keywordResult.counts).map(([word, count]) => <li key={word}>{word} · {count} 次</li>)}</ul>
+          {keywordResult.categories && (
+            <details>
+              <summary>评语分类与原句</summary>
+              <p>按关键字匹配原句，每类最多显示 20 条。涉及创新的句子也可能是负面评价。</p>
+              {Object.entries(keywordResult.categories).map(([topic, excerpts]) => (
+                <div key={topic}><h4>{topic}</h4>
+                  {excerpts.length ? <ul>{excerpts.map((item, index) => (
+                    <li key={`${item.review_id}-${index}`}>评语 #{item.review_id} · {item.quote}</li>
+                  ))}</ul> : <p>暂无匹配原句。</p>}
+                </div>
+              ))}
+            </details>
+          )}
         </>}
       </details>
       <details className="card">

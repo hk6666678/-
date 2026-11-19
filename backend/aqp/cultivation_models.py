@@ -4,7 +4,7 @@ from collections import Counter, defaultdict
 from collections.abc import Callable
 from datetime import date
 from pathlib import Path
-from statistics import mean, median, pstdev
+from statistics import StatisticsError, correlation, mean, median, pstdev
 from typing import Any
 
 import numpy as np
@@ -62,6 +62,42 @@ def fit_factors(points: list[tuple[float, float, float]]) -> dict[str, Any]:
         )
     return {**outcome, "factors": rows}
 
+
+def midterm_thesis_association(
+    db: sqlite3.Connection, actor: int, college: str, major: str,
+    grades: dict[tuple[int, str], float],
+) -> dict[str, Any] | None:
+    if not all(allowed(db, actor, category, operation, college, major)
+               for category in ("papers", "blind_reviews") for operation in ("view", "analyze")):
+        return None
+    points = []
+    eligible = [(sid, value) for (sid, category), value in grades.items() if category == "midterm"]
+    for sid, midterm in eligible:
+        paper = db.execute(
+            "SELECT id,covered_student_ids FROM paper_versions WHERE student_id=? ORDER BY version DESC LIMIT 1",
+            (sid,),
+        ).fetchone()
+        if paper is None or json.loads(paper["covered_student_ids"]) != [sid]:
+            continue
+        reviews = db.execute(
+            """SELECT id,scores FROM external_assessments
+               WHERE paper_version_id=? AND category='blind_reviews' AND template_version='simulation-v1'
+               ORDER BY id""", (paper["id"],),
+        ).fetchall()
+        if reviews:
+            points.append({
+                "midterm": midterm,
+                "quality": mean(json.loads(row["scores"])["quality"] for row in reviews),
+                "paper_version_id": paper["id"], "review_ids": [row["id"] for row in reviews],
+            })
+    coefficient = None
+    if len(points) >= 3:
+        try:
+            coefficient = correlation([p["midterm"] for p in points], [p["quality"] for p in points])
+        except StatisticsError:
+            pass
+    return {"sample_size": len(points), "excluded": len(eligible) - len(points),
+            "pearson_r": coefficient, "points": points}
 
 def fit_simulation_logistic(design: np.ndarray, target: np.ndarray) -> dict[str, Any]:
     binary = (target >= 85).astype(float)
@@ -161,6 +197,7 @@ def cultivation_factors(
     audit(db, aid, "cultivation.factors", "simulation")
     return {
         **outcome,
+        "midterm_thesis": midterm_thesis_association(db, aid, college, major, grades),
         "sample_size": len(points),
         "excluded": len(students) - len(points),
     }

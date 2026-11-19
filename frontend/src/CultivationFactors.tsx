@@ -8,6 +8,10 @@ type Result = {
   factors?: { factor: string; coefficient: number; interval: [number, number] | null; p_value: number | null }[];
   rank_correlations?: { factor: string; rho: number | null }[];
   logistic?: { positive: number; negative: number; notice?: string; factors?: { factor: string; odds_ratio: number }[] };
+  midterm_thesis?: {
+    sample_size: number; excluded: number; pearson_r: number | null;
+    points: { midterm: number; quality: number; paper_version_id: number }[];
+  } | null;
 };
 
 export function CultivationFactors() {
@@ -69,6 +73,19 @@ export function CultivationFactors() {
               {result.logistic.notice && <p>{result.logistic.notice}</p>}
               {result.logistic.factors && <p>每增加 10 分的优势比 · {result.logistic.factors.map(({ factor, odds_ratio }) => `${factor} ${odds_ratio.toFixed(3)}`).join(" · ")}。采用带 L2 惩罚的 Logistic 回归，仅供探索。</p>}
             </>
+          )}
+          {result.midterm_thesis && (
+            <details className="task-details">
+              <summary>中期成绩与学位论文盲审质量</summary>
+              <p>完整样本 {result.midterm_thesis.sample_size} 人 · 排除 {result.midterm_thesis.excluded} 人 · Pearson r {result.midterm_thesis.pearson_r?.toFixed(3) ?? "不可估计"}</p>
+              <p>取最新论文版本中同一模拟模板的盲审质量分均值。至少 3 个可比样本才计算相关系数。</p>
+              <table>
+                <thead><tr><th>论文版本</th><th>中期成绩</th><th>盲审质量均分</th></tr></thead>
+                <tbody>{result.midterm_thesis.points.map((point) => (
+                  <tr key={point.paper_version_id}><td>#{point.paper_version_id}</td><td>{point.midterm}</td><td>{point.quality.toFixed(2)}</td></tr>
+                ))}</tbody>
+              </table>
+            </details>
           )}
           <details className="task-details">
             <summary>计算口径</summary>
