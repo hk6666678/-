@@ -69,7 +69,7 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
                     "college": "合成学院",
                     "major": "合成专业",
                 }
-                for op in ["maintain", "view", "analyze"]
+                for op in ["maintain", "view", "analyze", "identity"]
             ]
             + [
                 {
@@ -238,7 +238,7 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
         "所属学院": "合成学院",
         "专业": "合成专业",
         "考核批次": "模拟选题",
-        "选题标题": "合成题目",
+        "选题标题": "合成科研论文更正",
         "评分制度": "百分制",
         "原始成绩": 85,
         "实际日期": "2025-04-01",
@@ -261,6 +261,7 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
         == 200
     )
     rows = client.get("/api/research-outputs/cohort").json()["items"]
+    assert next(row["outputs"][0]["title_similarity"] for row in rows if row["outputs"]) == 100
     assert (
         next(row["outputs"][0]["topic"] for row in rows if row["outputs"])
         == "同年（先后未知）"

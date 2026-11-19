@@ -6,6 +6,7 @@ import sqlite3
 from collections.abc import Callable
 from datetime import date
 from decimal import Decimal, InvalidOperation
+from itertools import pairwise
 from pathlib import Path
 from typing import Annotated, Any
 from zipfile import BadZipFile
@@ -15,6 +16,16 @@ from fastapi.responses import Response
 
 from aqp.authorization import allowed, student_allowed
 from aqp.store import connection
+
+
+def title_similarity(topic: str, paper: str) -> int | None:
+    topic_text = "".join(char for char in topic.casefold() if char.isalnum())
+    paper_text = "".join(char for char in paper.casefold() if char.isalnum())
+    if min(len(topic_text), len(paper_text)) < 2:
+        return None
+    topic_pairs = {a + b for a, b in pairwise(topic_text)}
+    paper_pairs = {a + b for a, b in pairwise(paper_text)}
+    return round(100 * len(topic_pairs & paper_pairs) / len(topic_pairs | paper_pairs))
 
 
 def current_participant(
@@ -87,7 +98,8 @@ def register_research_outputs(
                 and allowed(db, actor, category, "view", row["college"], row["major"])
             }
             dates: dict[tuple[int, str], list[str]] = {}
-            for row in db.execute("SELECT * FROM milestone_records WHERE active=1"):
+            topics: dict[int, str] = {}
+            for row in db.execute("SELECT * FROM milestone_records WHERE active=1 ORDER BY id DESC"):
                 if row["student_id"] not in students:
                     continue
                 student = students[row["student_id"]]
@@ -112,6 +124,20 @@ def register_research_outputs(
                 ):
                     continue
                 actual = payload.get("实际日期", "")
+                if (
+                    category == "research_papers"
+                    and row["category"] == "topic"
+                    and (title := payload.get("选题标题"))
+                    and all(
+                        allowed(db, actor, "topic", op, college, major)
+                        for op in ("identity", "analyze")
+                        for college, major in (
+                            (student["college"], student["major"]),
+                            (payload["所属学院"], payload["专业"]),
+                        )
+                    )
+                ):
+                    topics.setdefault(row["student_id"], title)
                 if re.fullmatch(r"\d{4}-\d{2}-\d{2}", actual):
                     dates.setdefault((row["student_id"], row["category"]), []).append(
                         actual
@@ -166,6 +192,8 @@ def register_research_outputs(
                             "id": row["id"],
                             "title": payload["title"],
                             "date": raw,
+                            **({"title_similarity": title_similarity(topics[sid], payload["title"])}
+                               if sid in topics else {}),
                             **match,
                         }
                     )

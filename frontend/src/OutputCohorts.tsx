@@ -5,7 +5,7 @@ type CohortRow = {
   college: string;
   major: string;
   entry_year: number;
-  outputs: { id: number; title: string; date: string; topic: string; midterm: string }[];
+  outputs: { id: number; title: string; date: string; topic: string; midterm: string; title_similarity?: number | null }[];
 };
 
 export function OutputCohorts({ endpoint }: { endpoint: string }) {
@@ -55,7 +55,9 @@ export function OutputCohorts({ endpoint }: { endpoint: string }) {
                     <tr key={row.research_id}>
                       <td>{rank}</td><td>{row.research_id}</td><td>{row.outputs.length}</td>
                       <td>{row.outputs.map((output) => (
-                        <div key={output.id}>{output.title} · {output.date || "日期缺失"} · 选题 {output.topic} · 中期 {output.midterm}</div>
+                        <div key={output.id}>{output.title} · {output.date || "日期缺失"} · 选题 {output.topic} · 中期 {output.midterm}
+                          {typeof output.title_similarity === "number" && <span> · 选题标题字面相似度 {output.title_similarity}%</span>}
+                        </div>
                       ))}</td>
                     </tr>
                   );
