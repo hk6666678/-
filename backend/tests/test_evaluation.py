@@ -2,6 +2,18 @@
 from test_accounts import client, login_admin  # noqa: F401
 
 
+def test_six_signal_trial_uses_milestones_and_withholds_incomplete_total():
+    from aqp.evaluation import SOURCE_CATEGORY, six_signal_trial
+
+    inputs = [{"feature": feature, "normalized": 1, "value": 1} for feature in SOURCE_CATEGORY]
+    signals = {
+        "milestone_trends": [{"label": label, "observations": [{"mean": 80}]} for label in ("选题", "中期")],
+        "course_trend": {"observations": [{"mean": 70}, {"mean": 90}]},
+    }
+    assert six_signal_trial(inputs, signals)["total"] == 91.67
+    assert six_signal_trial(inputs, {})["total"] is None
+    assert six_signal_trial(inputs[:-1], signals)["total"] is None
+
 def test_student_clusters_use_separate_holdout_and_respect_missing_scores():
     from aqp.student_clustering_demo import DIMENSIONS, cluster_student_demo
 

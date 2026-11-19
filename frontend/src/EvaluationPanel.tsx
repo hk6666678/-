@@ -98,6 +98,42 @@ function StudentClusterDemo({ id }: { id: number }) {
   </details>;
 }
 
+function SixSignalTrial({ id }: { id: number }) {
+  const [result, setResult] = useState<{ total: number | null; levels: { name: string; score: number | null; basis: string }[] }>();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  return <details className="task-details">
+    <summary>六类识别信号模拟试算</summary>
+    <p>六类等权。此处结合已保存的快照和当前选题、中期及课程时序。资源获得暂用获奖指标，六类都有数据才计算总分。</p>
+    <button type="button" disabled={busy} onClick={async () => {
+      setBusy(true);
+      setError("");
+      setResult(undefined);
+      try {
+        const response = await fetch(`/api/evaluation-snapshots/${id}/six-signal-trial`);
+        const value = await response.json();
+        if (!response.ok) throw Error(value.detail || "无法试算");
+        setResult(value);
+      } catch (err) {
+        setError(String(err));
+      } finally {
+        setBusy(false);
+      }
+    }}>试算六类信号</button>
+    {error && <p role="alert">{error}</p>}
+    {result && <>
+      <p>试算总分 · {result.total?.toFixed(2) ?? "证据不全，暂不计分"}</p>
+      <table>
+        <thead><tr><th>信号</th><th>分数</th><th>依据</th></tr></thead>
+        <tbody>{result.levels.map((level) => <tr key={level.name}>
+          <th scope="row">{level.name}</th><td>{level.score == null ? "待核查" : (level.score * 100).toFixed(2)}</td>
+          <td>{level.basis.split("、").map((key) => features[key] ?? key).join("、") || "快照缺少该类证据"}</td>
+        </tr>)}</tbody>
+      </table>
+    </>}
+  </details>;
+}
+
 function Radar({ inputs }: { inputs: { feature: string; normalized: number | null }[] }) {
   if (inputs.length < 3)
     return (
@@ -500,6 +536,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
           )}
           <p>{snapshot.notice}</p>
           <StudentClusterDemo key={snapshot.id} id={snapshot.id} />
+          <SixSignalTrial key={`trial-${snapshot.id}`} id={snapshot.id} />
           {snapshot.screening && <details className="task-details">
             <summary>前置条件核查</summary>
             <p>按当前登记数据核查。学分以完成培养要求总学分为通过条件，核查结果供模拟研究。</p>

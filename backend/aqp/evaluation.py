@@ -61,6 +61,32 @@ def simulation_signals(inputs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     ]
 
 
+def six_signal_trial(inputs: list[dict[str, Any]], signals: dict[str, Any]) -> dict[str, Any]:
+    scores = {item["feature"]: item["normalized"] for item in inputs}
+    levels = []
+    for row, expected in zip(simulation_signals(inputs), (1, 2, 2, 0, 1, 0), strict=True):
+        values = [scores[item["feature"]] for item in row["items"]]
+        score = mean(values) if expected and len(values) == expected and all(value is not None for value in values) else None
+        levels.append({"name": row["name"], "score": score, "basis": "、".join(
+            item["feature"] for item in row["items"]
+        )})
+    milestones = {
+        row["label"]: row["observations"][-1]["mean"]
+        for row in signals.get("milestone_trends", []) if row["observations"]
+    }
+    levels[3].update(
+        score=mean(milestones.values()) / 100 if {"选题", "中期"} <= milestones.keys() else None,
+        basis="最新有实际日期的百分制选题和中期均分，作为创新突破的演示代理",
+    )
+    courses = signals.get("course_trend", {}).get("observations", [])
+    levels[5].update(
+        score=max(0.0, min(1.0, 0.5 + (courses[-1]["mean"] - courses[0]["mean"]) / 100)) if len(courses) >= 2 else None,
+        basis="首末学期课程均分差，50 分表示无变化，作为成长轨迹的演示代理",
+    )
+    values = [level["score"] for level in levels]
+    return {"levels": levels, "total": round(100 * mean(values), 2) if all(v is not None for v in values) else None}
+
+
 def course_rank_screening(
     db: Any, actor: int, student: Any, direction: str,
 ) -> dict[str, str]:
@@ -640,6 +666,19 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
             result = load_snapshot(db, actor["id"], ident)
             audit(db, actor["id"], "evaluation.cluster_demo", str(ident))
             return cluster_student_demo(result)
+
+    @app.get("/api/evaluation-snapshots/{ident}/six-signal-trial")
+    def signal_trial(ident: int, request: Request) -> dict[str, Any]:
+        from aqp.cultivation_models import student_signals
+
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            result = load_snapshot(db, actor["id"], ident)
+            if result["stale"] or not result["rule_currently_enabled"]:
+                raise HTTPException(409, "评分来源已变化或规则已停用，请重新生成快照")
+            current_signals = student_signals(db, actor["id"], result["student_id"])
+            audit(db, actor["id"], "evaluation.six_signal_trial", str(ident))
+            return six_signal_trial(result["inputs"], current_signals)
 
     @app.get("/api/evaluation-snapshots")
     def snapshot_listing(request: Request) -> dict[str, Any]:
