@@ -631,6 +631,16 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
             db.commit()
             return result
 
+    @app.get("/api/evaluation-snapshots/{ident}/cluster-demo")
+    def cluster_demo(ident: int, request: Request) -> dict[str, Any]:
+        from aqp.student_clustering_demo import cluster_student_demo
+
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            result = load_snapshot(db, actor["id"], ident)
+            audit(db, actor["id"], "evaluation.cluster_demo", str(ident))
+            return cluster_student_demo(result)
+
     @app.get("/api/evaluation-snapshots")
     def snapshot_listing(request: Request) -> dict[str, Any]:
         with connection(path) as db:

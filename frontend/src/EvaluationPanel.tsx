@@ -59,6 +59,45 @@ const features: Record<string, string> = {
   latest_citation_count: "最新引用总数",
 };
 
+type ClusterResult = {
+  model_version: string;
+  inputs: Record<string, number | null>;
+  cluster: { name: string; distance: number; center: Record<string, number> } | null;
+  validation: { training_count: number; holdout_count: number; matching_profiles: number };
+};
+
+function StudentClusterDemo({ id }: { id: number }) {
+  const [result, setResult] = useState<ClusterResult>();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  return <details className="task-details">
+    <summary>学生分群训练与推理演练</summary>
+    <p>使用合成评分向量训练 K-means，以三项归一化维度匹配最接近的组。</p>
+    <button type="button" disabled={busy} onClick={async () => {
+      setError("");
+      setResult(undefined);
+      setBusy(true);
+      try {
+        const response = await fetch(`/api/evaluation-snapshots/${id}/cluster-demo`);
+        if (!response.ok) throw Error("无法读取分群结果，请检查授权或刷新页面。");
+        setResult(await response.json());
+      } catch (err) {
+        setError(String(err));
+      } finally {
+        setBusy(false);
+      }
+    }}>运行模拟分群</button>
+    {error && <p role="alert">{error}</p>}
+    {result && <>
+      <p>{result.cluster ? `模拟分组：${result.cluster.name} · 距离 ${result.cluster.distance}` : "维度缺失、快照过时或规则停用，暂不分群。"}</p>
+      <p>训练 {result.validation.training_count} 条 · 留出 {result.validation.holdout_count} 条 · 与合成预设分组一致 {result.validation.matching_profiles} 条 · {result.model_version}</p>
+      <ul>{Object.entries(result.inputs).map(([name, value]) => (
+        <li key={name}>{name} · 学生 {value?.toFixed(3) ?? "待核查"}{result.cluster && ` · 组中心 ${result.cluster.center[name]}`}</li>
+      ))}</ul>
+    </>}
+  </details>;
+}
+
 function Radar({ inputs }: { inputs: { feature: string; normalized: number | null }[] }) {
   if (inputs.length < 3)
     return (
@@ -460,6 +499,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
             </section>
           )}
           <p>{snapshot.notice}</p>
+          <StudentClusterDemo key={snapshot.id} id={snapshot.id} />
           {snapshot.screening && <details className="task-details">
             <summary>前置条件核查</summary>
             <p>按当前登记数据核查。学分以完成培养要求总学分为通过条件，核查结果供模拟研究。</p>

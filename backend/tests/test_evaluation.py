@@ -2,6 +2,18 @@
 from test_accounts import client, login_admin  # noqa: F401
 
 
+def test_student_clusters_use_separate_holdout_and_respect_missing_scores():
+    from aqp.student_clustering_demo import DIMENSIONS, cluster_student_demo
+
+    inputs = [dict(name=name, normalized=value) for name, value in zip(DIMENSIONS, (0.88, 0.36, 0.41), strict=True)]
+    snapshot = {"ahp": {"dimensions": inputs}, "total": 58, "stale": False, "rule_currently_enabled": True}
+    result = cluster_student_demo(snapshot)
+    assert result["cluster"]["name"] == "学术基础较强"
+    assert result["validation"]["training_count"] == 240 and result["validation"]["holdout_count"] == 90
+    assert result["validation"]["matching_profiles"] <= 90
+    assert cluster_student_demo({**snapshot, "stale": True})["cluster"] is None
+    assert cluster_student_demo({**snapshot, "ahp": {}})["cluster"] is None
+
 def test_simulation_bands_and_peer_percentiles():
     from aqp.evaluation import simulation_band, simulation_percentiles
 
