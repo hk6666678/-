@@ -231,6 +231,11 @@ function App() {
             质量研究平台
           </h1>
           <p>查阅学生档案、培养过程和科研成果。</p>
+          <ul className="intro-points">
+            <li>统一档案 —— 多部门数据汇成一人一档，来源与版本可追溯</li>
+            <li>可解释分析 —— 通过率、控制图、模拟评分，逐项证据可下钻</li>
+            <li>分级授权 —— 查看、身份、导出、维护分立授权，操作全程留痕</li>
+          </ul>
         </section>
         <section className="login-form">
           <h2>登录工作平台</h2>
