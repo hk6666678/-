@@ -12,6 +12,11 @@ type TextComparison = {
   passage_counts: [number, number];
   matches: { left: { page: number; text: string }; right: { page: number; text: string }; similarity: number }[];
 };
+type Classification = {
+  model_version: string; label: string | null; score: number | null;
+  inputs: Record<string, number | null>;
+  validation: { training_count: number; holdout_count: number; correct: number; false_positive: number; false_negative: number };
+};
 const features: Record<string, string> = {
   page_count: "页数", character_count: "字数", section_count: "章节数", reference_count: "参考文献数",
 };
@@ -24,6 +29,7 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
   const [labelError, setLabelError] = useState("");
   const [result, setResult] = useState<Comparison>();
   const [textResult, setTextResult] = useState<TextComparison>();
+  const [classification, setClassification] = useState<Classification>();
   const [busy, setBusy] = useState(false);
 
   async function call(url: string, body?: unknown) {
@@ -61,6 +67,7 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
           setLabelError("");
           setResult(undefined);
           setTextResult(undefined);
+          setClassification(undefined);
           setError("");
         }}>
           <option value="">请选择论文</option>
@@ -91,6 +98,29 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
           <label>比较年度（留空全部）<input name="year" /></label>
         </details>
       </form>
+      {id && <details className="task-details" key={`classify-${id}`}>
+        <summary>优秀论文训练与推理演练</summary>
+        <p>本地逻辑回归使用合成标签训练。仅供流程演示。</p>
+        <button type="button" disabled={busy} onClick={async () => {
+          setBusy(true);
+          setError("");
+          setClassification(undefined);
+          try {
+            setClassification(await call(`/api/papers/${id}/classification-demo`));
+          } catch (err) {
+            setError(String(err));
+          } finally {
+            setBusy(false);
+          }
+        }}>运行模拟分类</button>
+        {classification && <>
+          <p>{classification.label ?? "输入缺失"}{classification.score == null ? "" : ` · 模型输出 ${classification.score.toFixed(3)}`} · {classification.model_version}</p>
+          <p>合成训练样本 {classification.validation.training_count} 条 · 合成留出样本 {classification.validation.holdout_count} 条 · 判对 {classification.validation.correct} 条 · 误判优秀 {classification.validation.false_positive} 条 · 漏判优秀 {classification.validation.false_negative} 条。</p>
+          <ul>{Object.entries(classification.inputs).map(([key, value]) => (
+            <li key={key}>{features[key] ?? key} · {value ?? "缺失"}</li>
+          ))}</ul>
+        </>}
+      </details>}
       {id && (
         <details className="task-details" key={`text-${id}`}>
           <summary>论文正文片段比对</summary>

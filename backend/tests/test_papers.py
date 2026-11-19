@@ -193,6 +193,24 @@ def test_text_comparison_returns_page_evidence_and_rechecks_both_versions(client
     assert client.get(url).status_code == 403
 
 
+def test_demo_classifier_uses_holdout_and_requires_analysis_access(client, tmp_path):
+    from aqp.paper_worker import run_once
+
+    headers = paper_setup(client)
+    ident = upload_paper(client, headers, text_pdf()).json()["id"]
+    assert run_once(tmp_path / "accounts.sqlite3")
+    url = f"/api/papers/{ident}/classification-demo"
+    assert client.get(url).status_code == 403
+    update_grants(client, headers, ["view", "analyze"])
+    response = client.get(url)
+    assert response.status_code == 200, response.text
+    demo = response.json()
+    assert demo["inputs"]["page_count"] == 1 and 0 <= demo["score"] <= 1
+    validation = demo["validation"]
+    assert validation["training_count"] == 240 and validation["holdout_count"] == 80
+    assert validation["correct"] + validation["false_positive"] + validation["false_negative"] == 80
+
+
 def test_independent_worker_cli_and_concurrent_claim(client, tmp_path):
     import os
     import subprocess

@@ -303,6 +303,19 @@ def register_papers(
                 },
             )
 
+    @app.get("/api/papers/{version_id}/classification-demo")
+    def classification_demo(version_id: int, request: Request) -> dict[str, Any]:
+        from aqp.paper_classification_demo import classify_demo
+
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            row = record(db, version_id)
+            access(db, actor["id"], row, ("view", "analyze"))
+            if row["status"] != "succeeded" or not row["result"]:
+                raise HTTPException(409, "论文需先完成本地解析")
+            audit(db, actor["id"], "paper.classification_demo", str(version_id))
+            return classify_demo(json.loads(row["result"]))
+
     @app.get("/api/papers/{version_id}/text-comparison")
     def compare_text(version_id: int, other_id: int, request: Request) -> dict[str, Any]:
         if version_id == other_id:
