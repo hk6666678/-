@@ -277,11 +277,11 @@ def main(extended: bool = False) -> None:
             **({
                 "盲审送审批次": f"{int(year) + 2}年模拟送审",
                 "盲审论文应交日期": f"{int(year) + 2}-04-10",
-                "盲审论文实际提交日期": f"{int(year) + 2}-04-09" if int(number[-2:]) % 4 else "",
-                "盲审论文提交状态": "已提交" if int(number[-2:]) % 4 else "未提交",
+                "盲审论文实际提交日期": f"{int(year) + 2}-04-09" if int(number[-2:]) % 12 else "",
+                "盲审论文提交状态": "已提交" if int(number[-2:]) % 12 else "未提交",
                 "预计毕业日期": f"{int(year) + 2}-06-30",
                 "实际毕业日期": f"{int(year) + 2}-{'07-15' if int(number[-2:]) % 3 == 0 else '06-25'}"
-                    if int(year) <= 2024 and int(number[-2:]) % 4 else "",
+                    if int(year) <= 2024 and int(number[-2:]) % 12 else "",
                 "毕业去向": ("工业界", "学术界", "创业")[int(number[-2:]) % 3],
             } if extended else {}),
         }
@@ -406,8 +406,13 @@ def main(extended: bool = False) -> None:
         )
         assert created.status_code == 200, created.text
         groups[number] = created.json()["id"]
-    roster = client.get("/api/students?limit=200").json()["items"]
+    roster = []
+    for offset in range(0, len(STUDENTS), 200):
+        page = client.get("/api/students", params={"limit": 200, "offset": offset})
+        assert page.status_code == 200, page.text
+        roster.extend(page.json()["items"])
     student_ids = {item["data"]["学号"]: item["id"] for item in roster}
+    assert set(by_number) <= student_ids.keys()
     for pnumber, mnumber, gnumber, start, end, reason in RELATIONS:
         body = {
             "student_id": student_ids[pnumber],
@@ -460,6 +465,28 @@ def main(extended: bool = False) -> None:
     with sqlite3.connect(f"file:{DB}?mode=ro", uri=True) as db:
         for table in ("students", "course_records", "milestone_records", "research_outputs", "mentor_directory"):
             print(table, db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
+        if extended:
+            for table in ("course_records", "milestone_records", "mentor_group_relations", "evaluation_snapshots"):
+                linked = db.execute(
+                    f"SELECT count(DISTINCT student_id) FROM {table}"
+                ).fetchone()[0]
+                assert linked == len(STUDENTS), (table, linked)
+            for table in ("research_outputs", "patents_outputs", "awards_outputs", "conferences_outputs"):
+                linked = db.execute(
+                    f"""SELECT count(DISTINCT s.id) FROM {table} o
+                        JOIN json_each(o.payload, '$.participants') p
+                        JOIN students s ON s.student_number=json_extract(p.value, '$.student_number')"""
+                ).fetchone()[0]
+                assert linked >= 200, (table, linked)
+            paired = db.execute(
+                """SELECT count(*) FROM (
+                   SELECT p.student_id FROM paper_versions p JOIN external_assessments a
+                   ON a.paper_version_id=p.id GROUP BY p.student_id
+                   HAVING count(DISTINCT a.category)=2)"""
+            ).fetchone()[0]
+            assert paired >= 200, paired
+            assert not db.execute("PRAGMA foreign_key_check").fetchall()
+            print(f"verified: {len(STUDENTS)} linked student histories, {paired} PDF/assessment pairs")
 
 
 def seed_evaluation_and_papers(client, headers, student_ids):
@@ -476,12 +503,12 @@ def seed_evaluation_and_papers(client, headers, student_ids):
         )
         assert response.status_code == 200, response.text
         total = response.json()["total"]
-        assert (total is None) == (int(number[-2:]) == 12), response.json()
+        assert (total is None) == (int(number[-2:]) % 12 == 0), response.json()
         totals += total is not None
     print(f"evaluation: {totals} complete, {len(student_ids) - totals} intentional gaps")
 
     for number, student_id in student_ids.items():
-        if int(number[-2:]) not in (1, 2, 3, 4):
+        if int(number[-2:]) % 12 == 0:
             continue
         writer = PdfWriter()
         page = writer.add_blank_page(595, 842)
@@ -518,7 +545,7 @@ def seed_evaluation_and_papers(client, headers, student_ids):
                 "/api/external-assessments", headers=headers,
                 json={"category": category, "paper_version_id": paper_version,
                       "batch": "模拟评分批次", "anonymous_code": f"{number}-{category}",
-                      "scores": {"quality": base + int(number[-2:]) * 3},
+                      "scores": {"quality": base + int(number[-2:]) * 7 % 17},
                       "comment": "模拟评语：方法清晰，有创新点，参考文献可补充。",
                       "source": "模拟演示数据（学位办）"},
             )
@@ -558,12 +585,12 @@ def prepare_extended_demo():
             directory_index = (scope_index - 1) * 2 + group - 1
             MENTORS.append((mentor, ("梁文博", "沈静怡", "许嘉明", "周雨薇")[directory_index], (college, major)))
             GROUPS.append((team, ("智能计算与感知", "数据科学与知识工程", "软件质量工程", "服务计算与系统")[directory_index], (college, major)))
-        for year in (2023, 2024, 2025):
-            for index in range(1, 13):
+        for year in range(2020, 2025):
+            for index in range(1, 25):
                 number = f"{year % 100}50{scope_index}{index:03}"
                 name_index = (scope_index - 1) * 12 + index - 1
-                name = surnames[name_index] + given_names[(name_index + (year - 2023) * 7) % 24]
-                group = 1 if index <= 6 else 2
+                name = surnames[name_index % 24] + given_names[(name_index + scope_index * 3 + (year - 2020) * 4) % 24]
+                group = 1 if index <= 12 else 2
                 STUDENTS.append((number, name, (college, major), str(year), schools[(index + year) % len(schools)],
                                  "统一考试", "学术型学位", "正常", "转导师" if index == 5 else "",
                                  f"{year + 1}-09-01" if index == 5 else ""))
@@ -577,7 +604,7 @@ def prepare_extended_demo():
                     key = f"rp-{number}-{paper + 1:02}"
                     PAPERS.append((key, f"{title}：{('方法设计', '实验分析', '应用评估')[paper]}", year + 1, people))
                     CITATIONS[key] = (10 if index <= 5 else 0) + paper * 4 + index
-                if index != 12:
+                if index % 12:
                     PATENTS.append((f"P-{number}", f"一种用于{title.removesuffix('研究')}的方法及系统", "发明", f"{year + 1}-08-01", people))
                 AWARDS.append((f"A-{number}", "研究生创新实践竞赛", "校级", year + 1, people))
                 CONFERENCES.append((f"C-{number}", "研究生学术论坛", "口头报告", f"{year + 1}-09-01", people))
