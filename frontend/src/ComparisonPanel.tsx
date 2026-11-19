@@ -8,6 +8,10 @@ type Comparison = {
   target_features: Record<string, number | null>;
   groups: Record<string, { sample_count: number; features: Record<string, { mean: number | null; denominator: number }> }>;
 };
+type TextComparison = {
+  passage_counts: [number, number];
+  matches: { left: { page: number; text: string }; right: { page: number; text: string }; similarity: number }[];
+};
 const features: Record<string, string> = {
   page_count: "页数", character_count: "字数", section_count: "章节数", reference_count: "参考文献数",
 };
@@ -19,6 +23,7 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
   const [error, setError] = useState("");
   const [labelError, setLabelError] = useState("");
   const [result, setResult] = useState<Comparison>();
+  const [textResult, setTextResult] = useState<TextComparison>();
   const [busy, setBusy] = useState(false);
 
   async function call(url: string, body?: unknown) {
@@ -55,6 +60,7 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
           setHistory(undefined);
           setLabelError("");
           setResult(undefined);
+          setTextResult(undefined);
           setError("");
         }}>
           <option value="">请选择论文</option>
@@ -85,6 +91,51 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
           <label>比较年度（留空全部）<input name="year" /></label>
         </details>
       </form>
+      {id && (
+        <details className="task-details" key={`text-${id}`}>
+          <summary>论文正文片段比对</summary>
+          <form onSubmit={async (event) => {
+            event.preventDefault();
+            const other = String(new FormData(event.currentTarget).get("other"));
+            setBusy(true);
+            setError("");
+            setTextResult(undefined);
+            try {
+              setTextResult(await call(`/api/papers/${id}/text-comparison?${new URLSearchParams({ other_id: other })}`));
+            } catch (err) {
+              setError(String(err));
+            } finally {
+              setBusy(false);
+            }
+          }}>
+            <label>对照论文
+              <select name="other" required disabled={busy} onChange={() => setTextResult(undefined)}>
+                <option value="">请选择另一论文版本</option>
+                {papers.filter((paper) => String(paper.id) !== id).map((paper) => (
+                  <option key={paper.id} value={paper.id}>{paper.title || "论文（身份已隐藏）"} · 版本 {paper.version} · #{paper.id}</option>
+                ))}
+              </select>
+            </label>
+            <button disabled={busy}>比对正文片段</button>
+          </form>
+          <p>按已解析文字的字面重合度匹配，参考文献标题之后的内容排除。每篇最多取 120 个片段，结果供人工查阅。</p>
+          {textResult && (
+            <>
+              <p>取样 {textResult.passage_counts[0]} / {textResult.passage_counts[1]} 个片段。</p>
+              {textResult.matches.length ? <table>
+                <thead><tr><th>当前论文</th><th>对照论文</th><th>字面相似度</th></tr></thead>
+                <tbody>{textResult.matches.map((match, index) => (
+                  <tr key={index}>
+                    <td>第 {match.left.page} 页 · {match.left.text}</td>
+                    <td>第 {match.right.page} 页 · {match.right.text}</td>
+                    <td>{(match.similarity * 100).toFixed(1)}%</td>
+                  </tr>
+                ))}</tbody>
+              </table> : <p>未找到达到 40% 字面相似度的片段。</p>}
+            </>
+          )}
+        </details>
+      )}
       {result && (
         <>
           <p>{result.stale ? "比较结果已过时，请重新生成。" : result.notice}</p>

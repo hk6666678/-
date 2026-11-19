@@ -175,6 +175,24 @@ def test_invalid_scope_does_not_publish_and_damaged_retry(client, tmp_path):
     assert client.get(f"/api/papers/{item['id']}/download").content == b"broken"
 
 
+def test_text_comparison_returns_page_evidence_and_rechecks_both_versions(client, tmp_path):
+    from aqp.paper_worker import run_once
+
+    headers = paper_setup(client)
+    first = upload_paper(client, headers, text_pdf()).json()["id"]
+    assert run_once(tmp_path / "accounts.sqlite3")
+    second = upload_paper(client, headers, text_pdf(), 1).json()["id"]
+    assert run_once(tmp_path / "accounts.sqlite3")
+    url = f"/api/papers/{first}/text-comparison?other_id={second}"
+    response = client.get(url)
+    assert response.status_code == 200, response.text
+    matches = response.json()["matches"]
+    assert any(row["left"]["page"] == 1 and row["right"]["page"] == 1 and row["similarity"] == 1 for row in matches)
+    assert not any("Synthetic source" in row["left"]["text"] for row in matches)
+    update_grants(client, headers, ["view", "identity"])
+    assert client.get(url).status_code == 403
+
+
 def test_independent_worker_cli_and_concurrent_claim(client, tmp_path):
     import os
     import subprocess

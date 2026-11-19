@@ -2,11 +2,13 @@
 
 import hashlib
 import json
+import re
 import sqlite3
 import time
 from collections.abc import Callable
+from itertools import pairwise
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 from urllib.parse import quote
 from uuid import uuid4
 
@@ -16,6 +18,21 @@ from fastapi.responses import Response
 from aqp.attachments import authorize_students, read_version_blob, storage_root
 from aqp.authorization import allowed
 from aqp.store import audit, connection
+
+
+def comparison_passages(result: dict[str, Any]) -> list[tuple[int, str, set[str]]]:
+    passages: list[tuple[int, str, set[str]]] = []
+    for page in result.get("pages", []):
+        for line in page["text"].splitlines():
+            if re.fullmatch(r"\s*(References|Bibliography|参考文献)\s*", line, re.IGNORECASE):
+                return passages
+            excerpt = line.strip()[:500]
+            normalized = "".join(c for c in excerpt.casefold() if c.isalnum())
+            if len(normalized) >= 12:
+                passages.append((page["page"], excerpt, {a + b for a, b in pairwise(normalized)}))
+                if len(passages) >= 120:
+                    return passages
+    return passages
 
 
 def register_papers(
@@ -285,4 +302,31 @@ def register_papers(
                     "Content-Security-Policy": "sandbox; default-src 'none'",
                 },
             )
+
+    @app.get("/api/papers/{version_id}/text-comparison")
+    def compare_text(version_id: int, other_id: int, request: Request) -> dict[str, Any]:
+        if version_id == other_id:
+            raise HTTPException(422, "请选择两个不同的论文版本")
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            versions = [record(db, ident) for ident in (version_id, other_id)]
+            for row in versions:
+                access(db, actor["id"], row, ("view", "identity", "download"))
+                read_version_blob(root, row)
+                if row["status"] != "succeeded" or not row["result"]:
+                    raise HTTPException(409, "两篇论文都需完成本地文字解析")
+            left, right = [comparison_passages(json.loads(row["result"])) for row in versions]
+            matches: list[dict[str, Any]] = []
+            for left_page, left_text, left_pairs in left:
+                for right_page, right_text, right_pairs in right:
+                    similarity = len(left_pairs & right_pairs) / len(left_pairs | right_pairs)
+                    if similarity >= 0.4:
+                        matches.append({
+                            "left": {"page": left_page, "text": left_text},
+                            "right": {"page": right_page, "text": right_text},
+                            "similarity": round(similarity, 3),
+                        })
+            matches.sort(key=lambda match: match["similarity"], reverse=True)
+            audit(db, actor["id"], "paper.text_compare", f"{version_id}/{other_id}")
+            return {"matches": matches[:10], "passage_counts": [len(left), len(right)]}
     return semantic_history_for
