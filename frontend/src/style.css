@@ -1,7 +1,13 @@
 :root {
-  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
-  color: #173535;
-  background: #f4f3ef;
+  --research-navy: #172c50;
+  --research-blue: #20579e;
+  --research-ink: #172943;
+  --research-ground: #edf2f8;
+  --research-rule: #d4deeb;
+  --research-paper: #fff;
+  font-family: "Microsoft YaHei UI", "Noto Sans SC", "Segoe UI", sans-serif;
+  color: var(--research-ink);
+  background: var(--research-ground);
   font-synthesis: none;
 }
 * {
@@ -116,25 +122,10 @@ p {
 .intro p {
   color: #b8d2cc;
 }
-.intro-foot {
-  margin-top: 110px;
-  font-size: 12px;
-  color: #b8d2cc;
-}
 .login-form {
   width: min(440px, 85%);
   margin: auto;
   padding: 60px 20px;
-}
-.logo {
-  display: block;
-  font-size: 29px;
-  font-weight: 800;
-  letter-spacing: 4px;
-  margin-bottom: 48px;
-}
-.logo span {
-  color: #278b78;
 }
 .login-form button {
   width: 100%;
@@ -778,11 +769,78 @@ summary { cursor: pointer; font-weight: 600; color: #20584d; }
 .agent-answer pre { white-space: pre-wrap; }
 details > p { margin-top: 14px; }
 .report-guidance { margin-bottom: 18px; }
+
+/* Shared visual hierarchy for the research workspace. */
+button, .agent-composer-actions button { background: var(--research-blue); }
+button:disabled { cursor: not-allowed; }
+a { color: #194e91; }
+input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+  border-color: var(--research-rule);
+  color: var(--research-ink);
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible,
+a:focus-visible, summary:focus-visible {
+  outline: 2px solid #3579c7;
+  outline-offset: 2px;
+}
+.workspace .workspace-sidebar { background: var(--research-navy); }
+.brand { display: flex; align-items: center; gap: 11px; line-height: 1.2; margin-bottom: 22px; }
+.brand img, .login-identity img { border-radius: 50%; object-fit: contain; background: white; }
+.brand small { color: #ccd9ed; margin-top: 5px; letter-spacing: 0; }
+.workspace nav { scrollbar-color: #8099be transparent; }
+.nav-group-label, .aside-foot { color: #bccde7; }
+.workspace nav button { color: #dfebfc; margin: 1px 0; padding-block: 8px; }
+.workspace .nav-group-label { padding-top: 12px; }
+.workspace nav button.active { border-left-color: #a6cbff; background: #365685; }
+.workspace nav button:not(.active):hover { background: #2b446c; }
+.workspace-header { padding-bottom: 18px; border-bottom: 1px solid var(--research-rule); }
+.workspace-header h1 { margin: 0; font-size: clamp(1.25rem, 2.4vw, 1.85rem); letter-spacing: .01em; }
+.workspace-header .user-menu > span { color: #405674; }
+.card { background: var(--research-paper); border-color: var(--research-rule); box-shadow: none; }
+.card h2 { letter-spacing: .01em; }
+.table-wrap { border-color: var(--research-rule); }
+th { background: #e8eff8; color: #304965; }
+tbody tr:hover { background: #f3f7fc; }
+.secondary, summary { color: #234c84; }
+.secondary { border-color: var(--research-rule); }
+.secondary:hover { background: #e8eff8; border-color: #a1b8d7; }
+.muted, .table-hint { color: #536579; }
+.login-shell { background: var(--research-paper); grid-template-columns: 1fr minmax(360px, .76fr); }
+.intro { background: var(--research-navy); min-height: 48vh; }
+.intro::after { display: none; }
+.login-identity { display: flex; align-items: center; gap: 14px; font-weight: 700; }
+.intro h1, .agent-home-intro h2 {
+  font-family: "Noto Serif SC", "STSong", "SimSun", serif;
+  font-weight: 700;
+}
+.intro h1 { line-height: 1.19; }
+.intro p { color: #d5e1f2; }
+.agent-home { width: min(100%, 760px); color: var(--research-ink); padding-top: clamp(30px, 8vh, 88px); }
+.agent-home-intro img { width: 88px; height: 82px; }
+.agent-home-intro h2 { font-size: clamp(1.6rem, 3vw, 2.4rem); }
+.agent-home-intro p, .agent-composer-actions { color: #4c617a; }
+.agent-composer { border-color: #b9cbe2; box-shadow: 0 8px 22px #172c500b; }
+.agent-composer textarea { margin-top: 0; }
+.agent-suggestions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.agent-suggestions button { text-align: left; }
+.agent-question { background: #dce9fb; }
+.agent-answer { background: #fff; border-left-color: #94b4dd; }
 @media (max-width: 550px) {
+  .brand { margin-bottom: 8px; }
+  .agent-home { padding-top: 28px; }
+  .agent-home-intro { margin-bottom: 18px; }
+  .agent-home-intro img { height: 64px; }
+  .agent-home-intro h2 { font-size: clamp(1.35rem, 5.4vw, 1.7rem); }
+  .workspace nav button { min-height: 40px; }
   .mobile-nav-toggle { display: block; text-align: left; padding: 10px 0; background: transparent; color: white; }
   .workspace nav { display: none; }
   .workspace nav.is-open { display: block; overflow-y: auto; max-height: 45dvh; }
   .workspace nav .nav-group { display: block; }
   .workspace nav button { width: 100%; }
   .workspace nav .nav-group-label { display: block; }
+}
+@media (max-width: 850px) {
+  .login-shell { grid-template-columns: 1fr; }
+  .intro { min-height: 0; }
+  .intro h1 { margin: 24px 0 12px; }
 }

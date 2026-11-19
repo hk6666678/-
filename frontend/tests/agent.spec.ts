@@ -23,6 +23,8 @@ test("enabled agent shows separate questions and source links", async ({ page })
     answer: "当前授权范围的合成研究结果", evidence_links: [{ label: "来源", url: "/api/analyses/1" }], tool_result: {},
   }}));
   await page.getByRole("button", { name: "登录平台" }).click();
+  await page.getByRole("button", { name: "目前系统多少学生？", exact: true }).click();
+  await expect(page.getByLabel("问题", { exact: true })).toHaveValue("目前系统多少学生？");
   for (const question of ["看看课程通过情况", "再查科研成果"]) {
     await page.getByLabel("问题").fill(question);
     await page.getByRole("button", { name: "发送问题" }).click();

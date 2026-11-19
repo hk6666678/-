@@ -17,6 +17,7 @@ export function AgentPanel({ csrf }: { csrf: string }) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [pending, setPending] = useState("");
   const latest = useRef<HTMLDivElement>(null);
+  const questionField = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -96,13 +97,23 @@ export function AgentPanel({ csrf }: { csrf: string }) {
         event.preventDefault();
         void ask();
       }}>
-        <textarea aria-label="问题" placeholder="输入你想查询的问题" rows={3} maxLength={2000}
+        <textarea ref={questionField} aria-label="问题" placeholder="输入你想查询的问题" rows={3} maxLength={2000}
           value={question} onChange={(event) => setQuestion(event.target.value)} />
         <div className="agent-composer-actions">
           <span>只读查询 · 每条问题独立计算</span>
           <button disabled={!status?.available || !!pending || question.trim().length < 2}>发送问题</button>
         </div>
       </form>
+      {!turns.length && !pending && status?.available && (
+        <div className="agent-suggestions" aria-label="示例提问">
+          {["目前系统多少学生？", "学号 23501006 的学生有哪些培养预警？", "查询规则编号 1 的 2027 年五年滚动基准分位"].map((example) => (
+            <button className="secondary" key={example} type="button" onClick={() => {
+              setQuestion(example);
+              questionField.current?.focus();
+            }}>{example}</button>
+          ))}
+        </div>
+      )}
       {!status?.available && <div className="agent-connection" role="status">
         <span>{status?.message ?? "正在检查 Agent 连接…"}</span>
       </div>}

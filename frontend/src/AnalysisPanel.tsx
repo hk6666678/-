@@ -79,7 +79,7 @@ export function AnalysisPanel({ csrf }: { csrf: string }) {
 
   return (
     <section className="card">
-      <h2>培养过程分析</h2>
+      <h2>按学生查看</h2>
       <CultivationOverview csrf={csrf} showSnapshot={setSnapshot} />
       <details className="task-details" onToggle={(event) => {
         setShowAlertSummary(event.currentTarget.open);

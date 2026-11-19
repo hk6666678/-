@@ -175,7 +175,7 @@ test("three-level reports with charts drilldown and authorized export", async ({
     page.getByText(`统计日期 ${new Date().toISOString().slice(0, 10)} · 当前授权范围内学生1人`),
   ).toBeVisible();
   await expect(page.getByText("成果去重1项，参与学生1人").first()).toBeVisible();
-  await expect(page.getByText(/毕业：缺少已确认的毕业口径/)).toBeVisible();
+  await expect(page.getByText(/毕业：没有可核查且已到预计毕业日期的授权记录/)).toBeVisible();
   const groupDownload = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "导出课题组报告（需独立导出授权）" })

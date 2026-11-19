@@ -220,23 +220,18 @@ function App() {
     return (
       <main className="login-shell">
         <section className="intro">
-          <span className="eyebrow">AQP-PGS / 学院试用版</span>
+          <div className="login-identity">
+            <img src="/tongji-emblem.png" width="56" height="56" alt="同济大学校标" />
+            <span>AQP-PGS</span>
+          </div>
           <h1>
-            让培养过程
+            研究生培养
             <br />
-            有迹可循。
+            质量研究平台
           </h1>
-          <p>
-            数智赋能研究生培养质量研究
-            <br />
-            统一档案 · 数据追溯 · 可解释分析
-          </p>
-          <div className="intro-foot">从可信的数据开始，理解每一段成长。</div>
+          <p>查阅学生档案、培养过程和科研成果。</p>
         </section>
         <section className="login-form">
-          <span className="logo">
-            A<span>Q</span>P
-          </span>
           <h2>登录工作平台</h2>
           <p className="muted">使用管理员为您创建的个人账号</p>
           {alert}
@@ -264,7 +259,7 @@ function App() {
                 maxLength={128}
               />
             </label>
-            <button disabled={busy}>{busy ? "正在登录…" : "登录平台 →"}</button>
+            <button disabled={busy}>{busy ? "正在登录…" : "登录平台"}</button>
           </form>
           <p className="muted small">
             首次使用请由本机维护人员初始化管理员账号。
@@ -275,9 +270,10 @@ function App() {
   const admin = session.user.roles.includes("platform_admin");
   return (
     <div className="workspace">
-      <aside>
+      <aside className="workspace-sidebar">
         <div className="brand">
-          AQP-PGS<small>研究生培养质量研究</small>
+          <img src="/tongji-emblem.png" width="36" height="36" alt="" />
+          <div>AQP-PGS<small>研究生培养质量研究</small></div>
         </div>
         <button className="mobile-nav-toggle" aria-expanded={navOpen} aria-controls="workspace-navigation" onClick={() => setNavOpen(!navOpen)}>{navLabel} · {navOpen ? "收起导航" : "展开导航"}</button>
         <nav id="workspace-navigation" className={navOpen ? "is-open" : ""} aria-label="主导航">
@@ -335,15 +331,12 @@ function App() {
           ))}
         </nav>
         <div className="aside-foot">
-          学院试用版 · 0.1
-          <br />
-          数据驱动，依据可查
+          学院试用版
         </div>
       </aside>
       <main className="content" ref={contentRef}>
-        <header>
+        <header className="workspace-header">
           <div>
-            <span className="eyebrow">研究生培养质量研究 / 工作平台</span>
             <h1>
               {
                 {
