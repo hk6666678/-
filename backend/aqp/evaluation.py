@@ -38,6 +38,29 @@ def simulation_percentiles(scores: list[float]) -> dict[str, float] | None:
     return {f"p{p}": round(cutoffs[p - 1], 2) for p in (50, 75, 90)}
 
 
+def rolling_summary(benchmark_year: int, points: list[tuple[int, float]]) -> dict[str, Any]:
+    counts: dict[int, int] = {}
+    for year, _ in points:
+        counts[year] = counts.get(year, 0) + 1
+    return {"count": len(points), "start_year": benchmark_year - 5, "end_year": benchmark_year - 1,
+            "covered_years": sorted(counts), "annual_counts": counts,
+            "percentiles": simulation_percentiles([score for _, score in points])}
+
+
+def synthetic_rolling_benchmark(benchmark_year: int) -> dict[str, Any]:
+    """Fixed fictitious snapshots. A cohort can be scored again the next year."""
+    latest: dict[tuple[int, int], tuple[int, float | None]] = {}
+    for year in range(max(2020, benchmark_year - 5), min(2027, benchmark_year)):
+        for cohort in (year - 1, year):
+            for index in range(24):
+                score = None if index == 23 else float(55 + (index * 11 + year * 3 + cohort) % 44)
+                latest[cohort, index] = (year, score)
+    result = rolling_summary(benchmark_year, [(year, score) for year, score in latest.values() if score is not None])
+    return {**result, "scenario": "synthetic-history-v1", "excluded_incomplete": sum(
+        score is None for _, score in latest.values()
+    )}
+
+
 def simulation_signals(inputs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     available = {item["feature"]: item for item in inputs}
     definitions = (
@@ -611,8 +634,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
             return dashboard_data(db, actor["id"])
 
     def rolling_data(db: Any, actor: int, rule_id: int, benchmark_year: int) -> dict[str, Any]:
-        years: set[int] = set()
-        scores = []
+        points = []
         for row in db.execute(
             """WITH ranked AS (
                 SELECT e.id, CAST(strftime('%Y',e.created_at,'unixepoch','+8 hours') AS INTEGER) AS year,
@@ -630,18 +652,20 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                     continue
                 raise
             if result["mode"] == "simulation" and not result["stale"] and result["rule_currently_enabled"] and result["total"] is not None:
-                scores.append(result["total"])
-                years.add(row["year"])
+                points.append((row["year"], result["total"]))
         audit(db, actor, "evaluation.rolling_benchmark", f"{rule_id}/{benchmark_year}")
-        return {"count": len(scores), "start_year": benchmark_year - 5, "end_year": benchmark_year - 1,
-                "covered_years": sorted(years), "percentiles": simulation_percentiles(scores)}
+        return rolling_summary(benchmark_year, points)
 
     @app.get("/api/evaluation-snapshots/rolling-benchmark")
     def rolling_benchmark(
         request: Request, rule_id: int, benchmark_year: int = Query(ge=1905, le=2100),
+        synthetic_history: bool = False,
     ) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
+            if synthetic_history:
+                audit(db, actor["id"], "evaluation.rolling_benchmark", "synthetic-history-v1")
+                return synthetic_rolling_benchmark(benchmark_year)
             return rolling_data(db, actor["id"], rule_id, benchmark_year)
 
     def screening(db: Any, actor: int, student_id: int) -> list[dict[str, str]]:

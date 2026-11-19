@@ -2,6 +2,19 @@
 from test_accounts import client, login_admin  # noqa: F401
 
 
+def test_synthetic_rolling_benchmark_changes_window_without_writing_records(client):
+    login_admin(client)
+    before = client.get("/api/evaluation-snapshots").json()
+    windows = [client.get("/api/evaluation-snapshots/rolling-benchmark", params={
+        "rule_id": 1, "benchmark_year": year, "synthetic_history": True,
+    }).json() for year in (2026, 2027)]
+    assert windows[0]["covered_years"] == [2021, 2022, 2023, 2024, 2025]
+    assert windows[1]["covered_years"] == [2022, 2023, 2024, 2025, 2026]
+    assert windows[1]["count"] == 138 and windows[1]["excluded_incomplete"] == 6
+    assert sum(windows[1]["annual_counts"].values()) == 138
+    assert windows[1]["percentiles"]["p50"] is not None
+    assert client.get("/api/evaluation-snapshots").json() == before
+
 def test_six_signal_trial_uses_milestones_and_withholds_incomplete_total():
     from aqp.evaluation import (
         SOURCE_CATEGORY,

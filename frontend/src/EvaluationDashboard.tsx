@@ -13,7 +13,10 @@ type Row = {
   band?: string | null;
 };
 type Benchmark = { count: number; percentiles: { p50: number; p75: number; p90: number } | null };
-type RollingBenchmark = Benchmark & { start_year: number; end_year: number; covered_years: number[] };
+type RollingBenchmark = Benchmark & {
+  start_year: number; end_year: number; covered_years: number[];
+  annual_counts: Record<number, number>; scenario?: string; excluded_incomplete?: number;
+};
 
 export function EvaluationDashboard({ refresh, openSnapshot }: {
   refresh: number;
@@ -75,6 +78,7 @@ export function EvaluationDashboard({ refresh, openSnapshot }: {
               setRollingBusy(true);
               try {
                 const params = new URLSearchParams({ rule_id: String(selected), benchmark_year: String(data.get("benchmark_year")) });
+                if (data.has("synthetic_history")) params.set("synthetic_history", "true");
                 const response = await fetch(`/api/evaluation-snapshots/rolling-benchmark?${params}`);
                 if (!response.ok) throw new Error();
                 setRolling({ rule: selected, result: await response.json() });
@@ -85,16 +89,22 @@ export function EvaluationDashboard({ refresh, openSnapshot }: {
               }
             }}>
               <label>基准年份<input name="benchmark_year" type="number" min={1905} max={2100} defaultValue={new Date().getFullYear()} required /></label>
+              <label><input name="synthetic_history" type="checkbox" />使用多年度合成场景</label>
               <button disabled={rollingBusy}>计算往前五年</button>
             </form>
             <p>按同一规则版本，每名学生取窗口内最后一份快照。过时或缺分的快照不计入。</p>
             {rollingError && <p role="alert">五年滚动基准加载失败。</p>}
-            {rolling?.rule === selected && <p>
+            {rolling?.rule === selected && <>
+              {rolling.result.scenario && <p>合成历史演示，排除缺分样本 {rolling.result.excluded_incomplete} 人。</p>}
+              <p>
               {rolling.result.start_year}–{rolling.result.end_year} 年 · 有效样本 {rolling.result.count} 人 · 有数据年份 {rolling.result.covered_years.join("、") || "无"}
               {rolling.result.percentiles
                 ? ` · P50 ${rolling.result.percentiles.p50} · P75 ${rolling.result.percentiles.p75} · P90 ${rolling.result.percentiles.p90}`
                 : " · 不足 5 人，暂不计算分位"}
-            </p>}
+              </p>
+              {rolling.result.covered_years.length > 0 && <p>按快照年份计入人数 · {rolling.result.covered_years.map((year) =>
+                `${year} 年 ${rolling.result.annual_counts[year]} 人`).join(" · ")}</p>}
+            </>}
           </details>}
           <div className="table-wrap">
             <table>
