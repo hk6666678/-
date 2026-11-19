@@ -22,6 +22,12 @@ def test_research_template_available_to_authenticated_user(client):  # noqa: F81
 
     ws = load_workbook(BytesIO(response.content)).active
     assert next(iter(ws.values))[:3] == ("AQP-PGS", "research_papers", "1")
+    assert list(ws.values)[1][9:] == (
+        "评价体系", "评价年度", "期刊分区", "影响因子"
+    )
+    patent_template = client.get("/api/patents/template")
+    patent_sheet = load_workbook(BytesIO(patent_template.content)).active
+    assert list(patent_sheet.values)[1][10:] == ("转化状态", "转化日期")
 
 
 def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F811
@@ -121,6 +127,10 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
         == 422
     )
     wb.active["I3"] = 2025
+    wb.active["J3"] = "合成期刊评价体系"
+    wb.active["K3"] = 2024
+    wb.active["L3"] = "Q2"
+    wb.active["M3"] = 0
     wb.active["B3"] = "合成科研论文更正"
     stream = BytesIO()
     wb.save(stream)
@@ -138,6 +148,17 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
     result = client.get("/api/research-outputs").json()
     assert result["distinct_outputs"] == 1
     assert result["items"][0]["version"] == 2
+    assert result["items"][0]["details"] == {
+        "发表年份": "2025",
+        "评价体系": "合成期刊评价体系",
+        "评价年度": "2024",
+        "期刊分区": "Q2",
+        "影响因子": "0",
+    }
+    wb.active.delete_cols(10, 4)
+    stream = BytesIO()
+    wb.save(stream)
+    assert preview()["items"][0]["status"] == "duplicate"
     assert client.get("/api/research-outputs/statistics").json()["years"] == [
         {"year": "2025", "distinct_outputs": 1, "personal_participations": 1}
     ]

@@ -4,6 +4,8 @@ import json
 import re
 import sqlite3
 from collections.abc import Callable
+from datetime import date
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Annotated, Any
 from zipfile import BadZipFile
@@ -58,6 +60,10 @@ def register_research_outputs(
         "awards": ("业务编号", "获奖项目名称", ("获奖等级", "获奖年份")),
         "conferences": ("业务编号", "会议名称", ("报告类型", "会议日期")),
     }[category]
+    optional_labels = {
+        "research_papers": ("评价体系", "评价年度", "期刊分区", "影响因子"),
+        "patents": ("转化状态", "转化日期"),
+    }.get(category, ())
     tables = "research" if category == "research_papers" else category
     year_field = {
         "research_papers": "发表年份",
@@ -295,6 +301,7 @@ def register_research_outputs(
                 "所属学院",
                 "专业",
                 *extra_labels,
+                *optional_labels,
             ]
         )
         stream = BytesIO()
@@ -663,11 +670,11 @@ def register_research_outputs(
                 "专业",
                 *extra_labels,
             )
-            if imported_header != expected_header and not (
+            if imported_header not in (expected_header, expected_header + optional_labels) and not (
                 category == "research_papers" and imported_header == expected_header[:8]
             ):
                 raise ValueError()
-            imported_labels = extra_labels if len(imported_header) > 8 else ()
+            imported_labels = imported_header[8:]
             grouped: dict[str, Any] = {}
             for row in rows:
                 if all(value is None for value in row):
@@ -684,13 +691,11 @@ def register_research_outputs(
                 details = dict(
                     zip(
                         imported_labels,
-                        (str(value or "").strip() for value in row[8:]),
+                        (str(value if value is not None else "").strip() for value in row[8:]),
                         strict=True,
                     )
                 )
                 if category in ("patents", "conferences"):
-                    from datetime import date
-
                     date_value = details[extra_labels[1]]
                     if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", date_value) is None:
                         raise ValueError()
@@ -707,14 +712,31 @@ def register_research_outputs(
                         or not 1900 <= int(year) <= 2100
                     ):
                         raise ValueError()
-                    if not year:
-                        details = {}
+                    evaluation_year = details.get("评价年度", "")
+                    if evaluation_year and (
+                        re.fullmatch(r"[0-9]{4}", evaluation_year) is None
+                        or not 1900 <= int(evaluation_year) <= 2100
+                    ):
+                        raise ValueError()
+                    if (details.get("期刊分区") or details.get("影响因子")) and (
+                        not details.get("评价体系") or not evaluation_year
+                    ):
+                        raise ValueError()
+                    if impact := details.get("影响因子"):
+                        factor = Decimal(impact)
+                        if not factor.is_finite() or factor < 0:
+                            raise ValueError()
+                if category == "patents" and (conversion_date := details.get("转化日期")):
+                    if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", conversion_date) is None:
+                        raise ValueError()
+                    date.fromisoformat(conversion_date)
                 if (
                     category != "research_papers"
                     and extra_labels
-                    and not all(details.values())
+                    and not all(details.get(label) for label in extra_labels)
                 ):
                     raise ValueError()
+                details = {label: value for label, value in details.items() if value}
                 if (
                     not all([key, title, number, name, role, college, major])
                     or int(order) < 1
@@ -746,7 +768,7 @@ def register_research_outputs(
                 )
                 if len(grouped) > 5000:
                     raise ValueError()
-        except (ValueError, TypeError, StopIteration, BadZipFile, KeyError):
+        except (ValueError, TypeError, StopIteration, BadZipFile, KeyError, InvalidOperation):
             raise HTTPException(422, "模板版本、字段或参与者次序无效") from None
         with connection(path) as db:
             actor, _ = current(db, request)
@@ -758,11 +780,20 @@ def register_research_outputs(
                     f"SELECT * FROM {tables}_outputs WHERE business_key=?", (key,)
                 ).fetchone()
                 if old:
+                    previous_payload = json.loads(old["payload"])
                     maintain(
-                        db, actor["id"], json.loads(old["payload"]), historical=True
+                        db, actor["id"], previous_payload, historical=True
                     )
                     if not old["active"]:
                         raise HTTPException(409, "业务编号已有作废历史，不可重新导入")
+                    if optional_labels and len(imported_header) <= len(expected_header):
+                        preserved = {
+                            label: value
+                            for label, value in previous_payload.get("details", {}).items()
+                            if label in optional_labels
+                        }
+                        if preserved:
+                            payload["details"] = {**payload.get("details", {}), **preserved}
                 items.append(
                     {
                         "business_key": key,
