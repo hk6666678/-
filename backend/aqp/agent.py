@@ -438,7 +438,7 @@ def student_course_pass_ratio(
     ):
         payload = json.loads(record["payload"])
         if (
-            payload.get("学院") != student["college"]
+            payload.get("所属学院", payload.get("学院")) != student["college"]
             or payload.get("专业") != student["major"]
         ):
             return None

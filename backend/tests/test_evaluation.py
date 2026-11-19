@@ -765,7 +765,7 @@ def test_course_and_citation_versions_and_mentor_binding(client, tmp_path):
                 (ident, ident),
             )
             payload = {
-                "学院": "synthetic",
+                "所属学院": "synthetic",
                 "专业": "synthetic",
                 "评分制度": "百分制",
                 "业务通过结果": status,

@@ -134,7 +134,7 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any], snap
         ):
             payload = json.loads(row["payload"])
             if (
-                payload.get("学院") != student["college"]
+                payload.get("所属学院", payload.get("学院")) != student["college"]
                 or payload.get("专业") != student["major"]
             ):
                 return unauthorized()
@@ -185,7 +185,7 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any], snap
                     continue
                 payload = json.loads(row["payload"])
                 if (
-                    payload.get("学院") != student["college"]
+                    payload.get("所属学院", payload.get("学院")) != student["college"]
                     or payload.get("专业") != student["major"]
                 ):
                     hidden = True
@@ -370,7 +370,7 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any], snap
                 ):
                     payload = json.loads(row["payload"])
                     if (
-                        payload.get("学院") != college
+                        payload.get("所属学院", payload.get("学院")) != college
                         or payload.get("专业") != major
                     ):
                         stopped = True

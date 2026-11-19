@@ -230,7 +230,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                 ):
                     payload = json.loads(row["payload"])
                     if (
-                        payload.get("学院") != student["college"]
+                        payload.get("所属学院", payload.get("学院")) != student["college"]
                         or payload.get("专业") != student["major"]
                     ):
                         deny(db, actor, str(row["id"]), "课程来源范围已变化")
