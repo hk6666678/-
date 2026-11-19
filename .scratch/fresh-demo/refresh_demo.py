@@ -402,6 +402,14 @@ def main(extended: bool = False) -> None:
         )
         assert created.status_code == 200, created.text
         mentors[number] = created.json()["id"]
+        if extended:
+            profile = client.post(
+                f"/api/mentor-groups/directory/mentors/{mentors[number]}/profile",
+                json={"direction": "智能计算" if college == CS[0] else "软件质量工程",
+                      "title": "副教授", "effective_on": "2020-01-01"},
+                headers=headers,
+            )
+            assert profile.status_code == 200, profile.text
     groups = {}
     for number, name, (college, major) in GROUPS:
         created = client.post(

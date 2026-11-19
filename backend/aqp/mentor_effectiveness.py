@@ -10,7 +10,7 @@ from typing import Any
 
 from fastapi import HTTPException
 
-from aqp.mentor_groups import relation_allowed
+from aqp.mentor_groups import group_facts, relation_allowed
 from aqp.research_outputs import current_participant
 
 
@@ -154,4 +154,46 @@ def effectiveness(
             benchmark[metric]["rank"] = 1 + sum(
                 peer < value if metric == "stability" else peer > value for peer in peers
             )
-    return {**result, "benchmark": benchmark}
+    response = {**result, "benchmark": benchmark}
+    if key == "mentor_id":
+        profiles = {
+            unit_id: db.execute(
+                """SELECT direction,title,effective_on FROM mentor_profiles
+                   WHERE mentor_id=? AND effective_on<=? ORDER BY effective_on DESC LIMIT 1""",
+                (unit_id, as_of.isoformat()),
+            ).fetchone()
+            for unit_id in current_students
+        }
+        selected_profile = profiles[selected]
+        if selected_profile is None:
+            response["matched_benchmark"] = {"reason": "查询日缺少有效研究方向和职称"}
+            return response
+        matched = [
+            unit_id for unit_id, profile in profiles.items()
+            if profile is not None and (profile["direction"], profile["title"])
+            == (selected_profile["direction"], selected_profile["title"])
+        ]
+        figures = {}
+        for unit_id in matched:
+            facts = group_facts(db, actor, as_of.isoformat(), mentor_id=unit_id)
+            categories = [item["participations_per_student"] for item in facts["categories"].values()]
+            graduation, delay = facts["graduation"], facts["delay"]
+            due = graduation["due"]
+            verified = delay["late"] + delay["on_time"]
+            figures[unit_id] = {
+                "outputs": sum(categories) if all(item is not None for item in categories) else None,
+                "graduation": 100 * graduation["completed"] / due if due else None,
+                "delay": 100 * delay["late"] / verified if verified else None,
+                "due": due,
+                "verified": verified,
+            }
+        current = figures[selected]
+        matched_metrics = {}
+        for metric in ("outputs", "graduation", "delay"):
+            values = [row[metric] for unit_id, row in figures.items() if unit_id != selected and row[metric] is not None]
+            matched_metrics[metric] = {"count": len(values), "mean": mean(values) if values else None}
+        response["matched_benchmark"] = {
+            "profile": dict(selected_profile), "peer_count": len(matched) - 1,
+            "current": current, "peers": matched_metrics,
+        }
+    return response

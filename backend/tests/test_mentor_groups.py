@@ -179,6 +179,20 @@ def test_relation_dates_history_conflicts_and_current_revocation(client, tmp_pat
     assert effectiveness["stability"] is None
     assert effectiveness["acceleration"] is None
     assert effectiveness["benchmark"]["rate"] == {"count": 0, "mean": None}
+    profile_url = f"/api/mentor-groups/directory/mentors/{directories[0]}/profile"
+    profile = {"title": "副教授", "direction": "合成计算", "effective_on": "2025-12-01"}
+    assert client.post(profile_url, headers=headers, json=profile).status_code == 200
+    assert client.post(profile_url, headers=headers, json={**profile, "title": "教授"}).status_code == 409
+    before = client.get("/api/mentor-groups/facts", params={
+        "as_of": "2025-11-01", "mentor_id": directories[0],
+    }).json()["effectiveness"]["matched_benchmark"]
+    assert "reason" in before
+    matched = client.get("/api/mentor-groups/facts", params={
+        "as_of": "2026-01-01", "mentor_id": directories[0],
+    }).json()["effectiveness"]["matched_benchmark"]
+    assert matched["profile"] == profile
+    assert matched["peer_count"] == 0
+    assert matched["current"]["delay"] == 100
     from io import BytesIO
 
     from openpyxl import load_workbook

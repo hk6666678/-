@@ -32,6 +32,12 @@ class DirectoryUpdate(DirectoryEntry):
     reason: str = Field(min_length=1, max_length=500, pattern=r".*\S.*")
 
 
+class MentorProfile(BaseModel):
+    effective_on: date
+    direction: str = Field(min_length=1, max_length=100, pattern=r"^\S.*$")
+    title: str = Field(min_length=1, max_length=100, pattern=r"^\S.*$")
+
+
 class RelationInput(BaseModel):
     student_id: int = Field(ge=1)
     mentor_id: int = Field(ge=1)
@@ -333,6 +339,27 @@ def register_mentor_groups(
                 f"{kind}:{cursor.lastrowid}",
             )
             return {"id": cursor.lastrowid, "version": 1}
+
+    @app.post("/api/mentor-groups/directory/mentors/{entry_id}/profile")
+    def save_profile(entry_id: int, body: MentorProfile, request: Request) -> dict[str, str]:
+        with connection(path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            actor, _ = current(db, request)
+            row = db.execute("SELECT college,major FROM mentor_directory WHERE id=?", (entry_id,)).fetchone()
+            if row is None or not allowed(db, actor["id"], "mentor_groups", "maintain", row["college"], row["major"]):
+                raise HTTPException(403, "当前无法维护导师资料")
+            effective = body.effective_on.isoformat()
+            old = db.execute(
+                "SELECT direction,title FROM mentor_profiles WHERE mentor_id=? AND effective_on=?",
+                (entry_id, effective),
+            ).fetchone()
+            data = (body.direction.strip(), body.title.strip())
+            if old is not None and tuple(old) != data:
+                raise HTTPException(409, "该生效日已有资料，请使用新的生效日期")
+            if old is None:
+                db.execute("INSERT INTO mentor_profiles VALUES(?,?,?,?)", (entry_id, effective, *data))
+                audit(db, actor["id"], "mentor_groups.profile", f"{entry_id}/{effective}")
+            return {"effective_on": effective}
 
     def save_relation(
         db: sqlite3.Connection,

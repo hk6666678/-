@@ -50,6 +50,13 @@ type Facts = {
     cohorts: number;
     annual_counts: Record<string, number>;
     benchmark: Record<string, { mean: number | null; count: number; rank?: number }>;
+    matched_benchmark?: {
+      reason?: string;
+      profile?: { direction: string; title: string; effective_on: string };
+      peer_count?: number;
+      current?: { outputs: number | null; graduation: number | null; delay: number | null; due: number; verified: number };
+      peers?: Record<string, { count: number; mean: number | null }>;
+    };
   };
 };
 const labels: Record<string, string> = {
@@ -377,6 +384,30 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
         刷新当前授权范围
       </button>
       <h3>查看指导情况</h3>
+      <details className="task-details">
+        <summary>登记导师对标资料</summary>
+        <form onSubmit={(event) => {
+          event.preventDefault();
+          const form = event.currentTarget;
+          const data = new FormData(form);
+          void act(async () => {
+            await api(`directory/mentors/${data.get("mentor")}/profile`, "POST", {
+              direction: data.get("direction"), title: data.get("title"), effective_on: data.get("effective_on"),
+            });
+            setFacts(null);
+            setNotice("导师对标资料已保存，请重新查询关系事实。");
+          });
+        }}>
+          <label>导师<select name="mentor" required>
+            <option value="">请选择导师</option>
+            {mentors.map((mentor) => <option key={mentor.id} value={mentor.id}>{mentor.name ?? `导师 ${mentor.id}`}</option>)}
+          </select></label>
+          <label>研究方向<input name="direction" required maxLength={100} /></label>
+          <label>职称<input name="title" required maxLength={100} /></label>
+          <label>生效日期<input name="effective_on" type="date" required /></label>
+          <button disabled={busy}>保存对标资料</button>
+        </form>
+      </details>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -438,6 +469,28 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
             </>
           ) : <p>请选择一名导师或一个课题组，并确认所选日期有授权可见的有效指导关系。</p>}
           <p>影响力转化缺少毕业后跟踪数据。</p>
+          {facts.effectiveness?.matched_benchmark && (() => {
+            const match = facts.effectiveness.matched_benchmark;
+            if (!match.profile || !match.current) return <p>同方向同职称对标 · {match.reason}。</p>;
+            const format = (value: number | null | undefined, percent: boolean) =>
+              value == null ? "数据不足" : `${value.toFixed(2)}${percent ? "%" : ""}`;
+            return <details className="task-details">
+              <summary>同方向同职称对标</summary>
+              <p>{match.profile.direction} · {match.profile.title} · 同学院可比导师 {match.peer_count} 人。</p>
+              <p>本导师预计毕业已到期 {match.current.due} 人，其中 {match.current.verified} 人有可核对毕业日期。</p>
+              <table>
+                <thead><tr><th>指标</th><th>当前导师</th><th>同组导师均值</th><th>有数据的同组导师</th></tr></thead>
+                <tbody>{(["outputs", "graduation", "delay"] as const).map((metric) => (
+                  <tr key={metric}>
+                    <th scope="row">{{ outputs: "人均登记成果", graduation: "已登记毕业比例", delay: "有实际毕业日期者的延期比例" }[metric]}</th>
+                    <td>{format(match.current?.[metric], metric !== "outputs")}</td>
+                    <td>{format(match.peers?.[metric]?.mean, metric !== "outputs")}</td>
+                    <td>{match.peers?.[metric]?.count ?? 0}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </details>;
+          })()}
           <table>
             <thead>
               <tr>
