@@ -3,7 +3,7 @@ from test_accounts import client, login_admin  # noqa: F401
 
 
 def test_six_signal_trial_uses_milestones_and_withholds_incomplete_total():
-    from aqp.evaluation import SOURCE_CATEGORY, six_signal_trial
+    from aqp.evaluation import SOURCE_CATEGORY, screened_trial_decision, six_signal_trial
 
     inputs = [{"feature": feature, "normalized": 1, "value": 1} for feature in SOURCE_CATEGORY]
     signals = {
@@ -13,6 +13,11 @@ def test_six_signal_trial_uses_milestones_and_withholds_incomplete_total():
     assert six_signal_trial(inputs, signals)["total"] == 91.67
     assert six_signal_trial(inputs, {})["total"] is None
     assert six_signal_trial(inputs[:-1], signals)["total"] is None
+    trial = six_signal_trial(inputs, signals)
+    assert screened_trial_decision([{"status": "通过"}], trial) == "拔尖潜力（模拟分数段）"
+    assert "待核查" in screened_trial_decision([{"status": "待核查"}], trial)
+    assert "未通过" in screened_trial_decision([{"status": "待核查"}, {"status": "未通过"}], trial)
+    assert "证据不足" in screened_trial_decision([{"status": "通过"}], six_signal_trial(inputs, {}))
 
 def test_student_clusters_use_separate_holdout_and_respect_missing_scores():
     from aqp.student_clustering_demo import DIMENSIONS, cluster_student_demo

@@ -99,7 +99,10 @@ function StudentClusterDemo({ id }: { id: number }) {
 }
 
 function SixSignalTrial({ id }: { id: number }) {
-  const [result, setResult] = useState<{ total: number | null; levels: { name: string; score: number | null; basis: string }[] }>();
+  const [result, setResult] = useState<{
+    total: number | null; levels: { name: string; score: number | null; basis: string }[];
+    screening: { name: string; status: string; reason: string }[]; decision: string;
+  }>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   return <details className="task-details">
@@ -122,6 +125,11 @@ function SixSignalTrial({ id }: { id: number }) {
     }}>试算六类信号</button>
     {error && <p role="alert">{error}</p>}
     {result && <>
+      <h4>模拟分层结论</h4>
+      <p>{result.decision}</p>
+      <ul>{result.screening?.map((check) => (
+        <li key={check.name}>{check.name} · {check.status} · {check.reason}</li>
+      ))}</ul>
       <p>试算总分 · {result.total?.toFixed(2) ?? "证据不全，暂不计分"}</p>
       <table>
         <thead><tr><th>信号</th><th>分数</th><th>依据</th></tr></thead>

@@ -87,6 +87,16 @@ def six_signal_trial(inputs: list[dict[str, Any]], signals: dict[str, Any]) -> d
     return {"levels": levels, "total": round(100 * mean(values), 2) if all(v is not None for v in values) else None}
 
 
+def screened_trial_decision(checks: list[dict[str, str]], trial: dict[str, Any]) -> str:
+    if any(check["status"] == "未通过" for check in checks):
+        return "前置条件未通过，未进入模拟分层"
+    if any(check["status"] != "通过" for check in checks):
+        return "前置条件待核查，暂不分层"
+    if trial["total"] is None:
+        return "六类信号证据不足，暂不分层"
+    return simulation_band(trial["total"], [level["score"] for level in trial["levels"]])
+
+
 def course_rank_screening(
     db: Any, actor: int, student: Any, direction: str,
 ) -> dict[str, str]:
@@ -613,46 +623,49 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
             return {"count": len(scores), "start_year": benchmark_year - 5, "end_year": benchmark_year - 1,
                     "covered_years": sorted(years), "percentiles": simulation_percentiles(scores)}
 
+    def screening(db: Any, actor: int, student_id: int) -> list[dict[str, str]]:
+        student = db.execute(
+            "SELECT id,college,major,entry_year,payload FROM students WHERE id=?", (student_id,)
+        ).fetchone()
+        payload = json.loads(student["payload"])
+        state = payload.get("学籍状态")
+        mobility = payload.get("学籍异动类型")
+        enrollment = "未通过" if state in {"退学", "休学"} else "通过" if state == "正常" and not mobility else "待核查"
+        credits = {"name": "学分进度", "status": "待核查", "reason": "缺少课程查看或分析权限"}
+        if all(allowed(db, actor, "courses", op, student["college"], student["major"])
+               for op in ("view", "analyze")):
+            scope = Scope(college=student["college"], major=student["major"], student_id=student_id)
+            try:
+                rows, _, rules, _, requirements = sources(db, scope, actor)
+            except HTTPException as exc:
+                if exc.status_code != 403:
+                    raise
+            else:
+                evidence = [
+                    {**row, "status": outcome(row["payload"], rules)[0]}
+                    for row in rows
+                ]
+                progress = credit_progress(evidence, requirements, scope)
+                if progress["students"]:
+                    percentage = progress["students"][0]["progress_percent"]
+                    credits.update(status="通过" if percentage >= 100 else "未通过",
+                                   reason=f"已完成培养要求总学分的 {percentage:.2f}%")
+                else:
+                    credits["reason"] = "缺少可比较条件：" + "、".join(progress["missing_conditions"])
+        return [
+            credits,
+            {"name": "学籍状态", "status": enrollment,
+             "reason": f"登记状态：{state or '缺失'}" + (f"；异动：{mobility}" if mobility else "")},
+            course_rank_screening(db, actor, student, str(payload.get("研究方向") or "").strip()),
+        ]
+
     @app.get("/api/evaluation-snapshots/{ident}")
     def snapshot(ident: int, request: Request) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
             result = load_snapshot(db, actor["id"], ident)
             result["signals"] = simulation_signals(result["inputs"])
-            student = db.execute(
-                "SELECT id,college,major,entry_year,payload FROM students WHERE id=?", (result["student_id"],)
-            ).fetchone()
-            payload = json.loads(student["payload"])
-            state = payload.get("学籍状态")
-            mobility = payload.get("学籍异动类型")
-            enrollment = "未通过" if state in {"退学", "休学"} else "通过" if state == "正常" and not mobility else "待核查"
-            credits = {"name": "学分进度", "status": "待核查", "reason": "缺少课程查看或分析权限"}
-            if all(allowed(db, actor["id"], "courses", op, student["college"], student["major"])
-                   for op in ("view", "analyze")):
-                scope = Scope(college=student["college"], major=student["major"], student_id=result["student_id"])
-                try:
-                    rows, _, rules, _, requirements = sources(db, scope, actor["id"])
-                except HTTPException as exc:
-                    if exc.status_code != 403:
-                        raise
-                else:
-                    evidence = [
-                        {**row, "status": outcome(row["payload"], rules)[0]}
-                        for row in rows
-                    ]
-                    progress = credit_progress(evidence, requirements, scope)
-                    if progress["students"]:
-                        percentage = progress["students"][0]["progress_percent"]
-                        credits.update(status="通过" if percentage >= 100 else "未通过",
-                                       reason=f"已完成培养要求总学分的 {percentage:.2f}%")
-                    else:
-                        credits["reason"] = "缺少可比较条件：" + "、".join(progress["missing_conditions"])
-            result["screening"] = [
-                credits,
-                {"name": "学籍状态", "status": enrollment,
-                 "reason": f"登记状态：{state or '缺失'}" + (f"；异动：{mobility}" if mobility else "")},
-                course_rank_screening(db, actor["id"], student, str(payload.get("研究方向") or "").strip()),
-            ]
+            result["screening"] = screening(db, actor["id"], result["student_id"])
             audit(db, actor["id"], "evaluation.read", str(ident))
             db.commit()
             return result
@@ -678,7 +691,9 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                 raise HTTPException(409, "评分来源已变化或规则已停用，请重新生成快照")
             current_signals = student_signals(db, actor["id"], result["student_id"])
             audit(db, actor["id"], "evaluation.six_signal_trial", str(ident))
-            return six_signal_trial(result["inputs"], current_signals)
+            trial = six_signal_trial(result["inputs"], current_signals)
+            checks = screening(db, actor["id"], result["student_id"])
+            return {**trial, "screening": checks, "decision": screened_trial_decision(checks, trial)}
 
     @app.get("/api/evaluation-snapshots")
     def snapshot_listing(request: Request) -> dict[str, Any]:
