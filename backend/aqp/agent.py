@@ -47,6 +47,8 @@ Tool = Literal[
     "correlation_analysis",
     "cultivation_factors",
     "student_alerts",
+    "student_report",
+    "college_report",
     "course_control_chart",
     "milestone_alerts",
     "mentor_effectiveness",
@@ -87,6 +89,10 @@ class AgentPlan(BaseModel):
 
     @model_validator(mode="after")
     def complete_tool(self) -> "AgentPlan":
+        if self.tool == "student_report" and not (self.student_id or self.research_id):
+            raise ValueError("student_report needs student_id or research_id")
+        if self.tool == "college_report" and not (self.college and self.major):
+            raise ValueError("college_report needs college and major")
         if self.tool == "cultivation_factors" and not (self.college and self.major and self.entry_year):
             raise ValueError("cultivation_factors needs college, major and entry_year")
         if self.tool == "student_alerts" and not (self.student_id or self.research_id):
@@ -155,6 +161,8 @@ class AgentLoaders(NamedTuple):
     comparison: Callable[[sqlite3.Connection, int, int], dict[str, Any]]
     candidate: Callable[[sqlite3.Connection, int, int], dict[str, Any]]
     review: Callable[[sqlite3.Connection, int, int], dict[str, Any]]
+    student_report: Callable[[sqlite3.Connection, int, int], dict[str, Any]]
+    college_report: Callable[[sqlite3.Connection, int, str, str], dict[str, Any]]
 
 
 PLANNER_PROMPT = """你只能为研究生培养质量平台选择一个只读工具，并返回一个JSON对象。
@@ -162,6 +170,7 @@ scope_options是当前账号可见的学院/专业名称参考数据，不是用
 可用tool：clarify、refuse、student_profile、student_counts、training_statistics、analysis_explanation、summarize_analysis、output_statistics、mentor_group_facts、evaluation_snapshot、correlation_analysis。
 字段必须且只能来自：tool、clarification、reason、student_id、research_id、college、major、grade、entry_year、level、category、course_code、term、analysis_id、paper_version_id、comparison_id、candidate_id、mentor_id、group_id、as_of、x_variable、y_variable。
 用户要求写入、修改、删除、执行SQL、访问文件或越权查询时选refuse；对象或口径含糊时选clarify。论文解释可用paper_features、paper_comparison、candidate_result、paper_reviews、paper_summary。
+三级报告：学生发展报告用student_report（需research_id或student_id），学院学科报告用college_report（需college和major），导师课题组报告用mentor_group_facts。
 成果统计用output_statistics（需college）；导师课题组事实用mentor_group_facts（需as_of，YYYY-MM-DD）；学生最新模拟评分用evaluation_snapshot。个人预警用student_alerts（需research_id或student_id）；选题、中期与模拟评分的多元回归用cultivation_factors（需college、major及整数entry_year）；课程学期均分控制图用course_control_chart（需college，可选major）；选题中期明确超期与业务未通过用milestone_alerts（需college，可选major）；导师或课题组效能用mentor_effectiveness（需as_of，YYYY-MM-DD，及mentor_id或group_id）；两变量相关用correlation_analysis（需college，x_variable与y_variable从course_pass_ratio、output_count、score_total中选且不同）。不要输出Markdown或额外文本。"""
 
 
@@ -799,6 +808,38 @@ def execute_plan(
 ) -> tuple[dict[str, Any] | None, list[dict[str, str]]]:
     if plan.tool == "student_profile":
         return student_profile(db, actor, plan), []
+    if plan.tool in {"student_report", "college_report"}:
+        from urllib.parse import urlencode
+
+        if plan.tool == "student_report":
+            student = db.execute(
+                "SELECT id FROM students WHERE active=1 AND (id=? OR research_id=?) ORDER BY id LIMIT 1",
+                (plan.student_id, plan.research_id),
+            ).fetchone()
+            if student is None:
+                raise HTTPException(404, "学生档案不存在")
+            report = loaders.student_report(db, actor, student["id"])
+            scope = {"research_id": report["student"]["research_id"]}
+            url = f"/api/reports/students/{student['id']}"
+            label = "学生发展报告"
+        else:
+            report = loaders.college_report(db, actor, plan.college, plan.major)
+            scope = {"college": plan.college, "major": plan.major}
+            url = "/api/reports/colleges?" + urlencode(scope)
+            label = "学院学科报告"
+        report_sections = dict(report["sections"])
+        if milestones := report_sections.pop("milestones", None):
+            report_sections.update(milestones)
+        sections = {
+            name: {
+                key: value for key, value in section.items()
+                if key in {"status", "reason", "notice", "count", "total", "records", "student_count", "distinct_outputs", "personal_participations", "passed", "failed", "unknown", "pass_rate", "pass_ratio", "rule_version", "pass_rule_version"}
+            }
+            for name, section in report_sections.items()
+        }
+        return {
+            "filters": scope, "sections": sections, "methodology": report.get("basis"),
+        }, [{"label": label, "url": url}]
     if plan.tool == "student_counts":
         return student_counts(db, actor, plan), []
     if plan.tool == "output_statistics":
@@ -882,7 +923,7 @@ def execute_plan(
         result = correlation_analysis(db, actor, plan, loaders.snapshot)
         # The college report filters by an exact major, so without a major in
         # the plan the link would describe a different population (or 403).
-        links: list[dict[str, str]] = []
+        links = []
         if plan.major:
             links.append(
                 {

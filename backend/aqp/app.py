@@ -175,7 +175,7 @@ def create_app(db_path: Path | None = None) -> FastAPI:
 
     snapshot_loader = register_evaluation(app, path, current)
     register_mentor_groups(app, path, current, snapshot_loader)
-    register_reports(app, path, current, snapshot_loader)
+    student_report, college_report = register_reports(app, path, current, snapshot_loader)
     from aqp.candidates import register_candidates
 
     candidate_access = register_candidates(
@@ -204,6 +204,8 @@ def create_app(db_path: Path | None = None) -> FastAPI:
         comparison=comparison_history,
         candidate=candidate_access,
         review=review_history,
+        student_report=student_report,
+        college_report=college_report,
     )
     register_agent(app, path, current, agent_loaders)
     from aqp.cultivation_models import register_cultivation_models

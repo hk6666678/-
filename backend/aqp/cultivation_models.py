@@ -146,6 +146,7 @@ def student_signals(db: sqlite3.Connection, aid: int, student_id: int) -> dict[s
         )
     ):
         raise HTTPException(403, "当前无权查看该学生")
+    audit(db, aid, "cultivation.signals", str(student_id))
     payload = json.loads(student["payload"])
     mobility = payload.get("学籍异动类型")
     result: dict[str, Any] = {
@@ -217,7 +218,6 @@ def student_signals(db: sqlite3.Connection, aid: int, student_id: int) -> dict[s
         "below": counts[student_id] < benchmark,
         "sources": sources,
     }
-    audit(db, aid, "cultivation.signals", str(student_id))
     return result
 
 

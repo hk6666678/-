@@ -34,7 +34,7 @@ YEAR_KEY = {
 }
 
 
-def register_reports(app: FastAPI, path: Path, current: Callable[..., Any], snapshot_loader: Callable[..., dict[str, Any]]) -> None:
+def register_reports(app: FastAPI, path: Path, current: Callable[..., Any], snapshot_loader: Callable[..., dict[str, Any]]) -> tuple[Callable[..., dict[str, Any]], Callable[..., dict[str, Any]]]:
     def deny(db: Any, actor: int, target: str, message: str) -> None:
         audit(db, actor, "reports.access", target, "denied")
         db.commit()
@@ -626,3 +626,5 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any], snap
             # Attachment names stay ASCII; the scope itself is inside the
             # workbook, and non-latin-1 header values would break the download.
             return excel_report(report, "report-college")
+
+    return student_report, college_report

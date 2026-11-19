@@ -6,7 +6,7 @@ from aqp import model_connection
 from fastapi.testclient import TestClient
 from openpyxl import Workbook
 from test_accounts import client, login_admin  # noqa: F401
-from test_agent import enable_agent, replace_grants  # noqa: F401
+from test_agent import enable_agent, replace_grants
 from test_students import workbook
 
 SCOPE = {"college": "示例学院", "major": "计算机"}
@@ -31,8 +31,8 @@ def plan_runner(monkeypatch: pytest.MonkeyPatch, plan: dict, summary: str, calls
     monkeypatch.setattr(model_connection, "default_runner", runner)
 
 
-def ask(client: TestClient, headers: dict, question: str):
-    return client.post("/api/agent/query", headers=headers, json={"question": question})
+def ask(http: TestClient, headers: dict, question: str):
+    return http.post("/api/agent/query", headers=headers, json={"question": question})
 
 
 def test_agent_cultivation_factors_dispatch_and_revocation(
@@ -135,7 +135,25 @@ def test_agent_student_alerts_dispatch_links_and_revocation(
     replace_grants(client, headers, grants_for(["courses"], ["view", "analyze"]))
     revoked = ask(client, headers, "001号学生的预警信号")
     assert revoked.status_code == 403
-    assert len(calls) == 3
+    assert len(calls) == 2
+
+    calls.clear()
+    plan_runner(monkeypatch, {"tool": "student_report", "student_id": 1}, "报告摘要", calls)
+    blocked = ask(client, headers, "查看学生发展报告，学生记录编号 1")
+    assert blocked.status_code == 403
+    replace_grants(client, headers, grants_for(["basic"], ["view"]))
+    report = ask(client, headers, "查看学生发展报告，学生记录编号 1")
+    assert report.status_code == 200, report.text
+    assert report.json()["evidence_links"][0]["url"] == "/api/reports/students/1"
+    assert "student_number" not in report.json()["tool_result"]
+
+    calls.clear()
+    plan_runner(monkeypatch, {"tool": "college_report", "college": "示例学院", "major": "计算机"}, "报告摘要", calls)
+    college = ask(client, headers, "查看示例学院计算机的学院学科报告")
+    assert college.status_code == 200, college.text
+    assert college.json()["tool_result"]["sections"]["students"]["count"] == 1
+    link = college.json()["evidence_links"][0]["url"]
+    assert client.get(link).status_code == 200
 
 
 def test_agent_rejects_incomplete_cultivation_plans(
