@@ -24,7 +24,7 @@ def test_research_template_available_to_authenticated_user(client):  # noqa: F81
     assert next(iter(ws.values))[:3] == ("AQP-PGS", "research_papers", "1")
     assert list(ws.values)[1][9:] == (
         "评价体系", "评价年度", "期刊分区", "影响因子",
-        "中科院分区", "中科院分区年度", "JCR分区", "JCR分区年度",
+        "中科院分区", "中科院分区年度", "JCR分区", "JCR分区年度", "发表日期",
     )
     patent_template = client.get("/api/patents/template")
     patent_sheet = load_workbook(BytesIO(patent_template.content)).active
@@ -194,7 +194,7 @@ def test_shared_output_preview_confirm_pending_and_duplicate(client):  # noqa: F
         "JCR分区": "Q1",
         "JCR分区年度": "2025",
     }
-    wb.active.delete_cols(10, 8)
+    wb.active.delete_cols(10, 9)
     stream = BytesIO()
     wb.save(stream)
     assert preview()["items"][0]["status"] == "duplicate"

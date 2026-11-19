@@ -15,6 +15,7 @@ type Student = { id: number; research_id: string; name?: string; student_number?
 type Signals = {
   course_trend?: { signal: string; baseline_count: number; limits?: [number, number]; observations: { term: string; mean: number; records: number }[] };
   milestone_trends?: { label: string; signal: string; limits?: [number, number]; observations: { date: string; mean: number; record_ids: number[] }[] }[];
+  output_trend?: { signal: string; declining?: boolean; limits?: [number, number]; observations: { term: string; count: number | null }[] };
   blind_review?: { batch: string; due: string; status: string };
   mobility?: { type: string; date?: string } | null;
   peer_outputs?: { count: number; peer_median: number; peer_count: number; below: boolean; sources: string[] };
@@ -207,6 +208,20 @@ export function CultivationOverview({ csrf, showSnapshot }: {
               </table>}
             </details>
           ))}
+          {result.signals.output_trend && (
+            <details className="task-details">
+              <summary>个人成果增量 · {result.signals.output_trend.signal}</summary>
+              <p>只统计已核对完成的学期。日期不足以确认学期时显示待核查。</p>
+              {result.signals.output_trend.declining && <p>最近三个学期新增成果连续下降。</p>}
+              {result.signals.output_trend.limits && <p>控制限 {result.signals.output_trend.limits.join(" 至 ")} 项</p>}
+              {result.signals.output_trend.observations.length > 0 && <table>
+                <thead><tr><th>学期</th><th>新增成果</th></tr></thead>
+                <tbody>{result.signals.output_trend.observations.map((row) => (
+                  <tr key={row.term}><td>{row.term}</td><td>{row.count ?? "待核查"}</td></tr>
+                ))}</tbody>
+              </table>}
+            </details>
+          )}
         </>
       )}
     </>

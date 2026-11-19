@@ -34,6 +34,19 @@ def test_personal_control_limits_exclude_the_current_observation():
     assert personal_control_limits([79, 80])["signal"] == "历史观测不足"
 
 
+def test_output_trend_keeps_unknown_dates_separate_from_zero():
+    from aqp.cultivation_models import output_trend
+
+    dates = ["2022-04-01", "2022-10-01", "2023-04-01", "2023-10-01", "2024-04-01"]
+    complete = [day for day, count in zip(dates, (5, 5, 6, 5, 4), strict=True) for _ in range(count)]
+    trend = output_trend("2022春", "2024秋", complete)
+    assert trend["signal"] == "低于控制下限" and trend["declining"]
+    assert trend["observations"][-1]["count"] == 0
+    assert output_trend("2022春", "2024秋", [*complete, "2024"])["observations"][-1]["count"] is None
+    assert output_trend("", "", complete)["signal"] == "登记覆盖未确认"
+    assert output_trend("2022春", "2024秋", [*complete, "2024-10-01", "2024-10-02", "2024-10-03", "2024-10-04"])["signal"] == "在控制限内"
+
+
 def grants_for(categories: list[str], operations: list[str]) -> list[dict]:
     return [
         {"category": category, "operation": operation, **SCOPE}

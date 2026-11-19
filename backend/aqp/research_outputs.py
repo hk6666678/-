@@ -74,9 +74,10 @@ def register_research_outputs(
     optional_labels = {
         "research_papers": (
             "评价体系", "评价年度", "期刊分区", "影响因子",
-            "中科院分区", "中科院分区年度", "JCR分区", "JCR分区年度",
+            "中科院分区", "中科院分区年度", "JCR分区", "JCR分区年度", "发表日期",
         ),
         "patents": ("转化状态", "转化日期"),
+        "awards": ("获奖日期",),
     }.get(category, ())
     tables = "research" if category == "research_papers" else category
     year_field = {
@@ -703,7 +704,7 @@ def register_research_outputs(
             )
             supported_headers: tuple[tuple[str, ...], ...] = (expected_header, expected_header + optional_labels)
             if category == "research_papers":
-                supported_headers += (expected_header + optional_labels[:4],)
+                supported_headers += (expected_header + optional_labels[:4], expected_header + optional_labels[:8])
             if imported_header not in supported_headers and not (
                 category == "research_papers" and imported_header == expected_header[:8]
             ):
@@ -729,6 +730,14 @@ def register_research_outputs(
                         strict=True,
                     )
                 )
+                for date_label, year_label in (("发表日期", "发表年份"), ("获奖日期", "获奖年份")):
+                    if event_date := details.get(date_label):
+                        if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", event_date):
+                            raise ValueError()
+                        event_year = str(date.fromisoformat(event_date).year)
+                        if details.get(year_label) and details[year_label] != event_year:
+                            raise ValueError()
+                        details[year_label] = event_year
                 if category in ("patents", "conferences"):
                     date_value = details[extra_labels[1]]
                     if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", date_value) is None:

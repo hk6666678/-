@@ -283,6 +283,8 @@ def main(extended: bool = False) -> None:
                 "实际毕业日期": f"{int(year) + 2}-{'07-15' if int(number[-2:]) % 3 == 0 else '06-25'}"
                     if int(year) <= 2024 and int(number[-2:]) % 12 else "",
                 "毕业去向": ("工业界", "学术界", "创业")[int(number[-2:]) % 3],
+                "成果核对起始学期": f"{year}秋",
+                "成果核对截止学期": f"{int(year) + 2}春",
             } if extended else {}),
         }
         for number, name, (college, major), year, prior, entry, degree, status, mobility, mobility_date in STUDENTS
@@ -367,6 +369,9 @@ def main(extended: bool = False) -> None:
                     row[label] = value
                 if extended and category == "research_papers":
                     row.update({"评价体系": "模拟期刊评价", "评价年度": entry[2], "期刊分区": "Q2", "影响因子": 2.5})
+                    row["发表日期"] = f"{entry[2]}-{'04' if business_key.endswith('01') else '09'}-15"
+                if extended and category == "awards":
+                    row["获奖日期"] = f"{entry[3]}-11-01"
                 if extended and category == "patents":
                     row.update({"转化状态": "未转化"})
                 rows.append(row)

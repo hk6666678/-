@@ -9,6 +9,10 @@ test("selecting a student loads their cultivation stages and evidence", async ({
       { label: "选题", signal: "低于控制下限", limits: [90, 98], observations: [{ date: "2025-03-01", mean: 80, record_ids: [7] }] },
       { label: "中期", signal: "历史观测不足", observations: [] },
     ],
+    output_trend: {
+      signal: "成果日期不足以分配学期",
+      observations: [{ term: "2025春", count: 0 }, { term: "2025秋", count: null }],
+    },
     mobility: { type: "转导师", date: "2025-06-01" },
     peer_outputs: { count: 0, peer_median: 2, peer_count: 4, below: true, sources: [] },
   }}));
@@ -56,6 +60,9 @@ test("selecting a student loads their cultivation stages and evidence", async ({
   await page.getByText("个人选题趋势 · 低于控制下限", { exact: true }).click();
   await expect(page.getByRole("row", { name: "2025-03-01 80 7" })).toBeVisible();
   await expect(page.getByText("个人中期趋势 · 历史观测不足", { exact: true })).toBeVisible();
+  await page.getByText("个人成果增量 · 成果日期不足以分配学期", { exact: true }).click();
+  await expect(page.getByRole("row", { name: "2025春 0" })).toBeVisible();
+  await expect(page.getByRole("row", { name: "2025秋 待核查" })).toBeVisible();
   await expect(page.getByText(/低于同届中位数/)).toBeVisible();
   await expect(page.getByText("此范围操作未授权")).toBeVisible();
   await page.getByText("研究记录 42 · 1 条信号").click();

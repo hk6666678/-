@@ -1,7 +1,8 @@
 import json
+import re
 import sqlite3
 from collections import Counter, defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import date
 from pathlib import Path
 from statistics import StatisticsError, correlation, mean, median, pstdev
@@ -203,7 +204,7 @@ def cultivation_factors(
     }
 
 
-def personal_control_limits(values: list[float]) -> dict[str, Any]:
+def personal_control_limits(values: Sequence[float]) -> dict[str, Any]:
     baseline = values[:-1]
     if len(baseline) < 5:
         return {"signal": "历史观测不足", "baseline_count": len(baseline)}
@@ -218,6 +219,45 @@ def personal_control_limits(values: list[float]) -> dict[str, Any]:
         "limits": [round(lower, 2), round(upper, 2)],
         "signal": "低于控制下限" if current < lower else "高于控制上限" if current > upper else "在控制限内",
     }
+
+
+def output_trend(start: str, end: str, details: list[str]) -> dict[str, Any]:
+    def index(term: str) -> int:
+        if not re.fullmatch(r"20[0-9]{2}[春秋]", term):
+            raise ValueError
+        return int(term[:4]) * 2 + int(term[-1] == "秋")
+
+    try:
+        first, last = index(start), index(end)
+    except ValueError:
+        return {"signal": "登记覆盖未确认", "observations": []}
+    today = date.today()
+    if last < first or last - first >= 20 or last >= today.year * 2 + int(today.month >= 7):
+        return {"signal": "登记覆盖范围无效", "observations": []}
+    counts: Counter[int] = Counter()
+    uncertain: set[int] = set()
+    for raw in details:
+        if re.fullmatch(r"20[0-9]{2}", raw):
+            year = int(raw) * 2
+            uncertain.update((year, year + 1))
+            continue
+        try:
+            observed = date.fromisoformat(raw)
+        except ValueError:
+            uncertain.update(range(first, last + 1))
+            continue
+        counts[observed.year * 2 + int(observed.month >= 7)] += 1
+    observations = [
+        {"term": f"{term // 2}{'秋' if term % 2 else '春'}",
+         "count": None if term in uncertain else counts[term]}
+        for term in range(first, last + 1)
+    ]
+    if any(item["count"] is None for item in observations):
+        return {"signal": "成果日期不足以分配学期", "observations": observations}
+    values = [counts[term] for term in range(first, last + 1)]
+    result = personal_control_limits(values)
+    return {**result, "observations": observations,
+            "declining": len(values) >= 3 and values[-3] > values[-2] > values[-1]}
 
 
 def student_signals(db: sqlite3.Connection, aid: int, student_id: int) -> dict[str, Any]:
@@ -347,18 +387,17 @@ def student_signals(db: sqlite3.Connection, aid: int, student_id: int) -> dict[s
         if row["entry_year"] == student["entry_year"]
     }
     peers = cohort - {student_id}
-    if len(peers) < 3:
-        result["notice"] = "可比的同届同专业学生不足 3 人。"
-        return result
     counts: Counter[int] = Counter()
     sources = []
+    output_dates = []
     any_outputs = False
     for category, table in OUTPUT_TABLES.items():
         for row in db.execute(
             f"SELECT id,payload FROM {table}_outputs WHERE active=1"
         ):
             matched = set()
-            for participant in json.loads(row["payload"])["participants"]:
+            output = json.loads(row["payload"])
+            for participant in output["participants"]:
                 visible, linked = current_participant(
                     db, aid, category, "view", participant
                 )
@@ -378,12 +417,25 @@ def student_signals(db: sqlite3.Connection, aid: int, student_id: int) -> dict[s
             any_outputs = any_outputs or bool(matched)
             counts.update(matched)
             if student_id in matched:
+                date_field, fallback = {"research_papers": ("发表日期", "发表年份"),
+                                        "patents": ("申请日期", "申请日期"),
+                                        "awards": ("获奖日期", "获奖年份"),
+                                        "conferences": ("会议日期", "会议日期")}[category]
+                details = output.get("details", {})
+                output_dates.append(str(details.get(date_field) or details.get(fallback) or ""))
                 endpoint = (
                     "research-outputs"
                     if category == "research_papers"
                     else category
                 )
                 sources.append(f"/api/{endpoint}/{row['id']}/history")
+    result["output_trend"] = output_trend(
+        str(payload.get("成果核对起始学期") or ""),
+        str(payload.get("成果核对截止学期") or ""), output_dates,
+    )
+    if len(peers) < 3:
+        result["notice"] = "可比的同届同专业学生不足 3 人。"
+        return result
     if not any_outputs:
         result["notice"] = "当前同届同专业范围暂无可用于比较的有效成果。"
         return result
