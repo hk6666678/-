@@ -13,6 +13,7 @@ type Row = {
   band?: string | null;
 };
 type Benchmark = { count: number; percentiles: { p50: number; p75: number; p90: number } | null };
+type RollingBenchmark = Benchmark & { start_year: number; end_year: number; covered_years: number[] };
 
 export function EvaluationDashboard({ refresh, openSnapshot }: {
   refresh: number;
@@ -22,6 +23,9 @@ export function EvaluationDashboard({ refresh, openSnapshot }: {
   const [rule, setRule] = useState("");
   const [error, setError] = useState(false);
   const [benchmarks, setBenchmarks] = useState<Record<number, Benchmark>>({});
+  const [rolling, setRolling] = useState<{ rule: number; result: RollingBenchmark }>();
+  const [rollingError, setRollingError] = useState(false);
+  const [rollingBusy, setRollingBusy] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     setRows(null);
@@ -61,6 +65,37 @@ export function EvaluationDashboard({ refresh, openSnapshot }: {
             {benchmark.percentiles
               ? ` · P50 ${benchmark.percentiles.p50} · P75 ${benchmark.percentiles.p75} · P90 ${benchmark.percentiles.p90}`
               : " · 不足 5 份，暂不计算分位"}。</p>}
+          {selected !== undefined && <details className="task-details">
+            <summary>五年滚动基准</summary>
+            <form onSubmit={async (event) => {
+              event.preventDefault();
+              const data = new FormData(event.currentTarget);
+              setRolling(undefined);
+              setRollingError(false);
+              setRollingBusy(true);
+              try {
+                const params = new URLSearchParams({ rule_id: String(selected), benchmark_year: String(data.get("benchmark_year")) });
+                const response = await fetch(`/api/evaluation-snapshots/rolling-benchmark?${params}`);
+                if (!response.ok) throw new Error();
+                setRolling({ rule: selected, result: await response.json() });
+              } catch {
+                setRollingError(true);
+              } finally {
+                setRollingBusy(false);
+              }
+            }}>
+              <label>基准年份<input name="benchmark_year" type="number" min={1905} max={2100} defaultValue={new Date().getFullYear()} required /></label>
+              <button disabled={rollingBusy}>计算往前五年</button>
+            </form>
+            <p>按同一规则版本，每名学生取窗口内最后一份快照。过时或缺分的快照不计入。</p>
+            {rollingError && <p role="alert">五年滚动基准加载失败。</p>}
+            {rolling?.rule === selected && <p>
+              {rolling.result.start_year}–{rolling.result.end_year} 年 · 有效样本 {rolling.result.count} 人 · 有数据年份 {rolling.result.covered_years.join("、") || "无"}
+              {rolling.result.percentiles
+                ? ` · P50 ${rolling.result.percentiles.p50} · P75 ${rolling.result.percentiles.p75} · P90 ${rolling.result.percentiles.p90}`
+                : " · 不足 5 人，暂不计算分位"}
+            </p>}
+          </details>}
           <div className="table-wrap">
             <table>
               <thead><tr><th>排名</th><th>研究编号</th><th>模拟总分</th><th>模拟分层</th><th>评分时间</th><th>操作</th></tr></thead>

@@ -8,7 +8,7 @@ from pathlib import Path
 from statistics import quantiles
 from typing import Any, Literal
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -481,6 +481,37 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                 scores = [row["total"] for row in items if row["rule_id"] == rule_id and row["total"] is not None]
                 benchmarks[rule_id] = {"count": len(scores), "percentiles": simulation_percentiles(scores)}
             return {"items": items, **({"benchmarks": benchmarks} if benchmarks else {})}
+
+    @app.get("/api/evaluation-snapshots/rolling-benchmark")
+    def rolling_benchmark(
+        request: Request, rule_id: int, benchmark_year: int = Query(ge=1905, le=2100),
+    ) -> dict[str, Any]:
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            years: set[int] = set()
+            scores = []
+            for row in db.execute(
+                """WITH ranked AS (
+                    SELECT e.id, CAST(strftime('%Y',e.created_at,'unixepoch','+8 hours') AS INTEGER) AS year,
+                           ROW_NUMBER() OVER (PARTITION BY e.student_id ORDER BY e.created_at DESC,e.id DESC) AS position
+                    FROM evaluation_snapshots e JOIN students s ON s.id=e.student_id
+                    WHERE e.rule_id=? AND s.active=1 AND
+                          date(e.created_at,'unixepoch','+8 hours')>=? AND date(e.created_at,'unixepoch','+8 hours')<?
+                ) SELECT id,year FROM ranked WHERE position=1""",
+                (rule_id, f"{benchmark_year - 5}-01-01", f"{benchmark_year}-01-01"),
+            ):
+                try:
+                    result = load_snapshot(db, actor["id"], row["id"])
+                except HTTPException as exc:
+                    if exc.status_code == 403:
+                        continue
+                    raise
+                if result["mode"] == "simulation" and not result["stale"] and result["rule_currently_enabled"] and result["total"] is not None:
+                    scores.append(result["total"])
+                    years.add(row["year"])
+            audit(db, actor["id"], "evaluation.rolling_benchmark", f"{rule_id}/{benchmark_year}")
+            return {"count": len(scores), "start_year": benchmark_year - 5, "end_year": benchmark_year - 1,
+                    "covered_years": sorted(years), "percentiles": simulation_percentiles(scores)}
 
     @app.get("/api/evaluation-snapshots/{ident}")
     def snapshot(ident: int, request: Request) -> dict[str, Any]:
