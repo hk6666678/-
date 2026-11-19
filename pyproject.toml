@@ -12,6 +12,7 @@ dependencies = [
     "pypdf>=6,<7",
     "scipy>=1.18.1",
     "numpy>=2.5.5",
+    "keyring>=25,<26",
 ]
 
 [dependency-groups]
