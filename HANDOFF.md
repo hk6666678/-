@@ -4,7 +4,7 @@
 - **演示库补数（实现完成+模拟验证通过）**：8003 演示库 `data/linked-business-demo/demo.sqlite3` 新增——240 名学生补"成果核对起止学期"（走 basic 冲突行+直接落库，student_revisions 版本链与 import_rows 状态同步完整，与正规 confirm 同形）；4 名"转院系"演示学生（DEMO-SCOPE-01~04，档案=软件学院）+12 条旧学院（计算机学院）课程已落 course_records 并 linked；20 篇论文补 2025-07/2026-01 两个历史引用点（≥3 点可画增长曲线，最新值不变不触发 stale）；24 条国际口头报告、24 条奖学金、1 条人才项目。端到端验证：DEMO-SCOPE-01 生成模拟评分快照，3 条课程证据标注"范围不一致已排除"、0 条计入，`total=None`（无成果，符合缺失不填零）。可复现脚本 `.scratch/enrich-demo/`（enrich_8003.py / patch_enrich.py / patch_direct.py，随本次提交入库）。
 - **Agent 按姓名/题名定位（WIP，实现未完成未验证）**：`backend/aqp/agent.py` 已写 AgentPlan 新字段 mentor_name/group_name/paper_title、校验放宽（mentor_effectiveness 接受姓名、paper_features 接受题名）、`resolve_directory_id`（导师/课题组按名解析：授权过滤、无匹配 404、重名 409）、`resolve_paper_version_id`（题名→每生最新版本，多篇 409）、execute_plan 入口统一 `resolve_named_ids`、PLANNER_PROMPT 更新。**尚未写测试、尚未运行任何验证（pytest/mypy/ruff 均未跑）**，下步：补 mentor_name 成功/404/409、group_name、paper_title 定位用例（参考 test_agent_cultivation.py 模式）后跑全量再提交。
 - **环境（重要）**：8003 为唯一运行服务（PID 16764，root 200，worker 保留），但其进程仍是旧代码——昨日的评分排除修复与本次 agent.py 改动均需**重启 8003 才生效**（重启需在本机重新输入模型凭证）。8000/8002/8001 已停。演示库数据变更即时可见（服务逐请求读库）。临时账号 demo-enrich 已停用（active=0）。
-- 未跟踪截图、备份、既有工作树保留。按规则保存交接后集中 push 并在线核对。
+- 未跟踪截图、备份、既有工作树保留。同步状态：交接保存后两次推送 `origin/integration/aqp-trial` 均遇网络失败（Connection timed out after 300045ms / Recv failure: Connection was reset），**仅本地保存、远端未同步**；远端最近核实为 `6104810`。下个会话网络恢复后先 `git ls-remote` 核对再补推 `8fe0d80`。
 
 ## 2026-11-19 评分范围修复与演示服务收敛（历史）
 
