@@ -235,6 +235,12 @@ def test_agent_student_alerts_dispatch_links_and_revocation(
     assert college.json()["tool_result"]["sections"]["students"]["count"] == 1
     link = college.json()["evidence_links"][0]["url"]
     assert client.get(link).status_code == 200
+    calls.clear()
+    plan_runner(monkeypatch, {"tool": "college_report", "college": "示例学院", "major": "计算机", "entry_year": 2025}, "缺失率摘要", calls)
+    result = ask(client, headers, "查示例学院计算机2025届数据缺失率").json()
+    assert result["tool_result"]["completeness"]["student_count"] == 1
+    assert result["tool_result"]["completeness"]["items"]["courses"]["status"] == "unauthorized"
+    assert "entry_year=2025" in result["evidence_links"][0]["url"]
 
 
 def test_agent_rejects_incomplete_cultivation_plans(

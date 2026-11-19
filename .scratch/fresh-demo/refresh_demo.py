@@ -384,6 +384,9 @@ def main(extended: bool = False) -> None:
                     row["发表日期"] = f"{entry[2]}-{'04' if business_key.endswith('01') else '09'}-15"
                 if extended and category == "awards":
                     row["获奖日期"] = f"{entry[3]}-11-01"
+                    row["资源类型"] = "奖学金" if business_key.endswith("-02") else "竞赛获奖"
+                if extended and category == "conferences":
+                    row["会议范围"] = "国际" if business_key.endswith("-02") else "国内"
                 if extended and category == "patents":
                     row.update({"转化状态": "未转化"})
                 rows.append(row)
@@ -469,6 +472,14 @@ def main(extended: bool = False) -> None:
             headers=headers,
         )
         assert created.status_code == 200, (business_key, created.text)
+        if extended:
+            earlier = client.post(
+                f"/api/research-outputs/{output_ids[business_key]}/citations",
+                json={"date": "2026-07-01", "count": max(0, count - 4), "source_department": "模拟演示数据（图书馆）",
+                      "expected_version": 0, "confirmed": True, "reason": "合成引用起点"},
+                headers=headers,
+            )
+            assert earlier.status_code == 200, earlier.text
     print("citations: imported")
 
     if extended:

@@ -713,8 +713,53 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                                 revisions.append(row["version"])
                         topic_evidence.append({"record_id": record_id, "title_revisions": revisions})
             checks = screening(db, actor["id"], result["student_id"])
+            evidence_updates = []
+            categories = {
+                "research_paper_count": ("research_outputs", "发表日期"),
+                "patent_count": ("patents_outputs", "申请日期"),
+                "award_count": ("awards_outputs", "获奖日期"),
+                "conference_count": ("conferences_outputs", "会议日期"),
+            }
+            marks = {
+                entry["label"]: entry["observations"][-1]["date"]
+                for entry in current_signals.get("milestone_trends", []) if entry["observations"]
+            }
+            seen = set()
+            for metric in result["inputs"]:
+                if metric["feature"] not in categories:
+                    continue
+                table, date_key = categories[metric["feature"]]
+                for item in metric["evidence"]:
+                    key = (table, item["record_id"])
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    record = db.execute(f"SELECT payload FROM {table} WHERE id=?", (item["record_id"],)).fetchone()
+                    if not record:
+                        continue
+                    details = json.loads(record["payload"]).get("details", {})
+                    when = details.get(date_key)
+                    facts = []
+                    if when and marks.get("选题") and marks.get("中期") and marks["选题"] < when <= marks["中期"]:
+                        facts.append("选题至中期新增成果")
+                    if table == "conferences_outputs" and details.get("会议范围") == "国际" and details.get("报告类型") == "口头报告":
+                        facts.append("国际会议口头报告")
+                    if table == "awards_outputs" and details.get("资源类型") in ("奖学金", "人才项目"):
+                        facts.append(details["资源类型"])
+                    if table == "research_outputs":
+                        dates = db.execute(
+                            """SELECT snapshot_date,count,version FROM research_citations c
+                               WHERE output_id=? AND version=(SELECT MAX(v.version) FROM research_citations v
+                               WHERE v.output_id=c.output_id AND v.snapshot_date=c.snapshot_date)
+                               ORDER BY snapshot_date""", (item["record_id"],),
+                        ).fetchall()
+                        if len(dates) >= 2:
+                            first, last = dates[0], dates[-1]
+                            facts.append(f"引用变化 {last['count'] - first['count']:+d}（{first['snapshot_date']} 至 {last['snapshot_date']}）")
+                    if facts:
+                        evidence_updates.append({"title": item["title"], "facts": facts})
             return {**trial, "screening": checks, "decision": screened_trial_decision(checks, trial),
-                    "topic_evidence": topic_evidence}
+                    "topic_evidence": topic_evidence, "additional_evidence": evidence_updates}
 
     @app.get("/api/evaluation-snapshots")
     def snapshot_listing(request: Request) -> dict[str, Any]:

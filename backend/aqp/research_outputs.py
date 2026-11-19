@@ -77,7 +77,8 @@ def register_research_outputs(
             "中科院分区", "中科院分区年度", "JCR分区", "JCR分区年度", "发表日期",
         ),
         "patents": ("转化状态", "转化日期"),
-        "awards": ("获奖日期",),
+        "awards": ("获奖日期", "资源类型"),
+        "conferences": ("会议范围",),
     }.get(category, ())
     tables = "research" if category == "research_papers" else category
     year_field = {
@@ -705,6 +706,8 @@ def register_research_outputs(
             supported_headers: tuple[tuple[str, ...], ...] = (expected_header, expected_header + optional_labels)
             if category == "research_papers":
                 supported_headers += (expected_header + optional_labels[:4], expected_header + optional_labels[:8])
+            if category == "awards":
+                supported_headers += (expected_header + optional_labels[:1],)
             if imported_header not in supported_headers and not (
                 category == "research_papers" and imported_header == expected_header[:8]
             ):
@@ -738,6 +741,10 @@ def register_research_outputs(
                         if details.get(year_label) and details[year_label] != event_year:
                             raise ValueError()
                         details[year_label] = event_year
+                if details.get("会议范围") not in (None, "", "国内", "国际"):
+                    raise ValueError()
+                if details.get("资源类型") not in (None, "", "竞赛获奖", "奖学金", "人才项目", "其他"):
+                    raise ValueError()
                 if category in ("patents", "conferences"):
                     date_value = details[extra_labels[1]]
                     if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", date_value) is None:

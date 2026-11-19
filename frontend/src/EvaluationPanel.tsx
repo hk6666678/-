@@ -103,6 +103,7 @@ function SixSignalTrial({ id }: { id: number }) {
     total: number | null; levels: { name: string; score: number | null; basis: string }[];
     screening: { name: string; status: string; reason: string }[]; decision: string;
     topic_evidence?: { record_id: number; title_revisions: number[] }[];
+    additional_evidence?: { title: string; facts: string[] }[];
   }>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -146,6 +147,12 @@ function SixSignalTrial({ id }: { id: number }) {
           <li key={record.record_id}><a href={`/api/records/topic/${record.record_id}`}>选题记录 #{record.record_id}</a>
             {" · "}{record.title_revisions.length ? `标题修订 ${record.title_revisions.length} 次（${record.title_revisions.map((version) => `v${version}`).join("、")}）` : "暂无可见的标题修订"}
           </li>
+        ))}</ul>
+      </details>}
+      {!!result.additional_evidence?.length && <details>
+        <summary>新增成果、影响力与资源依据</summary>
+        <ul>{result.additional_evidence.map((item, index) => (
+          <li key={index}>{item.title} · {item.facts.join("；")}</li>
         ))}</ul>
       </details>}
     </>}

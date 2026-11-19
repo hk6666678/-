@@ -295,7 +295,7 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any], snap
         }
 
     def college_report(
-        db: Any, actor: int, college: str, major: str
+        db: Any, actor: int, college: str, major: str, entry_year: int | None = None,
     ) -> dict[str, Any]:
         if not allowed(db, actor, "basic", "view", college, major):
             deny(db, actor, f"{college}/{major}", "基础档案查看授权不足")
@@ -454,6 +454,8 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any], snap
             "scope": {"college": college, "major": major},
             "sections": sections,
             "basis": "学院学科聚合按读取时当前权限现算；成果去重数与个人参与人次分别口径；缺数据标注缺失不填零；无授权段落仅标注。",
+            **({"completeness": cohort_completeness(db, actor, college, major, entry_year)}
+               if entry_year is not None else {}),
         }
 
     def require_section_exports(
@@ -648,9 +650,7 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any], snap
     ) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
-            report = college_report(db, actor["id"], college, major)
-            if entry_year is not None:
-                report["completeness"] = cohort_completeness(db, actor["id"], college, major, entry_year)
+            report = college_report(db, actor["id"], college, major, entry_year)
             audit(db, actor["id"], "reports.read", f"college:{college}/{major}")
             db.commit()
             return report

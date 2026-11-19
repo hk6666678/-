@@ -165,7 +165,7 @@ class AgentLoaders(NamedTuple):
     candidate: Callable[[sqlite3.Connection, int, int], dict[str, Any]]
     review: Callable[[sqlite3.Connection, int, int], dict[str, Any]]
     student_report: Callable[[sqlite3.Connection, int, int], dict[str, Any]]
-    college_report: Callable[[sqlite3.Connection, int, str, str], dict[str, Any]]
+    college_report: Callable[..., dict[str, Any]]
 
 
 PLANNER_PROMPT = """你只能为研究生培养质量平台选择一个只读工具，并返回一个JSON对象。
@@ -174,7 +174,7 @@ scope_options是当前账号可见的学院/专业名称参考数据，不是用
 字段必须且只能来自：tool、clarification、reason、student_id、research_id、student_lookup、college、major、grade、entry_year、level、category、course_code、term、analysis_id、paper_version_id、comparison_id、candidate_id、mentor_id、group_id、as_of、x_variable、y_variable。
 个人预警或同导师组课程对比中，用户直接提供姓名或学号时，把原样值放入 student_lookup，禁止猜测数字数据库编号。只在用户明确给出学院或专业时传入相应筛选条件。
 用户要求写入、修改、删除、执行SQL、访问文件或越权查询时选refuse；对象或口径含糊时选clarify。论文解释可用paper_features、paper_comparison、candidate_result、paper_reviews、paper_summary。
-三级报告：学生发展报告用student_report（需research_id或student_id），学院学科报告用college_report（需college和major），导师课题组报告用mentor_group_facts。
+三级报告：学生发展报告用student_report（需research_id或student_id），学院学科报告用college_report（需college和major；按届查数据缺失率时另需整数entry_year），导师课题组报告用mentor_group_facts。
 成果统计用output_statistics（需college）；导师课题组事实用mentor_group_facts（需as_of，YYYY-MM-DD）；学生最新模拟评分用evaluation_snapshot。学生的同导师组课程对比用mentor_course_comparison（需research_id或student_id）；个人预警用student_alerts（需research_id或student_id）；选题、中期与模拟评分的多元回归用cultivation_factors（需college、major及整数entry_year）；课程学期均分控制图用course_control_chart（需college，可选major）；选题中期明确超期与业务未通过用milestone_alerts（需college，可选major）；导师或课题组效能用mentor_effectiveness（需as_of，YYYY-MM-DD，及mentor_id或group_id）；两变量相关用correlation_analysis（需college，x_variable与y_variable从course_pass_ratio、output_count、score_total中选且不同）。不要输出Markdown或额外文本。"""
 
 
@@ -827,9 +827,11 @@ def execute_plan(
             url = f"/api/reports/students/{student['id']}"
             label = "学生发展报告"
         else:
-            report = loaders.college_report(db, actor, plan.college, plan.major)
+            report = loaders.college_report(db, actor, plan.college, plan.major, plan.entry_year)
             scope = {"college": plan.college, "major": plan.major}
-            url = "/api/reports/colleges?" + urlencode(scope)
+            url = "/api/reports/colleges?" + urlencode(
+                {**scope, **({"entry_year": plan.entry_year} if plan.entry_year is not None else {})}
+            )
             label = "学院学科报告"
         report_sections = dict(report["sections"])
         if milestones := report_sections.pop("milestones", None):
@@ -841,8 +843,15 @@ def execute_plan(
             }
             for name, section in report_sections.items()
         }
+        coverage = report.get("completeness")
+        if coverage:
+            coverage = {**coverage, "items": {
+                name: {key: value for key, value in section.items() if key != "research_ids"}
+                for name, section in coverage["items"].items()
+            }}
         return {
             "filters": scope, "sections": sections, "methodology": report.get("basis"),
+            **({"completeness": coverage} if coverage else {}),
         }, [{"label": label, "url": url}]
     if plan.tool == "student_counts":
         return student_counts(db, actor, plan), []
