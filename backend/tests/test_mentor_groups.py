@@ -159,6 +159,16 @@ def test_relation_dates_history_conflicts_and_current_revocation(client, tmp_pat
     assert facts["student_count"] == 1
     assert facts["graduation"]["status"] == "missing"
     assert facts["delay"]["status"] == "missing"
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        db.execute(
+            """UPDATE students SET payload=json_set(payload,'$.预计毕业日期','2025-12-01',
+               '$.实际毕业日期','2025-12-20','$.毕业去向','工业界') WHERE id=?""",
+            (student_id,),
+        )
+    dated = client.get("/api/mentor-groups/facts?as_of=2026-01-01").json()
+    assert dated["graduation"]["completed"] == 1
+    assert dated["graduation"]["destinations"] == {"工业界": 1}
+    assert dated["delay"]["late"] == 1
     effectiveness = client.get(
         "/api/mentor-groups/facts",
         params={"as_of": "2026-01-01", "mentor_id": directories[0]},

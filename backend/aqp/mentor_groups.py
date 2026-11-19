@@ -3,6 +3,7 @@
 import json
 import re
 import sqlite3
+from collections import Counter
 from collections.abc import Callable
 from datetime import date
 from io import BytesIO
@@ -113,6 +114,33 @@ def group_facts(
         assert student is not None
         students[student["id"]] = student
         relation_ids.append(row["id"])
+    destinations: Counter[str] = Counter()
+    completed = due = late = on_time = unknown = 0
+    for member in students.values():
+        if not all(allowed(db, actor, "basic", op, member["college"], member["major"])
+                   for op in ("view", "analyze")):
+            continue
+        data = json.loads(member["payload"])
+        try:
+            expected_date = date.fromisoformat(str(data.get("预计毕业日期") or "").split(" ")[0])
+        except ValueError:
+            continue
+        if expected_date.isoformat() > as_of:
+            continue
+        due += 1
+        try:
+            graduated = date.fromisoformat(str(data.get("实际毕业日期") or "").split(" ")[0])
+        except ValueError:
+            unknown += 1
+            continue
+        if graduated.isoformat() <= as_of:
+            completed += 1
+            destination = str(data.get("毕业去向") or "未登记")
+            destinations[destination] += 1
+        if graduated > expected_date:
+            late += 1
+        else:
+            on_time += 1
     categories = {}
     for category, table in [
         ("research_papers", "research"),
@@ -189,12 +217,14 @@ def group_facts(
         "relation_ids": relation_ids,
         "categories": categories,
         "graduation": {
-            "status": "missing",
-            "reason": "缺少已确认的毕业口径与完整毕业事实",
+            "status": "descriptive" if due else "missing",
+            "reason": "" if due else "没有可核查且已到预计毕业日期的授权记录",
+            "due": due, "completed": completed, "destinations": dict(destinations),
         },
         "delay": {
-            "status": "missing",
-            "reason": "缺少应毕业日期与已确认的延期口径",
+            "status": "descriptive" if due else "missing",
+            "reason": "" if due else "缺少适用的预计毕业日期",
+            "late": late, "on_time": on_time, "unknown": unknown,
         },
         "basis": "指定日期有效关系；学生按当前授权去重；成果按当前有效业务记录去重，参与者须匹配当前学生身份与院系专业并具有对应查看及分析权限。关系日期不代表成果发生日期，不作优劣排名。",
     }

@@ -38,8 +38,8 @@ type Facts = {
       }[];
     }
   >;
-  graduation: { reason: string };
-  delay: { reason: string };
+  graduation: { reason: string; due?: number; completed?: number; destinations?: Record<string, number> };
+  delay: { reason: string; late?: number; on_time?: number; unknown?: number };
   basis: string;
   effectiveness?: {
     rate?: number | null;
@@ -470,8 +470,15 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
           </table>
           <div className="mentor-missing">
             <p>人均登记成果按参与人次除以有效指导学生数计算。共同成果按每位参与学生各计一次，成果权限覆盖不足时不计算。</p>
-            <p>毕业：条件缺失，{facts.graduation.reason}。</p>
-            <p>延期：条件缺失，{facts.delay.reason}。</p>
+            {facts.graduation.due ? (
+              <>
+                <p>已到预计毕业日期 {facts.graduation.due} 人 · 截至查询日已毕业 {facts.graduation.completed} 人。</p>
+                <p>按期毕业 {facts.delay.on_time} 人 · 已知延期 {facts.delay.late} 人 · 实际毕业日期待核查 {facts.delay.unknown} 人。按登记日期统计。</p>
+                {Object.entries(facts.graduation.destinations ?? {}).map(([destination, count]) => (
+                  <p key={destination}>毕业去向 · {destination} {count} 人</p>
+                ))}
+              </>
+            ) : <p>毕业与延期 · {facts.graduation.reason}。</p>}
           </div>
           <p>{facts.basis}</p>
           {drill && (

@@ -24,11 +24,14 @@ from aqp.authorization import (
 from aqp.store import audit, connection
 
 BASIC_REQUIRED = ["学号", "姓名", "所属学院", "专业", "培养层次", "入学年份"]
-BLIND_REVIEW_FIELDS = [
+PROGRESS_FIELDS = [
     "盲审送审批次",
     "盲审论文应交日期",
     "盲审论文实际提交日期",
     "盲审论文提交状态",
+    "预计毕业日期",
+    "实际毕业日期",
+    "毕业去向",
 ]
 BASIC_OPTIONAL = [
     "前置院校",
@@ -43,7 +46,7 @@ BASIC_OPTIONAL = [
     "研究方向",
     "学籍异动类型",
     "学籍异动时间",
-    *BLIND_REVIEW_FIELDS,
+    *PROGRESS_FIELDS,
 ]
 SAFE_FIELDS = {
     "所属学院",
@@ -250,16 +253,16 @@ def register_students(
                     payload: dict[str, object] = {
                         k: raw.get(k, "").strip()
                         for k in BASIC_REQUIRED + BASIC_OPTIONAL
-                        if k not in BLIND_REVIEW_FIELDS or k in raw
+                        if k not in PROGRESS_FIELDS or k in raw
                     }
-                    if any(k not in raw for k in BLIND_REVIEW_FIELDS):
+                    if any(k not in raw for k in PROGRESS_FIELDS):
                         previous = db.execute(
                             "SELECT payload FROM students WHERE student_number=? AND active=1",
                             (payload["学号"],),
                         ).fetchone()
                         if previous:
                             current_payload = json.loads(previous["payload"])
-                            for field in BLIND_REVIEW_FIELDS:
+                            for field in PROGRESS_FIELDS:
                                 if field not in raw and field in current_payload:
                                     payload[field] = current_payload[field]
                     if not scope(db, actor["id"], "maintain", payload):
