@@ -14,6 +14,7 @@ type Scope = { college: string; major: string; student_id: number };
 type Student = { id: number; research_id: string; name?: string; student_number?: string; data: Record<string, string> };
 type Signals = {
   course_trend?: { signal: string; baseline_count: number; limits?: [number, number]; observations: { term: string; mean: number; records: number }[] };
+  milestone_trends?: { label: string; signal: string; limits?: [number, number]; observations: { date: string; mean: number; record_ids: number[] }[] }[];
   blind_review?: { batch: string; due: string; status: string };
   mobility?: { type: string; date?: string } | null;
   peer_outputs?: { count: number; peer_median: number; peer_count: number; below: boolean; sources: string[] };
@@ -193,6 +194,19 @@ export function CultivationOverview({ csrf, showSnapshot }: {
               </table>
             </details>
           )}
+          {result.signals.milestone_trends?.map((trend) => (
+            <details className="task-details" key={trend.label}>
+              <summary>个人{trend.label}趋势 · {trend.signal}</summary>
+              <p>使用有实际日期的百分制记录，同日取均分。至少需要 5 个历史观测日。</p>
+              {trend.limits && <p>控制限 {trend.limits.join(" 至 ")} 分</p>}
+              {trend.observations.length > 0 && <table>
+                <thead><tr><th>考核日期</th><th>平均分</th><th>记录编号</th></tr></thead>
+                <tbody>{trend.observations.map((row) => (
+                  <tr key={row.date}><td>{row.date}</td><td>{row.mean}</td><td>{row.record_ids.join("、")}</td></tr>
+                ))}</tbody>
+              </table>}
+            </details>
+          ))}
         </>
       )}
     </>

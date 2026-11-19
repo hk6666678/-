@@ -385,6 +385,11 @@ def test_agent_milestone_alerts_report_explicit_overdue(
             "选题标题",
         ]
     )
+    for index, score in enumerate((94, 95, 96, 95, 95), 1):
+        sheet.append([
+            "001", "合成学生", f"阶段-{index}", "百分制", score, "",
+            f"2025-02-{index:02d}", "", "", SCOPE["college"], SCOPE["major"], "合成选题",
+        ])
     sheet.append(
         [
             "001",
@@ -415,6 +420,10 @@ def test_agent_milestone_alerts_report_explicit_overdue(
         ).status_code
         == 200
     )
+    signals = client.get("/api/cultivation/students/1/signals").json()
+    topic, midterm = signals["milestone_trends"]
+    assert topic["signal"] == "低于控制下限" and len(topic["observations"]) == 6
+    assert midterm["signal"] == "历史观测不足"
     enable_agent(client, headers, monkeypatch)
     calls: list[str] = []
     plan_runner(

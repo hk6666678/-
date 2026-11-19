@@ -279,6 +279,41 @@ def student_signals(db: sqlite3.Connection, aid: int, student_id: int) -> dict[s
                     for term, value in zip(ordered, values, strict=True)
                 ],
             }
+    milestone_trends = []
+    for category, label in (("topic", "选题"), ("midterm", "中期")):
+        if not all(allowed(db, aid, category, op, student["college"], student["major"])
+                   for op in ("view", "analyze")):
+            continue
+        days: dict[str, list[tuple[int, float]]] = defaultdict(list)
+        for record in db.execute(
+            "SELECT id,payload FROM milestone_records WHERE student_id=? AND category=? AND active=1 ORDER BY id",
+            (student_id, category),
+        ):
+            data = json.loads(record["payload"])
+            if (
+                data.get("评分制度") != "百分制"
+                or (data.get("所属学院"), data.get("专业")) != (student["college"], student["major"])
+            ):
+                continue
+            try:
+                observed = date.fromisoformat(str(data.get("实际日期") or ""))
+                score = float(data.get("原始成绩") or "")
+            except ValueError:
+                continue
+            if observed <= date.today() and 0 <= score <= 100:
+                days[observed.isoformat()].append((record["id"], score))
+        observations = [
+            {"date": day, "mean": round(mean(score for _, score in entries), 2),
+             "record_ids": [record_id for record_id, _ in entries]}
+            for day, entries in sorted(days.items())
+        ]
+        milestone_trends.append({
+            "label": label,
+            **personal_control_limits([mean(score for _, score in entries) for _, entries in sorted(days.items())]),
+            "observations": observations,
+        })
+    if milestone_trends:
+        result["milestone_trends"] = milestone_trends
     if all(
         allowed(db, aid, "papers", op, student["college"], student["major"])
         for op in ("view", "analyze")

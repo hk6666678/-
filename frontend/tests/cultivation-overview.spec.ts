@@ -5,6 +5,10 @@ test("selecting a student loads their cultivation stages and evidence", async ({
   const stages: string[] = [];
   await page.route("**/api/cultivation/students/42/signals", (route) => route.fulfill({ json: {
     blind_review: { batch: "合成送审批次", due: "2025-05-01", status: "未提交且已逾期" },
+    milestone_trends: [
+      { label: "选题", signal: "低于控制下限", limits: [90, 98], observations: [{ date: "2025-03-01", mean: 80, record_ids: [7] }] },
+      { label: "中期", signal: "历史观测不足", observations: [] },
+    ],
     mobility: { type: "转导师", date: "2025-06-01" },
     peer_outputs: { count: 0, peer_median: 2, peer_count: 4, below: true, sources: [] },
   }}));
@@ -49,6 +53,9 @@ test("selecting a student loads their cultivation stages and evidence", async ({
   await expect(page.getByRole("row", { name: /SYN-1.*90.0.*75.0/ })).toBeVisible();
   await expect(page.getByText(/学籍异动 · 转导师/)).toBeVisible();
   await expect(page.getByText(/合成送审批次.*未提交且已逾期/)).toBeVisible();
+  await page.getByText("个人选题趋势 · 低于控制下限", { exact: true }).click();
+  await expect(page.getByRole("row", { name: "2025-03-01 80 7" })).toBeVisible();
+  await expect(page.getByText("个人中期趋势 · 历史观测不足", { exact: true })).toBeVisible();
   await expect(page.getByText(/低于同届中位数/)).toBeVisible();
   await expect(page.getByText("此范围操作未授权")).toBeVisible();
   await page.getByText("研究记录 42 · 1 条信号").click();
