@@ -138,6 +138,20 @@ def test_agent_student_alerts_dispatch_links_and_revocation(
     assert len(calls) == 2
 
     calls.clear()
+    plan_runner(monkeypatch, {"tool": "mentor_course_comparison", "student_id": 1}, "课程对比摘要", calls)
+    denied = ask(client, headers, "查看记录编号 1 的同导师组课程对比")
+    assert denied.status_code == 403
+    replace_grants(client, headers, grants_for(["basic", "courses"], ["view", "analyze"]))
+    comparison = ask(client, headers, "查看记录编号 1 的同导师组课程对比")
+    assert comparison.status_code == 200, comparison.text
+    comparison_result = comparison.json()
+    assert comparison_result["tool_result"]["has_group"] is False
+    assert comparison_result["tool_result"]["items"] == []
+    link = comparison_result["evidence_links"][0]["url"]
+    assert client.get(link).status_code == 200
+
+    calls.clear()
+    replace_grants(client, headers, grants_for(["courses"], ["view", "analyze"]))
     plan_runner(monkeypatch, {"tool": "student_report", "student_id": 1}, "报告摘要", calls)
     blocked = ask(client, headers, "查看学生发展报告，学生记录编号 1")
     assert blocked.status_code == 403

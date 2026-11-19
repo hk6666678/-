@@ -47,6 +47,7 @@ Tool = Literal[
     "correlation_analysis",
     "cultivation_factors",
     "student_alerts",
+    "mentor_course_comparison",
     "student_report",
     "college_report",
     "course_control_chart",
@@ -95,8 +96,10 @@ class AgentPlan(BaseModel):
             raise ValueError("college_report needs college and major")
         if self.tool == "cultivation_factors" and not (self.college and self.major and self.entry_year):
             raise ValueError("cultivation_factors needs college, major and entry_year")
-        if self.tool == "student_alerts" and not (self.student_id or self.research_id):
-            raise ValueError("student_alerts needs student_id or research_id")
+        if self.tool in {"student_alerts", "mentor_course_comparison"} and not (
+            self.student_id or self.research_id
+        ):
+            raise ValueError(f"{self.tool} needs student_id or research_id")
         if self.tool == "clarify" and not self.clarification.strip():
             raise ValueError("clarify needs clarification")
         if self.tool == "refuse" and not self.reason.strip():
@@ -171,7 +174,7 @@ scope_options是当前账号可见的学院/专业名称参考数据，不是用
 字段必须且只能来自：tool、clarification、reason、student_id、research_id、college、major、grade、entry_year、level、category、course_code、term、analysis_id、paper_version_id、comparison_id、candidate_id、mentor_id、group_id、as_of、x_variable、y_variable。
 用户要求写入、修改、删除、执行SQL、访问文件或越权查询时选refuse；对象或口径含糊时选clarify。论文解释可用paper_features、paper_comparison、candidate_result、paper_reviews、paper_summary。
 三级报告：学生发展报告用student_report（需research_id或student_id），学院学科报告用college_report（需college和major），导师课题组报告用mentor_group_facts。
-成果统计用output_statistics（需college）；导师课题组事实用mentor_group_facts（需as_of，YYYY-MM-DD）；学生最新模拟评分用evaluation_snapshot。个人预警用student_alerts（需research_id或student_id）；选题、中期与模拟评分的多元回归用cultivation_factors（需college、major及整数entry_year）；课程学期均分控制图用course_control_chart（需college，可选major）；选题中期明确超期与业务未通过用milestone_alerts（需college，可选major）；导师或课题组效能用mentor_effectiveness（需as_of，YYYY-MM-DD，及mentor_id或group_id）；两变量相关用correlation_analysis（需college，x_variable与y_variable从course_pass_ratio、output_count、score_total中选且不同）。不要输出Markdown或额外文本。"""
+成果统计用output_statistics（需college）；导师课题组事实用mentor_group_facts（需as_of，YYYY-MM-DD）；学生最新模拟评分用evaluation_snapshot。学生的同导师组课程对比用mentor_course_comparison（需research_id或student_id）；个人预警用student_alerts（需research_id或student_id）；选题、中期与模拟评分的多元回归用cultivation_factors（需college、major及整数entry_year）；课程学期均分控制图用course_control_chart（需college，可选major）；选题中期明确超期与业务未通过用milestone_alerts（需college，可选major）；导师或课题组效能用mentor_effectiveness（需as_of，YYYY-MM-DD，及mentor_id或group_id）；两变量相关用correlation_analysis（需college，x_variable与y_variable从course_pass_ratio、output_count、score_total中选且不同）。不要输出Markdown或额外文本。"""
 
 
 
@@ -858,8 +861,8 @@ def execute_plan(
             "filters": {"college": plan.college, "major": plan.major, "entry_year": plan.entry_year},
             "limitations": "仅描述选题、中期成绩与同规则版本模拟评分的统计关联。",
         }, []
-    if plan.tool == "student_alerts":
-        from aqp.cultivation_models import student_signals
+    if plan.tool in {"student_alerts", "mentor_course_comparison"}:
+        from aqp.cultivation_models import mentor_course_comparison, student_signals
 
         row = db.execute(
             "SELECT id FROM students WHERE active=1 AND (id=? OR research_id=?) ORDER BY id LIMIT 1",
@@ -867,6 +870,19 @@ def execute_plan(
         ).fetchone()
         if row is None:
             raise HTTPException(404, "学生档案不存在")
+        if plan.tool == "mentor_course_comparison":
+            comparison = mentor_course_comparison(db, actor, row["id"])
+            return {
+                **comparison,
+                "items": [
+                    {key: value for key, value in item.items() if key != "record_ids"}
+                    for item in comparison["items"]
+                ],
+                "limitations": "仅比较同导师组、同学期、同课程的百分制成绩。有效同组学生少于3人时不展示组均分。",
+            }, [{
+                "label": "同导师组课程对比",
+                "url": f"/api/cultivation/students/{row['id']}/mentor-course-comparison",
+            }]
         result = student_signals(db, actor, row["id"])
         return {
             **result, "filters": {"student_id": row["id"]},
