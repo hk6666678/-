@@ -75,7 +75,7 @@ export function ProcessAlerts({ snapshot }: { snapshot: Snapshot }) {
   );
 }
 
-export function StudentAlerts({ snapshots }: { snapshots: Snapshot[] }) {
+export function StudentAlerts({ snapshots, individual = false }: { snapshots: Snapshot[]; individual?: boolean }) {
   type Signal = { label: string; snapshot: number; category: string; evidence: Evidence[] };
   const students = new Map<number, Signal[]>();
   function add(student: number, signal: Signal) {
@@ -103,9 +103,9 @@ export function StudentAlerts({ snapshots }: { snapshots: Snapshot[] }) {
   const ordered = [...students].sort(([a, left], [b, right]) => right.length - left.length || a - b);
   return (
     <section aria-label="逐生预警清单">
-      <h4>逐生预警清单（{ordered.length} 人）</h4>
-      <p>按学生合并本次所列分析中的信号。超期以生成分析当天的判断为准，未知状态不计入预警。</p>
-      {ordered.length === 0 && <p>所列分析未发现已确认的预警信号。</p>}
+      <h4>{individual ? (ordered.length ? "培养环节有已确认预警" : "已分析环节暂无已确认预警") : `逐生预警清单（${ordered.length} 人）`}</h4>
+      {!individual && <p>按学生合并本次所列分析中的信号。超期以生成分析当天的判断为准，未知状态不计入预警。</p>}
+      {!individual && ordered.length === 0 && <p>所列分析未发现已确认的预警信号。</p>}
       {ordered.map(([student, signals]) => (
         <details key={student}>
           <summary>研究记录 {student} · {signals.length} 条信号</summary>

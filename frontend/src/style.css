@@ -1529,3 +1529,12 @@ summary:hover { color: var(--accent-deep); }
 .signal-term i i { background: #587fa4; }
 .signal-term strong { min-width: 4em; text-align: right; }
 .signal-evidence > details { border-bottom: 1px solid #e4eaf0; padding-bottom: 8px; }
+
+.student-brief { max-width: 72rem; margin-block: 1.25rem; }
+.brief-switch { display: inline-flex; flex-wrap: wrap; gap: 3px; padding: 4px; background: #edf1f5; border-radius: 12px; margin-bottom: 1.1rem; }
+.brief-switch button { margin: 0; padding: .5rem .95rem; border: 0; border-radius: 9px; background: transparent; color: #495966; box-shadow: none; }
+.brief-switch button[aria-pressed="true"] { background: white; color: #173b55; box-shadow: 0 1px 4px #293b492e; }
+.student-brief section[aria-label="逐生预警清单"] { padding: .85rem 1rem; background: #f2f6f8; border-inline-start: 3px solid #507894; margin-bottom: 1rem; }
+.student-brief section[aria-label="逐生预警清单"] h4 { margin: 0; }
+.student-brief .brief-rate strong { color: #193f5b; font-size: 1.85rem; font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
+.brief-context details span { display: inline-block; margin: .45rem .75rem .15rem 0; }

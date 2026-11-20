@@ -37,6 +37,7 @@ export function CultivationOverview({ csrf, showSnapshot }: {
   const [studentId, setStudentId] = useState("");
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<{ student: Student; outcomes: Outcome[]; signals: Signals }>();
+  const [view, setView] = useState("培养概况");
   const heading = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => { if (result) heading.current?.focus(); }, [result]);
@@ -57,6 +58,7 @@ export function CultivationOverview({ csrf, showSnapshot }: {
   }, [query]);
 
   async function load(scope: Scope, student: Student) {
+    setView("培养概况");
     setRunning(true);
     setResult(undefined);
     showSnapshot(null);
@@ -129,6 +131,22 @@ export function CultivationOverview({ csrf, showSnapshot }: {
         <>
           <h3 ref={heading} tabIndex={-1}>个人培养过程</h3>
           <p>{studentLabel(result.student)}</p>
+          <section className="student-brief">
+          <div className="brief-switch" role="group" aria-label="个人培养视图">
+            {["培养概况", "个人趋势", "对比与来源"].map((name) => <button type="button" key={name}
+              aria-pressed={view === name} onClick={() => { setView(name); showSnapshot(null); }}>{name}</button>)}
+          </div>
+          {view === "培养概况" && <>
+          {snapshots.length > 0 && (
+            <>
+              {snapshots.length < stages.length && <p>有环节未能完成分析，关注清单仅覆盖已返回的结果。</p>}
+              <StudentAlerts snapshots={snapshots} individual />
+            </>
+          )}
+          {result.signals.blind_review && <p>盲审送审　<strong>{result.signals.blind_review.status}</strong></p>}
+          {result.signals.mobility && <p>学籍异动　<strong>{result.signals.mobility.type}</strong></p>}
+          {result.signals.peer_outputs?.below && <p>科研成果低于同届同专业中位数，可在「对比与来源」查看。</p>}
+          {result.signals.notice && <p>{result.signals.notice}</p>}
           <div className="cultivation-stages">
             {result.outcomes.map((outcome, index) => {
               const stage = stages[index];
@@ -139,9 +157,10 @@ export function CultivationOverview({ csrf, showSnapshot }: {
                     <>
                       {outcome.snapshot.result.assessment_count === 0 ? <p>该学生暂无可分析记录。</p> : (
                         <>
+
+                          <p className="brief-rate"><strong>{outcome.snapshot.result.pass_rate === null ? "—" : `${outcome.snapshot.result.pass_rate}%`}</strong> 通过率</p>
                           <p>{outcome.snapshot.result.assessment_count} 条考核记录</p>
-                          <p>{outcome.snapshot.result.pass_rate === null ? "通过率暂无数据" : `通过率 ${outcome.snapshot.result.pass_rate}%`}</p>
-                          <p>未通过 {outcome.snapshot.result.failed} 条 · 状态未知 {outcome.snapshot.result.unknown} 条</p>
+                          {(outcome.snapshot.result.failed > 0 || outcome.snapshot.result.unknown > 0) && <p>未通过 {outcome.snapshot.result.failed} 条 · 状态未知 {outcome.snapshot.result.unknown} 条</p>}
                           {stage.key === "courses" && (() => {
                             const progress = outcome.snapshot.result.credit_progress?.students?.[0];
                             return <p>{progress ? `已获 ${progress.earned_credits} 学分 · 完成 ${progress.progress_percent}%` : "学分进度暂不可计算，查看明细了解缺项。"}</p>;
@@ -155,15 +174,11 @@ export function CultivationOverview({ csrf, showSnapshot }: {
               );
             })}
           </div>
+          </>}
+          {view === "对比与来源" && <>
           <MentorCourseComparison key={result.student.id} studentId={result.student.id} />
-          {snapshots.length > 0 && (
-            <>
-              {snapshots.length < stages.length && <p>有环节未能完成分析，关注清单仅覆盖已返回的结果。</p>}
-              <StudentAlerts snapshots={snapshots} />
-            </>
-          )}
-          <details className="task-details" open={Boolean(result.signals.blind_review || result.signals.mobility || result.signals.peer_outputs?.below)}>
-            <summary>盲审送审、学籍与成果关注信号</summary>
+          <section className="brief-context">
+            <h4>盲审、学籍与科研成果</h4>
             {result.signals.blind_review && (
               <p>盲审送审 · {result.signals.blind_review.batch} · 应交日期 {result.signals.blind_review.due || "待补充"} · {result.signals.blind_review.status}</p>
             )}
@@ -176,12 +191,15 @@ export function CultivationOverview({ csrf, showSnapshot }: {
                 <p>已登记成果 {result.signals.peer_outputs.count} 项 · 同届同专业中位数 {result.signals.peer_outputs.peer_median} 项（{result.signals.peer_outputs.peer_count} 人）
                   {result.signals.peer_outputs.below ? " · 低于同届中位数" : ""}</p>
                 <p>按当前授权可见的四类有效成果统计，供人工核查。</p>
+                <details><summary>查看成果来源（{result.signals.peer_outputs.sources.length}）</summary>
                 {result.signals.peer_outputs.sources.map((source, index) => (
                   <span key={source}><a href={source} target="_blank" rel="noreferrer">成果来源 {index + 1}</a>{" "}</span>
-                ))}
+                ))}</details>
               </>
             ) : <p>{result.signals.notice}</p>}
-          </details>
+          </section></>}
+          {view === "个人趋势" && <>
+          {!result.signals.course_trend && !result.signals.milestone_trends?.length && !result.signals.output_trend && <p>{result.signals.notice || "暂无个人趋势记录。"}</p>}
           {result.signals.course_trend && (
             <details className="task-details">
               <summary>个人课程趋势 · {result.signals.course_trend.signal}</summary>
@@ -222,6 +240,8 @@ export function CultivationOverview({ csrf, showSnapshot }: {
               </table>}
             </details>
           )}
+          </>}
+          </section>
         </>
       )}
     </>
