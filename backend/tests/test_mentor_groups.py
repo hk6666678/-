@@ -292,8 +292,8 @@ def test_relation_dates_history_conflicts_and_current_revocation(client, tmp_pat
     assert client.get(endpoint).json()["items"] == []
     assert client.get(f"{endpoint}/{rid}/history").status_code == 404
     assert (
-        client.get("/api/mentor-groups/facts?as_of=2026-01-01").json()["student_count"]
-        == 0
+        client.get("/api/mentor-groups/facts?as_of=2026-01-01").status_code
+        == 403
     )
 
 

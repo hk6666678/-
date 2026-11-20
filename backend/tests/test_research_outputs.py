@@ -9,6 +9,7 @@ def test_research_outputs_require_explicit_access(client):  # noqa: F811
         "items": [],
         "personal_participations": 0,
         "distinct_outputs": 0,
+        "can_view": False,
     }
 
 

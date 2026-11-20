@@ -14,7 +14,7 @@ from zipfile import BadZipFile
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
 
-from aqp.authorization import allowed, student_allowed
+from aqp.authorization import allowed, has_category_grant, student_allowed
 from aqp.store import connection
 
 
@@ -259,6 +259,7 @@ def register_research_outputs(
             return {
                 "items": items,
                 "personal_participations": 0 if voided else count,
+                "can_view": has_category_grant(db, user["id"], category, "view"),
                 "distinct_outputs": 0 if voided else len(items),
             }
 

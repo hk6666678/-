@@ -106,6 +106,14 @@ def school_operation_allowed(
     )
 
 
+def has_category_grant(db: sqlite3.Connection, user_id: int, category: str, operation: str) -> bool:
+    """Whether this operation is granted anywhere, independent of stored records."""
+    return school_operation_allowed(db, user_id, operation) or db.execute(
+        "SELECT 1 FROM grants WHERE user_id=? AND category=? AND operation=? LIMIT 1",
+        (user_id, category, operation),
+    ).fetchone() is not None
+
+
 def allowed(
     db: sqlite3.Connection,
     user_id: int,

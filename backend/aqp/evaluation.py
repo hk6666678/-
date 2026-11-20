@@ -603,7 +603,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
             "SELECT e.id,e.rule_id,st.research_id,st.college,st.major "
             "FROM evaluation_snapshots e JOIN students st ON st.id=e.student_id "
             "WHERE st.active=1 AND e.id=(SELECT MAX(id) FROM evaluation_snapshots WHERE student_id=e.student_id)"
-        ):
+        ).fetchall():
             try:
                 result = load_snapshot(db, actor, row["id"])
             except HTTPException as exc:

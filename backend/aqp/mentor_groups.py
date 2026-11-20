@@ -15,7 +15,7 @@ from fastapi.responses import Response
 from openpyxl import Workbook, load_workbook
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from aqp.authorization import allowed, student_allowed
+from aqp.authorization import allowed, has_category_grant, student_allowed
 from aqp.research_outputs import current_participant
 from aqp.store import audit, connection
 
@@ -501,6 +501,8 @@ def register_mentor_groups(
     ) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
+            if not all(has_category_grant(db, actor["id"], "mentor_groups", op) for op in ("view", "analyze")):
+                raise HTTPException(403, "指导关系统计需要查看和分析权限")
             result = group_facts(
                 db, actor["id"], as_of.isoformat(), mentor_id, group_id
             )

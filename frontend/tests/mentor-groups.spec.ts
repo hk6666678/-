@@ -140,6 +140,7 @@ test("mentor directories relationships facts and revocation", async ({
     0,
   );
   await page.getByRole("button", { name: "查询关系事实", exact: true }).click();
-  await expect(page.getByLabel("关系事实结果")).toContainText("去重学生数：0");
+  await expect(page.getByRole("alert")).toContainText("指导关系统计需要查看和分析权限");
+  await expect(page.getByLabel("关系事实结果")).toHaveCount(0);
 });
 

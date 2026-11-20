@@ -25,6 +25,7 @@ const features: Record<string, string> = {
 
 export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?: (id: number) => void }) {
   const [papers, setPapers] = useState<Paper[]>();
+  const [canViewPapers, setCanViewPapers] = useState(true);
   const [id, setId] = useState("");
   const [history, setHistory] = useState<History>();
   const [error, setError] = useState("");
@@ -49,7 +50,10 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
   }
 
   useEffect(() => {
-    void call("/api/papers").then((data) => setPapers(data.items)).catch((err) => setError(String(err)));
+    void call("/api/papers").then((data) => {
+      setCanViewPapers(data.can_view !== false);
+      setPapers(data.items);
+    }).catch((err) => setError(String(err)));
   }, []);
 
   useEffect(() => {
@@ -83,7 +87,7 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
           </option>)}
         </select>
       </label>
-      {papers?.length === 0 && <p>当前授权范围内暂无学位论文。</p>}
+      {papers?.length === 0 && <p>{canViewPapers ? "当前授权范围内暂无学位论文。" : "当前账号没有学位论文查看权限。"}</p>}
       <form onSubmit={async (event) => {
         event.preventDefault();
         if (!id) return;
