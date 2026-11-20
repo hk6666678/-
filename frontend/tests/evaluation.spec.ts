@@ -259,9 +259,10 @@ test("simulation rule, scoring, history, charts and authorized export", async ({
   if (!mine) throw new Error("evaluation student missing from roster");
   await studentSelect.selectOption(String(mine.id));
   await page.getByRole("button", { name: "保存新评分快照" }).click();
-  await expect(
-    page.getByRole("heading", { name: /快照 #1 · 10\.00 \/ 100/ }),
-  ).toBeVisible();
+  // 串行共享库里可能已有其他用例的快照，编号不写死，从实际标题中捕获。
+  const firstHeading = page.getByRole("heading", { name: /快照 #\d+ · 10\.00 \/ 100/ });
+  await expect(firstHeading).toBeVisible();
+  const firstSnapshotId = (await firstHeading.innerText()).match(/#(\d+)/)![1];
   await expect(page.locator("svg[aria-label='指标雷达图']")).toBeVisible();
   await expect(
     page.getByText("有效快照不足两个，暂不绘制连线。"),
@@ -293,7 +294,8 @@ test("simulation rule, scoring, history, charts and authorized export", async ({
     .getByRole("button", { name: "拔尖人才模拟评价", exact: true })
     .click();
   await page.getByText("查看或更换评分规则", { exact: true }).click();
-  await page.getByLabel("选择规则 1", { exact: true }).check();
+  // 串行共享库中规则编号不写死，按本用例唯一的规则名定位行后勾选。
+  await page.locator("tr", { hasText: "合成演示规则" }).getByLabel(/^选择规则 \d+$/).check();
   await page.getByText("按专业缩小学生列表", { exact: true }).click();
   await page
     .getByLabel("学生列表专业筛选", { exact: true })
@@ -311,15 +313,15 @@ test("simulation rule, scoring, history, charts and authorized export", async ({
     .getByLabel("学生研究编号", { exact: true })
     .selectOption(String(mine2.id));
   await page.getByRole("button", { name: "保存新评分快照" }).click();
-  await expect(
-    page.getByRole("heading", { name: /快照 #2 · 13\.33 \/ 100/ }),
-  ).toBeVisible();
+  const secondHeading = page.getByRole("heading", { name: /快照 #\d+ · 13\.33 \/ 100/ });
+  await expect(secondHeading).toBeVisible();
+  const secondSnapshotId = (await secondHeading.innerText()).match(/#(\d+)/)![1];
   await expect(page.getByText("共2个有效快照点。")).toBeVisible();
-  const evidenceButton = page.getByRole("button", { name: "查看快照 #2 的证据" });
+  const evidenceButton = page.getByRole("button", { name: `查看快照 #${secondSnapshotId} 的证据` });
   await expect(evidenceButton).toBeVisible();
-  await expect(page.getByRole("button", { name: "查看快照 #1 的证据" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: `查看快照 #${firstSnapshotId} 的证据` })).toHaveCount(0);
   await evidenceButton.click();
-  await expect(page.getByRole("heading", { name: /快照 #2 · 13\.33 \/ 100/ })).toBeVisible();
+  await expect(secondHeading).toBeVisible();
   // Snapshots saved within the same second overlap on the honest time axis,
   // so assert the plotted points rather than a zero-width connecting line.
   await expect(
@@ -328,16 +330,14 @@ test("simulation rule, scoring, history, charts and authorized export", async ({
   await page.getByText("查看历史评分", { exact: true }).click();
   const historySelect = page.getByLabel("历史快照", { exact: true });
   await expect(historySelect.locator("option")).toHaveCount(3);
-  await historySelect.selectOption("1");
-  await expect(
-    page.getByRole("heading", { name: /快照 #1 · 10\.00 \/ 100/ }),
-  ).toBeVisible();
+  await historySelect.selectOption(firstSnapshotId);
+  await expect(firstHeading).toBeVisible();
   const downloadPromise = page.waitForEvent("download");
   await page
     .getByRole("button", { name: "导出评分报告（需独立导出授权）" })
     .click();
   const download = await downloadPromise;
-  expect(download.suggestedFilename()).toBe("evaluation-snapshot-1.xlsx");
+  expect(download.suggestedFilename()).toBe(`evaluation-snapshot-${firstSnapshotId}.xlsx`);
   await page.locator(".content").evaluate((el) => el.scrollTo(0, 0));
   await page.screenshot({
     path: "../artifacts/full07-simulation.png",
@@ -345,7 +345,7 @@ test("simulation rule, scoring, history, charts and authorized export", async ({
   });
   await page
     .locator("article.card", {
-      has: page.getByRole("heading", { name: /快照 #1/ }),
+      has: page.getByRole("heading", { name: `快照 #${firstSnapshotId}` }),
     })
     .screenshot({ path: "../artifacts/full07-snapshot-card.png" });
   await page.setViewportSize({ width: 550, height: 1200 });

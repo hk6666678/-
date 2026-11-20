@@ -118,16 +118,11 @@ test("synthetic Excel report and originals use independent current grants", asyn
     await page
       .getByRole("button", { name: "培养过程分析", exact: true })
       .click();
-    const scope = page.locator("section").filter({
-      has: page.getByRole("heading", {
-        name: "培养过程分析",
-        exact: true,
-      }),
-    });
     await page.getByLabel("研究生", { exact: true }).selectOption({ index: 1 });
     await page.getByRole("button", { name: "查看培养过程", exact: true }).click();
-    await scope.getByRole("button", { name: "查看课程明细" }).click();
-    const link = scope.getByRole("link", {
+    // 面板标题已改为“按学生查看”，不再作为 section 锚点；明细按钮与下载链接在本流程中全局唯一。
+    await page.getByRole("button", { name: "查看课程明细" }).click();
+    const link = page.getByRole("link", {
       name: "下载分析 Excel（须导出权限）",
     });
     await expect(link).toBeVisible();
@@ -154,10 +149,10 @@ test("synthetic Excel report and originals use independent current grants", asyn
     expect(deniedExport.status()).toBe(403);
     await deniedExport.dispose();
 
-    scope.getByText("来源下钻与逐条证据", { exact: true }).click();
+    page.getByText("来源下钻与逐条证据", { exact: true }).click();
     const [originalDownload] = await Promise.all([
       page.waitForEvent("download"),
-      scope
+      page
         .getByRole("link", { name: "下载原始 Excel（全文件范围及身份授权）" })
         .click(),
     ]);
