@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Paper = { id: number; version: number; title?: string; level: string; discipline: string; year: string };
 type Label = { version: number; label: string; basis: string; confirmed_by: string };
@@ -30,6 +30,7 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
   const [error, setError] = useState("");
   const [labelError, setLabelError] = useState("");
   const [result, setResult] = useState<Comparison>();
+  const historyRequest = useRef(0);
   const [textResult, setTextResult] = useState<TextComparison>();
   const [classification, setClassification] = useState<Classification>();
   const [classifier, setClassifier] = useState("synthetic-logistic-v1");
@@ -66,6 +67,7 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
       {error && <p role="alert">{error}</p>}
       <label>比较论文
         <select aria-label="比较论文" value={id} disabled={busy} onChange={(event) => {
+          historyRequest.current++;
           setId(event.target.value);
           setHistory(undefined);
           setLabelError("");
@@ -88,6 +90,7 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
         setBusy(true);
         setError("");
         try {
+          historyRequest.current++;
           const comparison = await call("/api/papers/" + id + "/comparisons", { year: data.get("year") });
           setResult(comparison);
           onCreated?.(comparison.id);
@@ -204,7 +207,15 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
           </table></div>}
           <details className="task-details">
             <summary>比较版本与导出</summary>
-            <button className="secondary" onClick={() => void call("/api/paper-comparisons/" + result.id).then(setResult).catch((err) => setError(String(err)))}>检查历史比较是否过时</button>
+            <button className="secondary" disabled={busy} onClick={async () => {
+              const request = ++historyRequest.current;
+              try {
+                const refreshed = await call("/api/paper-comparisons/" + result.id);
+                if (request === historyRequest.current) setResult(refreshed);
+              } catch (err) {
+                if (request === historyRequest.current) setError(String(err));
+              }
+            }}>检查历史比较是否过时</button>
             <a href={"/api/paper-comparisons/" + result.id + "/export"}>下载比较 Excel</a>
           </details>
         </>

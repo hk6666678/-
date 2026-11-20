@@ -367,7 +367,13 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
                 </details>
               </>
             )}
-            <details className="reading-note"><summary>选题与中期考核</summary>
+            <details className="reading-note"><summary>选题与中期考核
+              {(["topic", "midterm"] as const).map(key => {
+                const { status } = studentReport.sections.milestones[key];
+                if (status === "ok") return null;
+                return <span key={key}> · {key === "topic" ? "选题" : "中期"}{status === "missing" ? "缺记录" : "未授权"}</span>;
+              })}
+            </summary>
             {(["topic", "midterm"] as const).map((key) => (
               <div key={key} className="report-subsection">
                 <strong>{key === "topic" ? "选题" : "中期"}</strong>

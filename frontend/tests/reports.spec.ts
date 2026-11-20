@@ -145,7 +145,19 @@ test("three-level reports with charts drilldown and authorized export", async ({
   await page
     .getByLabel("学生研究编号", { exact: true })
     .selectOption(String(mine.id));
+  await page.route(`**/api/reports/students/${mine.id}`, async route => {
+    const response = await route.fetch();
+    const report = await response.json();
+    report.sections.milestones = {
+      topic: { status: "missing", reason: "尚无选题记录" },
+      midterm: { status: "unauthorized", reason: "当前授权不足" },
+    };
+    await route.fulfill({ response, json: report });
+  });
   await page.getByRole("button", { name: "查看学生报告" }).click();
+  const milestones = page.locator("summary").filter({ hasText: "选题与中期考核" });
+  await expect(milestones).toContainText("选题缺记录");
+  await expect(milestones).toContainText("中期未授权");
   await expect(
     page.getByText(/SYN-REPORT-0001 专项报告合成学生/),
   ).toBeVisible();

@@ -101,9 +101,11 @@ export function StudentAlerts({ snapshots, individual = false }: { snapshots: Sn
     }
   }
   const ordered = [...students].sort(([a, left], [b, right]) => right.length - left.length || a - b);
+  const unknownResults = snapshots.reduce((count, snapshot) => count + snapshot.result.unknown, 0);
   return (
     <section aria-label="逐生预警清单">
       <h4>{individual ? (ordered.length ? "培养环节有已确认预警" : "已分析环节暂无已确认预警") : `逐生预警清单（${ordered.length} 人）`}</h4>
+      {individual && unknownResults > 0 && <p>有 {unknownResults} 条考核结果未知，未计入考核结果预警。</p>}
       {!individual && <p>按学生合并本次所列分析中的信号。超期以生成分析当天的判断为准，未知状态不计入预警。</p>}
       {!individual && ordered.length === 0 && <p>所列分析未发现已确认的预警信号。</p>}
       {ordered.map(([student, signals]) => (

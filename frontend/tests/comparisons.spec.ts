@@ -20,3 +20,46 @@ test('synthetic expert label and comparison history',async({page})=>{
 
  } finally {if(original)await grants(original);}
 });
+
+test("a late history response cannot replace another paper's comparison", async ({ page }) => {
+  const paperA = { id: 1, title: "合成论文甲", version: 1, discipline: "计算机" };
+  const paperB = { ...paperA, id: 2, title: "合成论文乙" };
+  const comparison = (id: number, pages: number) => ({
+    id, stale: false, target_features: { page_count: pages },
+    groups: { 普通: { sample_count: 1, features: { page_count: { mean: 12, denominator: 1 } } } },
+  });
+  await page.route("**/api/papers", route => route.fulfill({ json: { items: [paperA, paperB] } }));
+  await page.route("**/api/papers/*/labels", route => route.fulfill({ json: { label: "待评", version: 0, items: [] } }));
+  await page.route("**/api/papers/1/comparisons", route => route.fulfill({ json: comparison(11, 31) }));
+  await page.route("**/api/papers/2/comparisons", route => route.fulfill({ json: comparison(22, 42) }));
+  let release!: () => void;
+  const delayed = new Promise<void>(resolve => { release = resolve; });
+  await page.route("**/api/paper-comparisons/11", async route => {
+    await delayed;
+    await route.fulfill({ json: comparison(11, 31) });
+  });
+  await page.goto("/");
+  await page.getByLabel("用户名", { exact: true }).fill("synthetic-admin");
+  await page.getByLabel("密码", { exact: true }).fill("Synthetic-password-123!");
+  await page.getByRole("button", { name: "登录平台" }).click();
+  await page.getByRole("button", { name: "学位论文质量", exact: true }).click();
+  const picker = page.getByLabel("比较论文", { exact: true });
+  const generate = page.getByRole("button", { name: "生成同类比较" });
+  await picker.selectOption("1");
+  await generate.click();
+  await page.getByText("比较版本与导出", { exact: true }).click();
+  const historyRequest = page.waitForRequest("**/api/paper-comparisons/11");
+  await page.getByRole("button", { name: "检查历史比较是否过时" }).click();
+  await historyRequest;
+  await picker.selectOption("2");
+  await generate.click();
+  await expect(page.getByRole("cell", { name: "42", exact: true })).toBeVisible();
+  const lateResponse = page.waitForResponse("**/api/paper-comparisons/11");
+  release();
+  await (await lateResponse).finished();
+  await expect(page.getByText("合成论文乙", { exact: true })).toBeVisible();
+  const exportLink = page.getByRole("link", { name: "下载比较 Excel", includeHidden: true });
+  await expect(exportLink).toHaveAttribute("href", "/api/paper-comparisons/22/export", { timeout: 2000 });
+  await expect(page.getByRole("cell", { name: "42", exact: true })).toBeVisible();
+});
+

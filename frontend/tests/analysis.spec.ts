@@ -109,6 +109,9 @@ test("course analysis preserves source evidence and immutable stale history", as
       .click();
     await page.getByLabel("研究生", { exact: true }).selectOption({ index: 1 });
     await page.getByRole("button", { name: "查看培养过程", exact: true }).click();
+    await expect(page.getByRole("region", { name: "逐生预警清单" })).toContainText(
+      "有 2 条考核结果未知，未计入考核结果预警。",
+    );
     await expect(page.getByRole("button", { name: "培养概况" })).toHaveAttribute("aria-pressed", "true");
     await page.getByRole("button", { name: "对比与来源" }).click();
     await expect(page.getByText("同导师组课程对比", { exact: true })).toBeVisible();
