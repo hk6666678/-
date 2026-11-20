@@ -242,6 +242,7 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
     [history, setHistory] = useState<
       { version: number; data: Relation; reason: string; created_at: string }[]
     >([]);
+  const [factsSubject, setFactsSubject] = useState("");
   const [facts, setFacts] = useState<Facts | null>(null),
     [drill, setDrill] = useState(""),
     [error, setError] = useState(""),
@@ -413,10 +414,12 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
           e.preventDefault();
           const f = new FormData(e.currentTarget);
           void act(async () => {
+            const subject = String(f.get("subject"));
             const q = new URLSearchParams({ as_of: String(f.get("as_of")) });
             const [kind, id] = String(f.get("subject")).split(":");
             if (id) q.set(kind, id);
             setFacts(await api<Facts>(`facts?${q}`));
+            setFactsSubject(!id ? "全部授权关系" : (kind === "mentor_id" ? mentors : groups).find(item => String(item.id) === id)?.name || subject);
             setDrill("");
           });
         }}
@@ -440,6 +443,7 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
       </form>
       {facts && (
         <div aria-label="关系事实结果">
+          <h3>{factsSubject}的指导情况</h3>
           <p className="mentor-fact-summary">
             截至 {facts.as_of} · 去重学生数：{facts.student_count} ·
             有效指导关系：{facts.relation_ids.length}

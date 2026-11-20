@@ -567,18 +567,28 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
       }} />
       {snapshot && (
         <article className="card" id="evaluation-evidence">
+          <div className="score-lead">
+          <p>{students.find(s => s.id === snapshot.student_id)?.name || snapshots.find(s => s.student_id === snapshot.student_id)?.research_id || `研究记录 ${snapshot.student_id}`} 的模拟评价</p>
           <h3>
             快照 #{snapshot.id} ·{" "}
             {snapshot.total === null
               ? "数据不完整，未形成总分"
               : `${snapshot.total.toFixed(2)} / 100`}
           </h3>
+          <p>评分时间　{new Date(snapshot.as_of * 1000).toLocaleString()}</p>
+          {snapshot.total !== null && (() => {
+            const factors = snapshot.ahp?.dimensions ?? snapshot.inputs.map(i => ({ ...i, name: features[i.feature] ?? i.feature }));
+            const top = factors.filter(f => f.normalized !== null).sort((a,b) => b.normalized! * b.weight - a.normalized! * a.weight)[0];
+            return top && <p>加权贡献最高　<strong>{top.name}</strong></p>;
+          })()}
+          </div>
           {snapshot.total === null && (
             <section aria-label="评分缺项">
               <h4>补齐以下指标后重新保存评分</h4>
+              <p>以下指标缺少有效数据，暂时无法计算加权总分。</p>
               <ul>
                 {snapshot.inputs.filter((input) => input.value === null).map((input) => (
-                  <li key={input.feature}>{features[input.feature] ?? input.feature} · {input.missing || "缺少有效记录"}</li>
+                  <li key={input.feature}>{features[input.feature] ?? input.feature} · {input.missing || "缺少有效记录"}。到「{input.feature === "course_pass_ratio" ? "课程导入与待关联" : input.feature === "latest_citation_count" ? "科研成果导入 → 科研论文 → 来源与历史" : "科研成果导入"}」核对。</li>
                 ))}
               </ul>
             </section>
@@ -726,3 +736,4 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
     </section>
   );
 }
+

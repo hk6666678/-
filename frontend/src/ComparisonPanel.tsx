@@ -188,7 +188,8 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
       )}
       {result && (
         <>
-          <h3>同类论文比较结果</h3><p>{result.stale ? "比较结果已过时，请重新生成。" : result.notice}</p>
+          <h3>同类论文比较结果</h3><p>{papers.find(paper => String(paper.id) === id)?.title || "论文（身份已隐藏）"}</p>
+          <p>{result.stale ? "比较结果已过时，请重新生成。" : result.notice}</p>
           {Object.keys(result.groups).length > 0 && <div className="table-wrap comparison-result"><table>
             <thead><tr><th>指标</th><th>当前论文</th>{Object.entries(result.groups).map(([name, group]) =>
               <th key={name}>{name}组均值（{group.sample_count} 篇）</th>)}</tr></thead>

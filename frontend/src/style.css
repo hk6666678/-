@@ -1545,3 +1545,6 @@ summary:hover { color: var(--accent-deep); }
 .summary-pair dt { color: #465b6b; font-size: .85rem; }
 .summary-pair dd { margin: .2rem 0 0; font-size: 1.55rem; font-weight: 650; color: #193f5b; font-variant-numeric: tabular-nums; }
 .comparison-result td:nth-child(2), .comparison-result thead th:nth-child(2) { background: #edf4f8; color: #193f5b; font-weight: 650; }
+
+.score-lead { border-inline-start: 3px solid #567899; padding: .2rem 1rem; margin-bottom: 1rem; background: #f3f7fa; overflow-wrap: anywhere; }
+.score-lead h3 { font-size: clamp(1.25rem, 2.2vw, 2rem); font-variant-numeric: tabular-nums; }
