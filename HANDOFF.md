@@ -5,6 +5,7 @@
 - 已验证的功能基点 `2a514f4`：34 项后端权限相关测试、3 项 Playwright 测试和前端构建通过。CI 采用 Windows Server 2022 runner 和预装 Chrome，复用 Playwright 临时数据库。首次 GitHub 工作流触发及托管 runner 安装依赖仍待验证。测试入口见 [README 开发与验证](README.md#开发与验证)。
 - GitHub 仓库为 `hk6666678/-`。根据截图和本地远程跟踪记录，默认 `main` 仍是 `57061e3`，只有初始化 README。项目代码在 `integration/aqp-trial`，本地跟踪的远端基点是 `f47f029`。文档提交前本地领先 16 个提交。接手时用 `git ls-remote --symref origin HEAD refs/heads/integration/aqp-trial` 确认当前远端状态。默认分支或主分支整理由仓库所有者决定。
 - 本机查到 8003 端口仍在监听（PID 15216）。本轮未重启服务，其后端加载版本尚未确认。权限回归均使用隔离合成库。真实学校数据、正式业务规则和模型效果仍需独立验收。
+- 交接初稿已保存为 `61fb82e`。低额度同步尝试未收到 GitHub 响应，已停止该次推送，远端结果未核实。接手先核对远端，再决定是否补推当前集成分支。
 
 ## 2026-11-19 前端业务记录可读性检查点
 
