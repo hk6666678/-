@@ -689,7 +689,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
               </details>
             </>
           )}
-          <div className="evaluation-table"><p className="table-hint">可左右滑动查看完整表格</p><div className="table-wrap"><table>
+          <details className="reading-note"><summary>查看各指标原值、权重与依据</summary><div className="evaluation-table"><div className="table-wrap"><table>
             <thead>
               <tr>
                 <th>指标</th>
@@ -716,7 +716,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
                 </tr>
               ))}
             </tbody>
-          </table></div></div>
+          </table></div></div></details>
           <details>
             <summary>数据版本摘要</summary>
             <code>{snapshot.data_digest}</code>

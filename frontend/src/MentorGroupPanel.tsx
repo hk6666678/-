@@ -448,7 +448,7 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
           {facts.effectiveness?.annual_counts ? (
             <>
               <p>评分覆盖 {facts.effectiveness.scored}/{facts.effectiveness.students} 人，涉及 {facts.effectiveness.cohorts} 届。按方案 85 分口径统计模拟评价，混用规则版本时暂停分数比较。</p>
-              <p>前三个完整年度的授权可见成果数 · {Object.entries(facts.effectiveness.annual_counts).map(([year, count]) => `${year} 年 ${count} 项`).join(" · ")}。仅计可确认发生于指导关系期间的成果。</p>
+              <details className="reading-note"><summary>近三年成果与统计范围</summary><p>前三个完整年度的授权可见成果数 · {Object.entries(facts.effectiveness.annual_counts).map(([year, count]) => `${year} 年 ${count} 项`).join(" · ")}。仅计可确认发生于指导关系期间的成果。</p></details>
               <table>
                 <thead><tr><th>指标</th><th>当前值</th><th>同学院同类单位均值</th><th>可比单位排名</th></tr></thead>
                 <tbody>

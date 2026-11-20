@@ -423,13 +423,13 @@ export function StudentPanel({ csrf, fetcher }: Props) {
                 {detail.archive.completeness.missing.length > 0 && ` · ${detail.archive.completeness.missing.join("、")}`}
               </p>
             )}
-            <p className="muted">
+            <details className="reading-note"><summary>时间线覆盖范围</summary><p className="muted">
               按年份汇总入学、学籍异动、修读学期、选题、中期、盲审与答辩；缺失字段如实留空。
               {detail.assessmentsNote ||
                 (detail.archive.student_number
                   ? ""
                   : "身份未授权时无法把盲审答辩关联到本档案，该段不展示。")}
-            </p>
+            </p></details>
             {timelineEvents(detail).length === 0 ? (
               <p>暂无可展示的时间线事件。</p>
             ) : (

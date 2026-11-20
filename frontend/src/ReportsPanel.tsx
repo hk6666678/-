@@ -367,7 +367,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
                 </details>
               </>
             )}
-            <h4>里程碑</h4>
+            <details className="reading-note"><summary>选题与中期考核</summary>
             {(["topic", "midterm"] as const).map((key) => (
               <div key={key} className="report-subsection">
                 <strong>{key === "topic" ? "选题" : "中期"}</strong>
@@ -380,7 +380,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
                 )}
               </div>
             ))}
-            <h4>成果参与（按年度）</h4>
+            </details><h4>成果参与（按年度）</h4>
             <div className="report-charts">
               {outputSections.map(({ key, section }) => (
                 <div key={key} className="report-subsection">
