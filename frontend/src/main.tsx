@@ -225,19 +225,15 @@ function App() {
             <img src="/tongji-emblem.png" width="56" height="56" alt="同济大学校标" />
             <span>AQP-PGS</span>
           </div>
-          <h1>
+          <div className="login-story"><h1>
             研究生培养
             <br />
             质量研究平台
           </h1>
-          <p>查阅学生档案、培养过程和科研成果。</p>
-          <ul className="intro-points">
-            <li>统一档案 —— 多部门数据汇成一人一档，来源与版本可追溯</li>
-            <li>可解释分析 —— 通过率、控制图、模拟评分，逐项证据可下钻</li>
-            <li>分级授权 —— 查看、身份、导出、维护分立授权，操作全程留痕</li>
-          </ul>
+          <p>贯通培养全过程，让每一份成长有据可循。</p></div>
+          <div className="login-scope"><span>学生档案</span><span>培养过程</span><span>科研成果</span><span>质量研究</span></div>
         </section>
-        <section className="login-form">
+        <section className="login-access"><div className="login-form">
           <h2>登录工作平台</h2>
           <p className="muted">使用管理员为您创建的个人账号</p>
           {alert}
@@ -268,9 +264,9 @@ function App() {
             <button disabled={busy}>{busy ? "正在登录…" : "登录平台"}</button>
           </form>
           <p className="muted small">
-            首次使用请由本机维护人员初始化管理员账号。
+            账号由管理员统一开通。如需帮助，请联系平台维护人员。
           </p>
-        </section>
+        </div><footer className="login-footer">AQP-PGS<span>研究生培养质量研究平台</span></footer></section>
       </main>
     );
   const admin = session.user.roles.includes("platform_admin");

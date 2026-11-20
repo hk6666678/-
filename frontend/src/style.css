@@ -1170,7 +1170,7 @@ summary:hover { color: var(--accent-deep); }
 }
 .paper-metrics > div { border-top: 2px solid var(--hairline); }
 
-/* ---------- 登录页（苹果发布会式浅色 hero） ---------- */
+/* ---------- 登录页 ---------- */
 .login-shell {
   background: var(--ground);
   grid-template-columns: 1.05fr minmax(360px, 0.75fr);
@@ -1278,4 +1278,42 @@ summary:hover { color: var(--accent-deep); }
   border-radius: 50%;
   background: var(--accent);
   opacity: 0.85;
+}
+
+/* Academic entrance */
+.login-shell { grid-template-columns: 56% 44%; gap: 0; align-items: stretch; background: #f8f9fb; }
+.login-shell .intro { display: flex; flex-direction: column; justify-content: space-between; min-height: 100svh; padding: clamp(32px, 4.5vw, 76px); background: #102d4b; isolation: isolate; }
+.login-shell .intro::before { content: ""; position: absolute; z-index: -1; width: min(660px, 60vw); aspect-ratio: 1; right: -160px; top: 23%; background: url('/tongji-emblem.png') center / contain no-repeat; opacity: .055; filter: grayscale(1) invert(1); pointer-events: none; }
+.login-shell .intro::after { display: block; inset: 22px; width: auto; height: auto; border: 1px solid #ffffff16; border-radius: 0; box-shadow: none; z-index: -1; pointer-events: none; }
+.login-shell .login-identity { color: #f1f5fa; font-weight: 500; font-size: 15px; letter-spacing: .12em; }
+.login-shell .login-identity img { width: 54px; height: 54px; padding: 5px; }
+.login-story { padding: 65px 0 95px; }
+.login-shell .intro h1 { font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-weight: 400; font-size: clamp(42px, 4.25vw, 76px); line-height: 1.45; letter-spacing: .08em; margin: 0 0 24px; color: #f6f4ed; }
+.login-shell .intro p { font-size: 15px; line-height: 1.9; color: #b9c9d8; margin: 0; letter-spacing: .06em; }
+.login-scope { display: flex; gap: 0; flex-wrap: wrap; padding-top: 25px; border-top: 1px solid #ffffff24; color: #bdccd9; font-size: 12px; letter-spacing: .12em; }
+.login-scope span + span { border-left: 1px solid #ffffff30; margin-left: 22px; padding-left: 22px; }
+.login-access { display: flex; flex-direction: column; justify-content: center; position: relative; padding: 72px 48px; }
+.login-shell .login-form { width: min(100%, 370px); margin: auto; background: transparent; border: 0; border-radius: 0; padding: 0; box-shadow: none; }
+.login-shell .login-form h2 { color: #16324c; font-size: 28px; font-weight: 600; margin: 0 0 10px; letter-spacing: .02em; }
+.login-shell .login-form > .muted { color: #728091; font-size: 13px; line-height: 1.8; }
+.login-shell .login-form form { margin-top: 38px; }
+.login-shell .login-form label { color: #31465b; font-size: 13px; margin-bottom: 23px; }
+.login-shell .login-form input { margin-top: 9px; min-height: 52px; border: 1px solid #d7dfe7; border-radius: 6px; background: #fff; color: #16324c; padding: 12px 15px; box-shadow: 0 2px 3px #16324c03; }
+.login-shell .login-form input:focus { outline: 2px solid #426c9b; outline-offset: 3px; border-color: #426c9b; }
+.login-shell .login-form button { background: #153b61; border: 1px solid #153b61; border-radius: 6px; min-height: 52px; margin: 7px 0 18px; font-weight: 500; letter-spacing: .1em; box-shadow: 0 5px 12px #153b6117; }
+.login-shell .login-form button:hover { background: #214f7d; }
+.login-shell .login-form .small { font-size: 12px; max-width: 32em; }
+.login-footer { position: absolute; bottom: 32px; left: 48px; right: 48px; display: flex; justify-content: space-between; gap: 16px; color: #8793a0; font-size: 10px; letter-spacing: .06em; }
+@media (max-width: 850px) {
+  .login-shell { grid-template-columns: 1fr; }
+  .login-shell .intro { min-height: 330px; padding: 30px; }
+  .login-shell .intro::after { inset: 12px; }
+  .login-shell .intro::before { width: 330px; right: -60px; top: 40px; }
+  .login-story { padding: 40px 0 30px; }
+  .login-shell .intro h1 { font-size: 36px; line-height: 1.35; margin-bottom: 14px; }
+  .login-shell .intro p { font-size: 12px; }
+  .login-scope { padding-top: 18px; font-size: 10px; }
+  .login-scope span + span { margin-left: 14px; padding-left: 14px; }
+  .login-access { padding: 48px 28px 95px; min-height: 530px; }
+  .login-footer { left: 28px; right: 28px; bottom: 22px; font-size: 9px; }
 }
