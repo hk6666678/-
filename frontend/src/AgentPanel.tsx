@@ -1,4 +1,4 @@
-import { EvidenceDetails } from "./EvidenceDetails";
+import { AgentEvidence } from "./AgentEvidence";
 import { useEffect, useRef, useState } from "react";
 
 type ModelStatus = { available: boolean; message: string };
@@ -82,7 +82,7 @@ export function AgentPanel({ csrf }: { csrf: string }) {
                   </div>
                   <details>
                     <summary>查看计算依据</summary>
-                    <EvidenceDetails data={turn.result.tool_result} />
+                    <AgentEvidence data={turn.result.tool_result} />
                   </details>
                 </div>
               )}

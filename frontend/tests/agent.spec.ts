@@ -20,7 +20,10 @@ test("the agent home explains why sending is unavailable", async ({ page }) => {
 test("enabled agent shows separate questions and source links", async ({ page }) => {
   await page.route("**/api/model/status", (route) => route.fulfill({ json: { available: true, message: "可发送" } }));
   await page.route("**/api/agent/query", (route) => route.fulfill({ json: {
-    answer: "当前授权范围的合成研究结果", evidence_links: [{ label: "来源", url: "/api/analyses/1" }], tool_result: {},
+    answer: "当前授权范围的合成研究结果", evidence_links: [{ label: "来源", url: "/api/analyses/1" }], tool_result: {
+      peer_outputs: { count: 4, peer_median: 5, peer_count: 23, sources: ["/api/patents/92/history"] },
+      course_trend: { signal: "在控制限内", observations: [{ term: "2023秋", mean: 81, records: 5 }] },
+    },
   }}));
   await page.getByRole("button", { name: "登录平台" }).click();
   await page.getByRole("button", { name: "目前系统多少学生？", exact: true }).click();
@@ -36,4 +39,9 @@ test("enabled agent shows separate questions and source links", async ({ page })
     await expect(page.getByText(question, { exact: true })).toBeVisible();
   }
   await expect(page.getByRole("link", { name: "来源", exact: true })).toHaveCount(2);
+  await page.getByText("查看计算依据", { exact: true }).first().click();
+  await expect(page.getByText("与中位数相比少 1 项 · 比较范围 23 人").first()).toBeVisible();
+  await expect(page.getByText("81 分", { exact: true }).first()).toBeVisible();
+  await page.getByText("成果来源（1）").first().click();
+  await expect(page.getByRole("link", { name: "专利记录 #92" })).toBeVisible();
 });
