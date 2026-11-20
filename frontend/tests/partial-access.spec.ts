@@ -1,9 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 
-test("the same student's results respect basic and course view-only access", async ({ page, browser, baseURL }) => {
-  const college = "可见范围验收学院", major = "可见范围验收专业";
-  const number = "SCOPE-001", name = "许清和", patent = "受限专利样本甲";
+for (const mixed of [false, true]) {
+test(mixed ? "one account respects different grants in two majors" : "the same student's results respect basic and course view-only access", async ({ page, browser, baseURL }) => {
+  const college = mixed ? "混合授权验收学院" : "可见范围验收学院", major = "可见范围验收专业";
+  const number = mixed ? "SCOPE-003" : "SCOPE-001", name = "许清和", patent = mixed ? "混合验收受限专利" : "受限专利样本甲";
+  const secondMajor = "混合授权甲专业";
+  const secondPatent = "可见专利样本甲";
   const password = "Synthetic-password-123!";
   async function login(p: Page, username: string) {
     await p.goto("/");
@@ -16,18 +19,23 @@ test("the same student's results respect basic and course view-only access", asy
   const me = await (await page.request.get("/api/me")).json();
   const headers = {"X-CSRF-Token":me.csrf_token};
   const readerResponse = await page.request.post("/api/users",{headers,data:{
-    username:"scope-reader",password,roles:["college_analyst"],request_id:crypto.randomUUID(),
+    username:mixed ? "mixed-reader" : "scope-reader",password,roles:["college_analyst"],request_id:crypto.randomUUID(),
   }});
   expect(readerResponse.ok()).toBeTruthy();
   const reader = await readerResponse.json();
   async function grants(user: {id:number;version:number}, categories:string[], operations:string[]) {
+    const scoped = categories.flatMap(category=>operations.map(operation=>({category,operation,college,major})));
+    if (mixed) scoped.push(...allCategories.flatMap(category =>
+      (user.id === me.user.id ? ["view","identity","maintain","analyze"] : ["view","identity","analyze"])
+        .map(operation => ({category,operation,college,major:secondMajor}))));
     const result = await page.request.put(`/api/users/${user.id}/grants`,{headers,data:{
       expected_version:user.version,request_id:crypto.randomUUID(),
-      grants:categories.flatMap(category=>operations.map(operation=>({category,operation,college,major}))),
+      grants:scoped,
     }});
     expect(result.ok()).toBeTruthy();
   }
-  await grants(me.user,["basic","courses","topic","midterm","papers","patents","research_papers","awards","conferences","mentor_groups","talent_evaluation"],["view","identity","maintain","analyze"]);
+  const allCategories = ["basic","courses","topic","midterm","papers","patents","research_papers","awards","conferences","mentor_groups","talent_evaluation"];
+  await grants(me.user,allCategories,["view","identity","maintain","analyze"]);
   await grants(reader,["basic","courses"],["view"]);
   async function seed(category:string, columns:string[], row:(string|number)[], preview:string, confirm:(id:string)=>string) {
     const buffer=execFileSync("../.venv/Scripts/python.exe",["-c",
@@ -39,15 +47,20 @@ test("the same student's results respect basic and course view-only access", asy
     const saved=await page.request.post(confirm(batch.id),{headers,data:{accept_changes:false}});
     expect(saved.ok()).toBeTruthy();
   }
+  async function seedStudent(number:string, name:string, major:string, patent:string, suffix:string) {
   await seed("basic",["学号","姓名","所属学院","专业","培养层次","入学年份"],[number,name,college,major,"硕士","2025"],"/api/imports/basic/preview",id=>`/api/imports/${id}/confirm`);
   await seed("courses",["学号","姓名","课程编号","课程名称","修读学期","考核次数","评分制度","原始成绩","业务通过结果","所属学院","专业"],[number,name,"SC01","验收数学","2025秋",1,"百分制",85,"通过",college,major],"/api/imports/courses/preview",id=>`/api/imports/courses/${id}/confirm`);
-  await seed("patents",["申请号","专利名称","学号","姓名","作者次序","参与角色","所属学院","专业","专利类型","申请日期"],["SC-PAT01",patent,number,name,1,"第一作者",college,major,"发明","2026-03-01"],"/api/patents/preview",id=>`/api/patents/previews/${id}/confirm`);
+  await seed("patents",["申请号","专利名称","学号","姓名","作者次序","参与角色","所属学院","专业","专利类型","申请日期"],["SC-PAT"+suffix,patent,number,name,1,"第一作者",college,major,"发明","2026-03-01"],"/api/patents/preview",id=>`/api/patents/previews/${id}/confirm`);
+  }
+  await seedStudent(number,name,major,patent,mixed ? "02" : "01");
+  if (mixed) await seedStudent("SCOPE-002","沈嘉宁",secondMajor,secondPatent,"03");
   const [student]=(await (await page.request.get("/api/students?q="+number)).json()).items;
+  const secondStudent = mixed ? (await (await page.request.get("/api/students?q=SCOPE-002")).json()).items[0] : undefined;
   const context=await browser.newContext({baseURL});
   const restricted=await context.newPage();
   for(const p of [page,restricted]){
     const full=p===page;
-    if(!full) await login(p,"scope-reader");
+    if(!full) await login(p,mixed ? "mixed-reader" : "scope-reader");
     const click=(label:string)=>p.getByRole("button",{name:label,exact:true}).click();
     await click("基础导入与学生档案");
     await expect(p.getByRole("row").filter({hasText:student.research_id})).toBeVisible();
@@ -62,21 +75,39 @@ test("the same student's results respect basic and course view-only access", asy
       await expect(p.locator(".student-brief")).toContainText("此范围操作未授权");
       await expect(p.getByText("已分析环节暂无已确认预警")).toHaveCount(0);
     }
+    if (secondStudent) {
+      await p.getByLabel("研究生",{exact:true}).selectOption(String(secondStudent.id));
+      await click("查看培养过程");
+      await expect(p.locator(".cultivation-student")).toContainText("沈嘉宁");
+      await expect(p.locator(".student-brief")).toContainText("100% 通过率");
+    }
     await click("科研成果导入");
     await p.getByRole("tab",{name:"专利",exact:true}).click();
-    if(full) await expect(p.getByRole("cell",{name:new RegExp(patent)})).toBeVisible();
+    if(full) {
+      await expect(p.getByRole("cell",{name:new RegExp(patent)})).toBeVisible();
+      if (mixed) {
+        await expect(p.getByRole("cell",{name:new RegExp(secondPatent)})).toBeVisible();
+        await expect(p.locator(".summary-pair dd").first()).toHaveText("2 项");
+      }
+    }
     else {
       await expect(p.getByText(patent,{exact:false})).toHaveCount(0);
-      await expect(p.getByText("当前账号没有此类成果的查看权限。")).toBeVisible();
-      await expect(p.locator(".summary-pair")).toHaveCount(0);
+      if (mixed) {
+        await expect(p.getByRole("cell",{name:new RegExp(secondPatent)})).toBeVisible();
+        await expect(p.locator(".summary-pair dd").first()).toHaveText("1 项");
+        await expect(p.getByText("仅统计当前账号获准查看的成果。")).toBeVisible();
+      } else {
+        await expect(p.getByText("当前账号没有此类成果的查看权限。")).toBeVisible();
+        await expect(p.locator(".summary-pair")).toHaveCount(0);
+      }
     }
     await click("学位论文质量");
-    await expect(p.getByText(full ? "当前授权范围内暂无学位论文。" : "当前账号没有学位论文查看权限。")).toBeVisible();
+    await expect(p.getByText(full || mixed ? "当前授权范围内暂无学位论文。" : "当前账号没有学位论文查看权限。")).toBeVisible();
     await expect(p.getByRole("button",{name:"生成同类比较"})).toBeDisabled();
     await click("导师与课题组数据");
     await click("查询关系事实");
     await p.waitForFunction(()=>document.querySelector('[aria-label="关系事实结果"],[role="alert"]'));
-    if (full) await expect(p.locator(".mentor-fact-summary")).toContainText("有效指导关系：0");
+    if (full || mixed) await expect(p.locator(".mentor-fact-summary")).toContainText("有效指导关系：0");
     else {
       await expect(p.getByRole("alert")).toContainText("指导关系统计需要查看和分析权限");
       await expect(p.locator(".mentor-fact-summary")).toHaveCount(0);
@@ -92,6 +123,14 @@ test("the same student's results respect basic and course view-only access", asy
       await expect(p.locator("#evaluation-evidence")).toHaveCount(0);
       await expect(p.getByRole("alert").first()).toContainText("人才评价授权不足");
     }
+    if (secondStudent) {
+      await p.getByLabel("学生研究编号",{exact:true}).selectOption(String(secondStudent.id));
+      await click("保存新评分快照");
+      const snapshot = p.locator("#evaluation-evidence");
+      await expect(snapshot.locator(".score-lead")).toContainText("沈嘉宁");
+      await expect(snapshot).toContainText("数据不完整");
+    }
   }
   await context.close();
 });
+}
