@@ -1,0 +1,2 @@
+CREATE TABLE import_resolutions(id INTEGER PRIMARY KEY, row_id INTEGER NOT NULL REFERENCES import_rows(id), version INTEGER NOT NULL, payload TEXT NOT NULL, evidence TEXT NOT NULL, actor_id INTEGER NOT NULL REFERENCES users(id), created_at INTEGER NOT NULL, state TEXT NOT NULL, error TEXT NOT NULL, confirmed_at INTEGER, UNIQUE(row_id,version));
+CREATE UNIQUE INDEX course_source_row_unique ON course_records(source_row_id);

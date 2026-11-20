@@ -1,0 +1,1088 @@
+"""Published research outputs are independent of degree-paper samples."""
+
+import json
+import re
+import sqlite3
+from collections.abc import Callable
+from datetime import date
+from decimal import Decimal, InvalidOperation
+from itertools import pairwise
+from pathlib import Path
+from typing import Annotated, Any
+from zipfile import BadZipFile
+
+from fastapi import FastAPI, Request
+from fastapi.responses import Response
+
+from aqp.authorization import allowed, has_category_grant, student_allowed
+from aqp.store import connection
+
+
+def title_similarity(topic: str, paper: str) -> int | None:
+    topic_text = "".join(char for char in topic.casefold() if char.isalnum())
+    paper_text = "".join(char for char in paper.casefold() if char.isalnum())
+    if min(len(topic_text), len(paper_text)) < 2:
+        return None
+    topic_pairs = {a + b for a, b in pairwise(topic_text)}
+    paper_pairs = {a + b for a, b in pairwise(paper_text)}
+    return round(100 * len(topic_pairs & paper_pairs) / len(topic_pairs | paper_pairs))
+
+
+def current_participant(
+    db: sqlite3.Connection,
+    actor: int,
+    category: str,
+    operation: str,
+    participant: dict[str, Any],
+) -> tuple[bool, sqlite3.Row | None]:
+    """The shared current-view boundary for output listings and relation facts."""
+    student = db.execute(
+        "SELECT id,college,major,name FROM students WHERE student_number=? AND active=1",
+        (participant["student_number"],),
+    ).fetchone()
+    permitted = student_allowed(
+        db, actor, student["id"] if student else None
+    ) and allowed(
+        db, actor, category, operation, participant["college"], participant["major"]
+    )
+    if student:
+        permitted = (
+            permitted
+            and allowed(
+                db, actor, category, operation, student["college"], student["major"]
+            )
+            and all(
+                student[key] == participant[key] for key in ["college", "major", "name"]
+            )
+        )
+    return permitted, student
+
+
+def register_research_outputs(
+    app: FastAPI,
+    path: Path,
+    current: Callable[[sqlite3.Connection, Request], tuple[sqlite3.Row, str]],
+    category: str = "research_papers",
+) -> None:
+    endpoint = "research-outputs" if category == "research_papers" else category
+    key_label, title_label, extra_labels = {
+        "research_papers": ("业务编号/DOI", "论文标题", ("发表年份",)),
+        "patents": ("申请号", "专利名称", ("专利类型", "申请日期")),
+        "awards": ("业务编号", "获奖项目名称", ("获奖等级", "获奖年份")),
+        "conferences": ("业务编号", "会议名称", ("报告类型", "会议日期")),
+    }[category]
+    optional_labels = {
+        "research_papers": (
+            "评价体系", "评价年度", "期刊分区", "影响因子",
+            "中科院分区", "中科院分区年度", "JCR分区", "JCR分区年度", "发表日期",
+        ),
+        "patents": ("转化状态", "转化日期"),
+        "awards": ("获奖日期", "资源类型"),
+        "conferences": ("会议范围",),
+    }.get(category, ())
+    tables = "research" if category == "research_papers" else category
+    year_field = {
+        "research_papers": "发表年份",
+        "patents": "申请日期",
+        "awards": "获奖年份",
+        "conferences": "会议日期",
+    }[category]
+
+    @app.get(f"/api/{endpoint}/cohort")
+    def cohort(request: Request) -> dict[str, Any]:
+        with connection(path) as db:
+            user, _ = current(db, request)
+            actor = user["id"]
+            students = {
+                row["id"]: dict(row)
+                for row in db.execute(
+                    "SELECT id,research_id,college,major,entry_year FROM students WHERE active=1"
+                )
+                if student_allowed(db, actor, row["id"])
+                and allowed(db, actor, "basic", "view", row["college"], row["major"])
+                and allowed(db, actor, category, "view", row["college"], row["major"])
+            }
+            dates: dict[tuple[int, str], list[str]] = {}
+            topics: dict[int, str] = {}
+            for row in db.execute("SELECT * FROM milestone_records WHERE active=1 ORDER BY id DESC"):
+                if row["student_id"] not in students:
+                    continue
+                student = students[row["student_id"]]
+                payload = json.loads(row["payload"])
+                if not (
+                    allowed(
+                        db,
+                        actor,
+                        row["category"],
+                        "view",
+                        student["college"],
+                        student["major"],
+                    )
+                    and allowed(
+                        db,
+                        actor,
+                        row["category"],
+                        "view",
+                        payload["所属学院"],
+                        payload["专业"],
+                    )
+                ):
+                    continue
+                actual = payload.get("实际日期", "")
+                if (
+                    category == "research_papers"
+                    and row["category"] == "topic"
+                    and (title := payload.get("选题标题"))
+                    and all(
+                        allowed(db, actor, "topic", op, college, major)
+                        for op in ("identity", "analyze")
+                        for college, major in (
+                            (student["college"], student["major"]),
+                            (payload["所属学院"], payload["专业"]),
+                        )
+                    )
+                ):
+                    topics.setdefault(row["student_id"], title)
+                if re.fullmatch(r"\d{4}-\d{2}-\d{2}", actual):
+                    dates.setdefault((row["student_id"], row["category"]), []).append(
+                        actual
+                    )
+
+            outputs: dict[int, list[dict[str, Any]]] = {}
+            for row in db.execute(f"SELECT * FROM {tables}_outputs WHERE active=1"):
+                payload = json.loads(row["payload"])
+                raw = str(payload.get("details", {}).get(year_field, ""))
+                year = (
+                    int(raw[:4])
+                    if re.fullmatch(r"\d{4}(?:-\d{2}-\d{2})?", raw)
+                    else None
+                )
+                seen = set()
+                for participant in payload["participants"]:
+                    permitted, linked_student = current_participant(
+                        db, actor, category, "view", participant
+                    )
+                    if not permitted or linked_student is None:
+                        continue
+                    sid = linked_student["id"]
+                    if sid not in students or sid in seen:
+                        continue
+                    seen.add(sid)
+                    match = {}
+                    for stage in ("topic", "midterm"):
+                        actuals = dates.get((sid, stage))
+                        if year is None or not actuals:
+                            match[stage] = "无法比较"
+                            continue
+                        first = min(actuals)
+                        if len(raw) == 10:
+                            match[stage] = (
+                                "之前"
+                                if raw < first
+                                else "之后"
+                                if raw > first
+                                else "同日"
+                            )
+                        else:
+                            stage_year = int(first[:4])
+                            match[stage] = (
+                                "之前"
+                                if year < stage_year
+                                else "之后"
+                                if year > stage_year
+                                else "同年（先后未知）"
+                            )
+                    outputs.setdefault(sid, []).append(
+                        {
+                            "id": row["id"],
+                            "title": payload["title"],
+                            "date": raw,
+                            **({"title_similarity": title_similarity(topics[sid], payload["title"])}
+                               if sid in topics else {}),
+                            **match,
+                        }
+                    )
+            rows = [
+                {
+                    **{
+                        key: student[key]
+                        for key in ("research_id", "college", "major", "entry_year")
+                    },
+                    "outputs": outputs.get(sid, []),
+                }
+                for sid, student in students.items()
+            ]
+            return {"items": rows}
+
+    @app.get(f"/api/{endpoint}")
+    def listing(request: Request, voided: bool = False) -> dict[str, Any]:
+        with connection(path) as db:
+            user, _ = current(db, request)
+            items = []
+            count = 0
+            for row in db.execute(
+                f"SELECT * FROM {tables}_outputs WHERE active=?", (0 if voided else 1,)
+            ):
+                payload = json.loads(row["payload"])
+                participants = []
+                for participant in payload["participants"]:
+                    permitted, student = current_participant(
+                        db, user["id"], category, "view", participant
+                    )
+                    if not permitted:
+                        continue
+                    visible = dict(participant)
+                    visible["association"] = "linked" if student else "pending"
+                    if not allowed(
+                        db,
+                        user["id"],
+                        category,
+                        "identity",
+                        participant["college"],
+                        participant["major"],
+                    ):
+                        visible.pop("student_number", None)
+                        visible.pop("name", None)
+                    participants.append(visible)
+                if participants:
+                    count += len(participants)
+                    items.append(
+                        {
+                            "id": row["id"],
+                            "version": row["version"],
+                            "business_key": row["business_key"],
+                            "title": payload["title"],
+                            "details": payload.get("details", {}),
+                            "participants": participants,
+                        }
+                    )
+            return {
+                "items": items,
+                "personal_participations": 0 if voided else count,
+                "can_view": has_category_grant(db, user["id"], category, "view"),
+                "distinct_outputs": 0 if voided else len(items),
+            }
+
+    @app.get(f"/api/{endpoint}/statistics")
+    def statistics(request: Request) -> dict[str, Any]:
+        result = listing(request)
+        years: dict[str, dict[str, int]] = {}
+        latest = []
+        missing_citations = 0
+        with connection(path) as db:
+            current(db, request)
+            for item in result["items"]:
+                details = item["details"]
+                raw = details.get(
+                    {
+                        "patents": "申请日期",
+                        "awards": "获奖年份",
+                        "conferences": "会议日期",
+                    }.get(category, "发表年份"),
+                    "",
+                )
+                year = (
+                    str(raw)[:4]
+                    if re.fullmatch(r"\d{4}(?:-\d{2}-\d{2})?", str(raw))
+                    else "年份缺失"
+                )
+                bucket = years.setdefault(
+                    year, {"distinct_outputs": 0, "personal_participations": 0}
+                )
+                bucket["distinct_outputs"] += 1
+                bucket["personal_participations"] += len(item["participants"])
+                if category == "research_papers":
+                    citation = db.execute(
+                        "SELECT snapshot_date,version,count FROM research_citations WHERE output_id=? ORDER BY snapshot_date DESC,version DESC LIMIT 1",
+                        (item["id"],),
+                    ).fetchone()
+                    if citation:
+                        latest.append({"output_id": item["id"], **dict(citation)})
+                    else:
+                        missing_citations += 1
+        return {
+            "years": [
+                {"year": year, **values} for year, values in sorted(years.items())
+            ],
+            "distinct_outputs": result["distinct_outputs"],
+            "personal_participations": result["personal_participations"],
+            "latest_citations": latest,
+            "missing_citations": missing_citations,
+            "basis": "当前授权参与范围；成果去重，个人参与按人次；引用取各成果最新日期的最新版本，不同快照日期不合并为同日总数",
+        }
+
+    @app.get(f"/api/{endpoint}/template")
+    def template(request: Request) -> Response:
+        from io import BytesIO
+
+        from fastapi.responses import Response
+        from openpyxl import Workbook
+
+        with connection(path) as db:
+            current(db, request)
+        wb = Workbook()
+        ws = wb.active
+        assert ws is not None
+        ws.append(["AQP-PGS", category, "1"])
+        ws.append(
+            [
+                key_label,
+                title_label,
+                "学号",
+                "姓名",
+                "作者次序",
+                "参与角色",
+                "所属学院",
+                "专业",
+                *extra_labels,
+                *optional_labels,
+            ]
+        )
+        stream = BytesIO()
+        wb.save(stream)
+        return Response(
+            stream.getvalue(),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={category}-v1.xlsx"},
+        )
+
+    from fastapi import Body, File, Form, HTTPException, UploadFile
+
+    from aqp.store import audit
+
+    def maintain(
+        db: sqlite3.Connection,
+        actor: int,
+        payload: dict[str, Any],
+        *,
+        historical: bool = False,
+    ) -> None:
+        for participant in payload["participants"]:
+            student = db.execute(
+                "SELECT id,college,major,name FROM students WHERE student_number=? AND active=1",
+                (participant["student_number"],),
+            ).fetchone()
+            if (
+                student
+                and not historical
+                and (
+                    student["college"] != participant["college"]
+                    or student["major"] != participant["major"]
+                    or student["name"] != participant["name"]
+                )
+            ):
+                raise HTTPException(409, "学生身份或当前学院专业冲突，请纠正后预览")
+            if not student_allowed(
+                db, actor, student["id"] if student else None
+            ) or not allowed(
+                db,
+                actor,
+                category,
+                "maintain",
+                participant["college"],
+                participant["major"],
+            ):
+                raise HTTPException(403, "缺少全部参与者维护范围")
+            if student and not allowed(
+                db,
+                actor,
+                category,
+                "maintain",
+                student["college"],
+                student["major"],
+            ):
+                raise HTTPException(403, "缺少参与者当前学院维护范围")
+
+    if category == "research_papers":
+
+        @app.get(f"/api/{endpoint}/citations/template")
+        def citation_template(request: Request) -> Response:
+            from io import BytesIO
+
+            from openpyxl import Workbook
+
+            with connection(path) as db:
+                current(db, request)
+            wb = Workbook()
+            assert wb.active is not None
+            wb.active.append(["AQP-PGS", "research_citations", "1"])
+            wb.active.append(
+                ["业务编号/DOI", "引用日期 YYYY-MM-DD", "引用数量", "来源部门"]
+            )
+            stream = BytesIO()
+            wb.save(stream)
+            return Response(
+                stream.getvalue(),
+                media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={
+                    "Content-Disposition": "attachment; filename=citations-v1.xlsx"
+                },
+            )
+
+        @app.post(f"/api/{endpoint}/citations/preview")
+        async def citation_preview(
+            request: Request, file: Annotated[UploadFile, File()]
+        ) -> dict[str, Any]:
+            from io import BytesIO
+            from uuid import uuid4
+
+            from openpyxl import load_workbook
+
+            raw = await file.read(8_000_001)
+            if len(raw) > 8_000_000:
+                raise HTTPException(422, "文件过大")
+            try:
+                wb = load_workbook(BytesIO(raw), read_only=True, data_only=True)
+                assert wb.active is not None
+                rows = iter(wb.active.values)
+                if tuple(next(rows))[:3] != ("AQP-PGS", "research_citations", "1"):
+                    raise ValueError()
+                next(rows)
+            except (ValueError, BadZipFile, StopIteration):
+                raise HTTPException(422, "引用模板无效") from None
+            items, errors = [], []
+            with connection(path) as db:
+                db.execute("BEGIN IMMEDIATE")
+                actor, _ = current(db, request)
+                seen = set()
+                for number, row in enumerate(rows, 3):
+                    if not any(value is not None for value in row):
+                        continue
+                    values = list(row) + [None] * 4
+                    key, day, count, source = values[:4]
+                    output = db.execute(
+                        "SELECT id FROM research_outputs WHERE business_key=? AND active=1",
+                        (str(key),),
+                    ).fetchone()
+                    body = {"date": day, "count": count, "source_department": source}
+                    if not output or (key, str(day)) in seen:
+                        errors.append(
+                            {"row": number, "message": "成果不存在或文件内同日重复"}
+                        )
+                        continue
+                    seen.add((key, str(day)))
+                    old = db.execute(
+                        "SELECT version,count FROM research_citations WHERE output_id=? AND snapshot_date=? ORDER BY version DESC LIMIT 1",
+                        (output["id"], str(day)),
+                    ).fetchone()
+                    body.update(
+                        expected_version=old["version"] if old else 0,
+                        confirmed=True,
+                        reason="模板预览验证",
+                    )
+                    db.execute("SAVEPOINT citation_preview")
+                    try:
+                        result = append_citation(db, actor["id"], output["id"], body)
+                        items.append(
+                            {
+                                "output_id": output["id"],
+                                "business_key": key,
+                                "body": body,
+                                "status": result["status"],
+                            }
+                        )
+                    except HTTPException as error:
+                        errors.append({"row": number, "message": str(error.detail)})
+                    finally:
+                        db.execute("ROLLBACK TO citation_preview")
+                        db.execute("RELEASE citation_preview")
+                identifier = str(uuid4())
+                db.execute(
+                    "INSERT INTO research_output_previews(id,actor_id,payload) VALUES (?,?,?)",
+                    (
+                        identifier,
+                        actor["id"],
+                        json.dumps({"citation_items": items, "errors": errors}),
+                    ),
+                )
+                return {"id": identifier, "items": items, "errors": errors}
+
+        @app.post(f"/api/{endpoint}/citations/previews/{{identifier}}/confirm")
+        def citation_confirm(
+            identifier: str, request: Request, body: Annotated[dict[str, Any], Body()]
+        ) -> dict[str, Any]:
+            with connection(path) as db:
+                db.execute("BEGIN IMMEDIATE")
+                actor, _ = current(db, request)
+                batch = db.execute(
+                    "SELECT * FROM research_output_previews WHERE id=? AND actor_id=?",
+                    (identifier, actor["id"]),
+                ).fetchone()
+                if not batch:
+                    raise HTTPException(404, "预览不存在")
+                saved = json.loads(batch["payload"])
+                if "citation_items" not in saved or saved["errors"]:
+                    raise HTTPException(409, "请先修正错误行")
+                if batch["confirmed"]:
+                    return {"status": "already_confirmed"}
+                results = []
+                for item in saved["citation_items"]:
+                    snapshot = dict(item["body"])
+                    snapshot["confirmed"] = body.get("accept_changes") is True
+                    snapshot["reason"] = body.get("reason", "")
+                    latest = db.execute(
+                        "SELECT version FROM research_citations WHERE output_id=? AND snapshot_date=? ORDER BY version DESC LIMIT 1",
+                        (item["output_id"], snapshot["date"]),
+                    ).fetchone()
+                    if (latest["version"] if latest else 0) != snapshot[
+                        "expected_version"
+                    ]:
+                        raise HTTPException(409, "引用数据已变化，请重新预览")
+                    results.append(
+                        append_citation(db, actor["id"], item["output_id"], snapshot)
+                    )
+                db.execute(
+                    "UPDATE research_output_previews SET confirmed=1 WHERE id=?",
+                    (identifier,),
+                )
+                return {"items": results}
+
+        @app.get(f"/api/{endpoint}/{{output_id}}/citations")
+        def citations(output_id: int, request: Request) -> dict[str, Any]:
+            if category != "research_papers":
+                raise HTTPException(404, "仅科研论文支持引用快照")
+            with connection(path) as db:
+                actor, _ = current(db, request)
+                visible = listing(request)["items"]
+                if not any(item["id"] == output_id for item in visible):
+                    raise HTTPException(404, "成果不存在或不可查看")
+                output = db.execute(
+                    "SELECT payload FROM research_outputs WHERE id=?", (output_id,)
+                ).fetchone()
+                assert output is not None
+                identity = True
+                for participant in json.loads(output["payload"])["participants"]:
+                    student = db.execute(
+                        "SELECT id,college,major FROM students WHERE student_number=? AND active=1",
+                        (participant["student_number"],),
+                    ).fetchone()
+                    if not student_allowed(
+                        db, actor["id"], student["id"] if student else None
+                    ) or not allowed(
+                        db,
+                        actor["id"],
+                        category,
+                        "identity",
+                        participant["college"],
+                        participant["major"],
+                    ):
+                        identity = False
+                    if student and not allowed(
+                        db,
+                        actor["id"],
+                        category,
+                        "identity",
+                        student["college"],
+                        student["major"],
+                    ):
+                        identity = False
+                items = [
+                    dict(row)
+                    for row in db.execute(
+                        "SELECT snapshot_date AS date,version,count,source_department,reason,created_at "
+                        "FROM research_citations WHERE output_id=? ORDER BY snapshot_date,version",
+                        (output_id,),
+                    )
+                ]
+                if not identity:
+                    for item in items:
+                        item.pop("source_department")
+                        item.pop("reason")
+                for item in items:
+                    item["latest_snapshot"] = bool(
+                        items
+                        and item["date"] == items[-1]["date"]
+                        and item["version"] == items[-1]["version"]
+                    )
+                return {"items": items, "data_version": len(items)}
+
+        @app.post(f"/api/{endpoint}/{{output_id}}/citations")
+        def save_citation(
+            output_id: int, request: Request, body: Annotated[dict[str, Any], Body()]
+        ) -> dict[str, Any]:
+            with connection(path) as db:
+                db.execute("BEGIN IMMEDIATE")
+                actor, _ = current(db, request)
+                return append_citation(db, actor["id"], output_id, body)
+
+        def append_citation(
+            db: sqlite3.Connection, actor: int, output_id: int, body: dict[str, Any]
+        ) -> dict[str, Any]:
+            from datetime import date
+
+            if category != "research_papers":
+                raise HTTPException(404, "仅科研论文支持引用快照")
+            day = body.get("date")
+            count = body.get("count")
+            source = body.get("source_department")
+            if (
+                not isinstance(day, str)
+                or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", day)
+                or type(count) is not int
+                or count < 0
+                or not isinstance(source, str)
+                or not source.strip()
+            ):
+                raise HTTPException(422, "需要标准日期、非负整数引用数及来源部门")
+            try:
+                date.fromisoformat(day)
+            except ValueError:
+                raise HTTPException(422, "日期无效") from None
+            output = db.execute(
+                "SELECT * FROM research_outputs WHERE id=? AND active=1", (output_id,)
+            ).fetchone()
+            if not output:
+                raise HTTPException(404, "成果不存在")
+            maintain(db, actor, json.loads(output["payload"]))
+            old = db.execute(
+                "SELECT * FROM research_citations WHERE output_id=? AND snapshot_date=? ORDER BY version DESC LIMIT 1",
+                (output_id, day),
+            ).fetchone()
+            if old and old["count"] == count:
+                return {"status": "duplicate", "version": old["version"]}
+            reason = body.get("reason", "")
+            if old and (
+                body.get("expected_version") != old["version"]
+                or body.get("confirmed") is not True
+                or not isinstance(reason, str)
+                or not reason.strip()
+            ):
+                raise HTTPException(409, "同日引用数变更需要确认当前版本与更正依据")
+            version = old["version"] + 1 if old else 1
+            db.execute(
+                "INSERT INTO research_citations(output_id,snapshot_date,version,count,source_department,actor_id,reason) VALUES (?,?,?,?,?,?,?)",
+                (
+                    output_id,
+                    day,
+                    version,
+                    count,
+                    source.strip(),
+                    actor,
+                    reason if old else "",
+                ),
+            )
+            audit(
+                db,
+                actor,
+                "research_citations.append",
+                str(output_id),
+                details={"date": day, "version": version},
+            )
+            return {"status": "corrected" if old else "created", "version": version}
+
+    @app.post(f"/api/{endpoint}/preview")
+    async def preview(
+        request: Request,
+        file: Annotated[UploadFile, File()],
+        source_department: Annotated[str, Form()],
+    ) -> dict[str, Any]:
+        from io import BytesIO
+        from uuid import uuid4
+
+        from openpyxl import load_workbook
+
+        raw = await file.read(8_000_001)
+        if len(raw) > 8_000_000 or not source_department.strip():
+            raise HTTPException(422, "文件过大或来源部门为空")
+        try:
+            wb = load_workbook(BytesIO(raw), read_only=True, data_only=True)
+            ws = wb.active
+            if ws is None:
+                raise ValueError()
+            rows = iter(ws.values)
+            if tuple(next(rows))[:3] != ("AQP-PGS", category, "1"):
+                raise ValueError()
+            imported_header = tuple(next(rows))
+            expected_header = (
+                key_label,
+                title_label,
+                "学号",
+                "姓名",
+                "作者次序",
+                "参与角色",
+                "所属学院",
+                "专业",
+                *extra_labels,
+            )
+            supported_headers: tuple[tuple[str, ...], ...] = (expected_header, expected_header + optional_labels)
+            if category == "research_papers":
+                supported_headers += (expected_header + optional_labels[:4], expected_header + optional_labels[:8])
+            if category == "awards":
+                supported_headers += (expected_header + optional_labels[:1],)
+            if imported_header not in supported_headers and not (
+                category == "research_papers" and imported_header == expected_header[:8]
+            ):
+                raise ValueError()
+            imported_labels = imported_header[8:]
+            grouped: dict[str, Any] = {}
+            for row in rows:
+                if all(value is None for value in row):
+                    continue
+                key, title, number, name, order, role, college, major = [
+                    str(value or "").strip() for value in row[:8]
+                ]
+                if category == "research_papers":
+                    key = (
+                        key.lower()
+                        .removeprefix("https://doi.org/")
+                        .removeprefix("doi:")
+                    )
+                details = dict(
+                    zip(
+                        imported_labels,
+                        (str(value if value is not None else "").strip() for value in row[8:]),
+                        strict=True,
+                    )
+                )
+                for date_label, year_label in (("发表日期", "发表年份"), ("获奖日期", "获奖年份")):
+                    if event_date := details.get(date_label):
+                        if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", event_date):
+                            raise ValueError()
+                        event_year = str(date.fromisoformat(event_date).year)
+                        if details.get(year_label) and details[year_label] != event_year:
+                            raise ValueError()
+                        details[year_label] = event_year
+                if details.get("会议范围") not in (None, "", "国内", "国际"):
+                    raise ValueError()
+                if details.get("资源类型") not in (None, "", "竞赛获奖", "奖学金", "人才项目", "其他"):
+                    raise ValueError()
+                if category in ("patents", "conferences"):
+                    date_value = details[extra_labels[1]]
+                    if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", date_value) is None:
+                        raise ValueError()
+                    date.fromisoformat(date_value)
+                if category == "awards" and (
+                    not details["获奖年份"].isdigit()
+                    or not 1900 <= int(details["获奖年份"]) <= 2100
+                ):
+                    raise ValueError()
+                if category == "research_papers":
+                    year = details.get("发表年份", "")
+                    if year and (
+                        re.fullmatch(r"[0-9]{4}", year) is None
+                        or not 1900 <= int(year) <= 2100
+                    ):
+                        raise ValueError()
+                    evaluation_year = details.get("评价年度", "")
+                    if evaluation_year and (
+                        re.fullmatch(r"[0-9]{4}", evaluation_year) is None
+                        or not 1900 <= int(evaluation_year) <= 2100
+                    ):
+                        raise ValueError()
+                    if (details.get("期刊分区") or details.get("影响因子")) and (
+                        not details.get("评价体系") or not evaluation_year
+                    ):
+                        raise ValueError()
+                    if impact := details.get("影响因子"):
+                        factor = Decimal(impact)
+                        if not factor.is_finite() or factor < 0:
+                            raise ValueError()
+                    for scheme in ("中科院", "JCR"):
+                        zone = details.get(f"{scheme}分区")
+                        zone_year = details.get(f"{scheme}分区年度")
+                        if zone and not zone_year:
+                            raise ValueError()
+                        if zone_year and (
+                            re.fullmatch(r"[0-9]{4}", zone_year) is None
+                            or not 1900 <= int(zone_year) <= 2100
+                        ):
+                            raise ValueError()
+                if category == "patents" and (conversion_date := details.get("转化日期")):
+                    if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", conversion_date) is None:
+                        raise ValueError()
+                    date.fromisoformat(conversion_date)
+                if (
+                    category != "research_papers"
+                    and extra_labels
+                    and not all(details.get(label) for label in extra_labels)
+                ):
+                    raise ValueError()
+                details = {label: value for label, value in details.items() if value}
+                if (
+                    not all([key, title, number, name, role, college, major])
+                    or int(order) < 1
+                ):
+                    raise ValueError()
+                output = grouped.setdefault(
+                    key, {"title": title, "details": details, "participants": []}
+                )
+                if (
+                    output["title"] != title
+                    or output.get("details", {}) != details
+                    or any(
+                        p["student_number"] == number or p["order"] == int(order)
+                        for p in output["participants"]
+                    )
+                ):
+                    raise ValueError()
+                if not details:
+                    output.pop("details", None)
+                output["participants"].append(
+                    {
+                        "student_number": number,
+                        "name": name,
+                        "order": int(order),
+                        "role": role,
+                        "college": college,
+                        "major": major,
+                    }
+                )
+                if len(grouped) > 5000:
+                    raise ValueError()
+        except (ValueError, TypeError, StopIteration, BadZipFile, KeyError, InvalidOperation):
+            raise HTTPException(422, "模板版本、字段或参与者次序无效") from None
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            items = []
+            for key, payload in grouped.items():
+                payload["participants"].sort(key=lambda p: p["order"])
+                maintain(db, actor["id"], payload)
+                old = db.execute(
+                    f"SELECT * FROM {tables}_outputs WHERE business_key=?", (key,)
+                ).fetchone()
+                if old:
+                    previous_payload = json.loads(old["payload"])
+                    maintain(
+                        db, actor["id"], previous_payload, historical=True
+                    )
+                    if not old["active"]:
+                        raise HTTPException(409, "业务编号已有作废历史，不可重新导入")
+                    if optional_labels:
+                        preserved = {
+                            label: value
+                            for label, value in previous_payload.get("details", {}).items()
+                            if label in optional_labels and label not in imported_labels
+                        }
+                        if preserved:
+                            payload["details"] = {**payload.get("details", {}), **preserved}
+                items.append(
+                    {
+                        "business_key": key,
+                        "payload": payload,
+                        "expected_version": old["version"] if old else 0,
+                        "status": "duplicate"
+                        if old and json.loads(old["payload"]) == payload
+                        else "change"
+                        if old
+                        else "new",
+                    }
+                )
+            identifier = str(uuid4())
+            db.execute(
+                f"INSERT INTO {tables}_output_previews(id,actor_id,payload) VALUES (?,?,?)",
+                (
+                    identifier,
+                    actor["id"],
+                    json.dumps(
+                        {"items": items, "source_department": source_department},
+                        ensure_ascii=False,
+                    ),
+                ),
+            )
+            audit(
+                db,
+                actor["id"],
+                f"{tables}_outputs.preview",
+                identifier,
+                details={"outputs": len(items)},
+            )
+            return {"id": identifier, "items": items}
+
+    @app.post(f"/api/{endpoint}/previews/{{identifier}}/confirm")
+    def confirm(
+        identifier: str, request: Request, body: Annotated[dict[str, Any], Body()]
+    ) -> dict[str, Any]:
+        with connection(path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            actor, _ = current(db, request)
+            batch = db.execute(
+                f"SELECT * FROM {tables}_output_previews WHERE id=? AND actor_id=?",
+                (identifier, actor["id"]),
+            ).fetchone()
+            if not batch:
+                raise HTTPException(404, "预览不存在")
+            saved = json.loads(batch["payload"])
+            for item in saved["items"]:
+                maintain(db, actor["id"], item["payload"])
+            if batch["confirmed"]:
+                return {"confirmed": True}
+            for item in saved["items"]:
+                old = db.execute(
+                    f"SELECT * FROM {tables}_outputs WHERE business_key=?",
+                    (item["business_key"],),
+                ).fetchone()
+                if old:
+                    maintain(
+                        db, actor["id"], json.loads(old["payload"]), historical=True
+                    )
+                    if not old["active"]:
+                        raise HTTPException(409, "业务编号已有作废历史，不可重新导入")
+                if (old["version"] if old else 0) != item["expected_version"]:
+                    raise HTTPException(409, "成果已变化，请重新预览")
+                if item["status"] == "duplicate":
+                    continue
+                if (
+                    item["status"] == "change"
+                    and body.get("accept_changes") is not True
+                ):
+                    raise HTTPException(409, "需明确确认变更")
+                payload = json.dumps(item["payload"], ensure_ascii=False)
+                version = item["expected_version"] + 1
+                if old:
+                    db.execute(
+                        f"UPDATE {tables}_outputs SET payload=?,version=? WHERE id=?",
+                        (payload, version, old["id"]),
+                    )
+                    output_id = old["id"]
+                else:
+                    output_id = db.execute(
+                        f"INSERT INTO {tables}_outputs(business_key,payload) VALUES (?,?)",
+                        (item["business_key"], payload),
+                    ).lastrowid
+                db.execute(
+                    f"INSERT INTO {tables}_output_versions VALUES (?,?,?,?,?)",
+                    (
+                        output_id,
+                        version,
+                        payload,
+                        saved["source_department"],
+                        actor["id"],
+                    ),
+                )
+                audit(
+                    db,
+                    actor["id"],
+                    f"{tables}_outputs.confirm",
+                    str(output_id),
+                    details={
+                        "version": version,
+                        "source_department": saved["source_department"],
+                    },
+                )
+            db.execute(
+                f"UPDATE {tables}_output_previews SET confirmed=1 WHERE id=?",
+                (identifier,),
+            )
+            return {"confirmed": True}
+
+    @app.post(f"/api/{endpoint}/{{output_id}}/void")
+    def void(
+        output_id: int, request: Request, body: Annotated[dict[str, Any], Body()]
+    ) -> dict[str, Any]:
+        with connection(path) as db:
+            db.execute("BEGIN IMMEDIATE")
+            actor, _ = current(db, request)
+            output = db.execute(
+                f"SELECT * FROM {tables}_outputs WHERE id=?", (output_id,)
+            ).fetchone()
+            if not output:
+                raise HTTPException(404, "成果不存在")
+            payload = json.loads(output["payload"])
+            maintain(db, actor["id"], payload, historical=True)
+            for participant in payload["participants"]:
+                if not allowed(
+                    db,
+                    actor["id"],
+                    category,
+                    "void",
+                    participant["college"],
+                    participant["major"],
+                ):
+                    raise HTTPException(403, "缺少全部参与者作废权限")
+                student = db.execute(
+                    "SELECT college,major FROM students WHERE student_number=? AND active=1",
+                    (participant["student_number"],),
+                ).fetchone()
+                if student and not allowed(
+                    db,
+                    actor["id"],
+                    category,
+                    "void",
+                    student["college"],
+                    student["major"],
+                ):
+                    raise HTTPException(403, "缺少参与者当前学院作废权限")
+            if (
+                body.get("expected_version") != output["version"]
+                or not output["active"]
+            ):
+                raise HTTPException(409, "成果已变化，请刷新")
+            reason = body.get("reason")
+            if not isinstance(reason, str) or not reason.strip():
+                raise HTTPException(422, "请填写作废依据")
+            payload["void_reason"] = reason.strip()
+            version = output["version"] + 1
+            serialized = json.dumps(payload, ensure_ascii=False)
+            source = db.execute(
+                f"SELECT source_department FROM {tables}_output_versions WHERE output_id=? ORDER BY version DESC LIMIT 1",
+                (output_id,),
+            ).fetchone()[0]
+            db.execute(
+                f"UPDATE {tables}_outputs SET active=0,version=?,payload=? WHERE id=?",
+                (version, serialized, output_id),
+            )
+            db.execute(
+                f"INSERT INTO {tables}_output_versions VALUES (?,?,?,?,?)",
+                (output_id, version, serialized, source, actor["id"]),
+            )
+            audit(
+                db,
+                actor["id"],
+                f"{tables}_outputs.void",
+                str(output_id),
+                details={"version": version, "reason": reason.strip()},
+            )
+            return {"voided": True, "version": version}
+
+    @app.get(f"/api/{endpoint}/{{output_id}}/history")
+    def history(output_id: int, request: Request) -> dict[str, Any]:
+        with connection(path) as db:
+            actor, _ = current(db, request)
+            output = db.execute(
+                f"SELECT * FROM {tables}_outputs WHERE id=?", (output_id,)
+            ).fetchone()
+            if not output:
+                raise HTTPException(404, "成果不存在")
+            versions = []
+            for row in db.execute(
+                f"SELECT version,payload,source_department FROM {tables}_output_versions WHERE output_id=? ORDER BY version",
+                (output_id,),
+            ):
+                payload = json.loads(row["payload"])
+                for participant in payload["participants"]:
+                    student = db.execute(
+                        "SELECT * FROM students WHERE student_number=? AND active=1",
+                        (participant["student_number"],),
+                    ).fetchone()
+                    if not student_allowed(
+                        db, actor["id"], student["id"] if student else None
+                    ):
+                        raise HTTPException(403, "历史包含范围外参与者")
+                    for operation in ["view", "identity"]:
+                        if not allowed(
+                            db,
+                            actor["id"],
+                            category,
+                            operation,
+                            participant["college"],
+                            participant["major"],
+                        ) or (
+                            student
+                            and not allowed(
+                                db,
+                                actor["id"],
+                                category,
+                                operation,
+                                student["college"],
+                                student["major"],
+                            )
+                        ):
+                            raise HTTPException(403, "历史包含范围外参与者")
+                versions.append(
+                    {
+                        "version": row["version"],
+                        "payload": payload,
+                        "source_department": row["source_department"],
+                    }
+                )
+            return {"items": versions}

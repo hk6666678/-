@@ -1,0 +1,81 @@
+import json
+import sqlite3
+import time
+
+from fastapi import HTTPException
+from pwdlib import PasswordHash
+
+PASSWORDS = PasswordHash.recommended()
+ROLES = {
+    "mentor",
+    "platform_admin",
+    "college_data_admin",
+    "college_analyst",
+    "school_data_admin",
+    "school_analyst",
+}
+DUMMY_HASH = PASSWORDS.hash("not-a-login-password")
+
+
+def validate_password(password: str) -> None:
+    if not 12 <= len(password) <= 128:
+        raise ValueError("密码长度须为 12～128 个字符")
+
+
+def create_user(
+    db: sqlite3.Connection, username: str, password: str, roles: list[str]
+) -> int:
+    validate_password(password)
+    if not roles or not set(roles) <= ROLES:
+        raise ValueError("请选择有效角色")
+    cursor = db.execute(
+        "INSERT INTO users(username,password_hash,roles,created_at) VALUES (?,?,?,?)",
+        (
+            username,
+            PASSWORDS.hash(password),
+            json.dumps(sorted(set(roles))),
+            int(time.time()),
+        ),
+    )
+    assert cursor.lastrowid is not None
+    return cursor.lastrowid
+
+
+def public_user(
+    row: sqlite3.Row, db: sqlite3.Connection | None = None
+) -> dict[str, object]:
+    roles = json.loads(row["roles"])
+    school_view = bool(row["school_view"]) and bool(
+        {"platform_admin", "school_analyst"} & set(roles)
+    )
+    school_full = school_view and bool(row["school_full"]) and "platform_admin" in roles
+    return {
+        "id": row["id"],
+        "username": row["username"],
+        "roles": roles,
+        "active": bool(row["active"]),
+        "school_view": school_view,
+        **(
+            {
+                "account_scope": "school",
+                "account_preset": "full" if school_full else "ordinary",
+            }
+            if school_full or (school_view and roles == ["school_analyst"])
+            else {}
+        ),
+        "version": row["version"],
+        "business_permissions": [
+            dict(grant)
+            for grant in db.execute(
+                "SELECT category,operation,college,major FROM grants WHERE user_id=?",
+                (row["id"],),
+            )
+        ]
+        if db
+        else [],
+    }
+
+
+def require_admin(row: sqlite3.Row) -> None:
+    if "platform_admin" not in json.loads(row["roles"]):
+        raise HTTPException(403, "需要平台管理员权限")

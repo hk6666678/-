@@ -1,0 +1,43 @@
+name: Permission regression
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  permission-regression:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install Python dependencies
+        run: |
+          python -m pip install uv==0.9.2
+          uv sync --locked --python 3.12
+      - name: Run backend permission regressions
+        run: .\.venv\Scripts\python.exe -m pytest -q backend/tests/test_evaluation.py backend/tests/test_research_outputs.py backend/tests/test_other_outputs.py
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+      - name: Run browser permission regressions
+        working-directory: frontend
+        env:
+          AQP_BROWSER: chrome
+        run: npm run test:e2e -- partial-access.spec.ts evaluation.spec.ts

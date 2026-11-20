@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN school_full INTEGER NOT NULL DEFAULT 0 CHECK(school_full IN (0, 1));

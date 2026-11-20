@@ -1,0 +1,2 @@
+CREATE TABLE course_records(id INTEGER PRIMARY KEY, student_number TEXT NOT NULL, course_code TEXT NOT NULL, term TEXT NOT NULL, attempt INTEGER NOT NULL, student_id INTEGER REFERENCES students(id), payload TEXT NOT NULL, state TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, source_row_id INTEGER NOT NULL REFERENCES import_rows(id), UNIQUE(student_number,course_code,term,attempt));
+CREATE INDEX course_student ON course_records(student_id);
