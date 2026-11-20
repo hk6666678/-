@@ -24,7 +24,7 @@ const features: Record<string, string> = {
 };
 
 export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?: (id: number) => void }) {
-  const [papers, setPapers] = useState<Paper[]>([]);
+  const [papers, setPapers] = useState<Paper[]>();
   const [id, setId] = useState("");
   const [history, setHistory] = useState<History>();
   const [error, setError] = useState("");
@@ -78,11 +78,12 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
           setError("");
         }}>
           <option value="">请选择论文</option>
-          {papers.map((paper) => <option key={paper.id} value={paper.id}>
+          {papers?.map((paper) => <option key={paper.id} value={paper.id}>
             {paper.title || "论文（身份已隐藏）"} · 版本 {paper.version} · {paper.discipline || "学科缺失"}
           </option>)}
         </select>
       </label>
+      {papers?.length === 0 && <p>当前授权范围内暂无学位论文。</p>}
       <form onSubmit={async (event) => {
         event.preventDefault();
         if (!id) return;
@@ -164,7 +165,7 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
             <label>对照论文
               <select name="other" required disabled={busy} onChange={() => setTextResult(undefined)}>
                 <option value="">请选择另一论文版本</option>
-                {papers.filter((paper) => String(paper.id) !== id).map((paper) => (
+                {papers?.filter((paper) => String(paper.id) !== id).map((paper) => (
                   <option key={paper.id} value={paper.id}>{paper.title || "论文（身份已隐藏）"} · 版本 {paper.version} · #{paper.id}</option>
                 ))}
               </select>
@@ -191,7 +192,7 @@ export function ComparisonPanel({ csrf, onCreated }: { csrf: string; onCreated?:
       )}
       {result && (
         <>
-          <h3>同类论文比较结果</h3><p>{papers.find(paper => String(paper.id) === id)?.title || "论文（身份已隐藏）"}</p>
+          <h3>同类论文比较结果</h3><p>{papers?.find(paper => String(paper.id) === id)?.title || "论文（身份已隐藏）"}</p>
           <p>{result.stale ? "比较结果已过时，请重新生成。" : result.notice}</p>
           {Object.keys(result.groups).length > 0 && <div className="table-wrap comparison-result"><table>
             <thead><tr><th>指标</th><th>当前论文</th>{Object.entries(result.groups).map(([name, group]) =>

@@ -142,7 +142,7 @@ export function CultivationOverview({ csrf, showSnapshot }: {
             <>
               {snapshots.length < stages.length && <p>有环节未能完成分析，关注清单仅覆盖已返回的结果。</p>}
               {hasNoStageRecords
-                ? <p className="reading-note">这名学生暂无课程、选题和中期记录。可到「课程导入与待关联」或「选题与中期导入」核对并补录。</p>
+                ? <p className="reading-note">这名学生暂无课程、选题和中期记录，暂无法判断这三个环节是否触发预警。可到「课程导入与待关联」或「选题与中期导入」核对并补录。</p>
                 : <StudentAlerts snapshots={snapshots} individual />}
             </>
           )}
