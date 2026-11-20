@@ -540,6 +540,8 @@ def test_snapshot_listing_and_independent_export(client, tmp_path):
         assert "total" not in section
         assert client.get("/api/evaluation-snapshots", headers=headers).json()["items"] == []
         assert client.get(f"/api/evaluation-snapshots/{score['id']}", headers=headers).status_code == 403
+        assert client.get("/api/evaluation-snapshots/dashboard", headers=headers).json()["items"] == []
+        assert client.get(f"/api/evaluation-snapshots/{score['id']}/export", headers=headers).status_code == 403
     me = client.get("/api/me").json()["user"]
     update_grants(full)
 

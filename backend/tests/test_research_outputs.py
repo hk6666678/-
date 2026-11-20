@@ -774,3 +774,61 @@ def test_citation_batch_revoked_second_row_rolls_back(client, tmp_path):  # noqa
     ]
     assert stats["missing_citations"] == 2
     assert client.get("/api/patents/citations/template").status_code == 404
+
+
+def test_partial_revocation_filters_all_output_categories(client, tmp_path):
+    import json
+
+    from aqp.store import connection
+    from test_agent import replace_grants
+
+    headers = login_admin(client)
+    categories = [
+        ("research_papers", "research", "research-outputs", "发表年份"),
+        ("patents", "patents", "patents", "申请日期"),
+        ("awards", "awards", "awards", "获奖年份"),
+        ("conferences", "conferences", "conferences", "会议日期"),
+    ]
+    grants = [
+        {"category": category, "operation": operation,
+         "college": "Synthetic", "major": major}
+        for category, *_ in categories
+        for operation in ("view", "identity")
+        for major in ("A", "B")
+    ]
+    with connection(tmp_path / "accounts.sqlite3") as db:
+        for index, major in enumerate(("A", "B"), 1):
+            db.execute(
+                "INSERT INTO students(id,research_id,student_number,name,college,major,level,entry_year,payload) VALUES (?,?,?,?,?,?,?,?,?)",
+                (index, f"R{index}", str(index), major, "Synthetic", major, "master", 2025, "{}"),
+            )
+        for _, table, _, year_field in categories:
+            for index, major in enumerate(("A", "B"), 1):
+                payload = json.dumps({
+                    "title": f"Synthetic {major}",
+                    "details": {year_field: "2025" if major == "A" else "2026"},
+                    "participants": [{
+                        "student_number": str(index), "name": major, "college": "Synthetic",
+                        "major": major, "order": 1, "role": "author",
+                    }],
+                })
+                db.execute(
+                    f"INSERT INTO {table}_outputs(business_key,payload) VALUES (?,?)",
+                    (str(index), payload),
+                )
+
+    remaining_grants = [grant for grant in grants if grant["major"] == "A"]
+    for visible, expected_majors in [(grants, ["A", "B"]), (remaining_grants, ["A"])]:
+        replace_grants(client, headers, visible)
+        for _, _, endpoint, _ in categories:
+            listing = client.get(f"/api/{endpoint}").json()
+            stats = client.get(f"/api/{endpoint}/statistics").json()
+            assert {item["title"] for item in listing["items"]} == {
+                f"Synthetic {major}" for major in expected_majors
+            }
+            assert listing["can_view"] is True
+            for field in ("distinct_outputs", "personal_participations"):
+                assert listing[field] == stats[field] == len(expected_majors)
+            assert [row["year"] for row in stats["years"]] == (
+                ["2025", "2026"] if expected_majors == ["A", "B"] else ["2025"]
+            )

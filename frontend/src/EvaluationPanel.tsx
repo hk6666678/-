@@ -344,6 +344,8 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
   >([]);
   const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
   const [dashboardRefresh, setDashboardRefresh] = useState(0);
+  const snapshotListRequest = useRef(0);
+  const snapshotRequest = useRef(0);
   const [studentTotal, setStudentTotal] = useState<number>();
   const studentRequest = useRef(0);
   const [studentMajor, setStudentMajor] = useState("");
@@ -388,19 +390,24 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
     setRules(items);
   }
   async function loadSnapshots() {
+    const request = ++snapshotListRequest.current;
     setSnapshots([]);
-    const { items } = await call("/api/evaluation-snapshots") as { items: SnapshotItem[] };
-    setSnapshots(items);
     setDashboardRefresh(version => version + 1);
+    const { items } = await call("/api/evaluation-snapshots") as { items: SnapshotItem[] };
+    if (request !== snapshotListRequest.current) return [];
+    setSnapshots(items);
     return items;
   }
   async function openSnapshot(id: number) {
+    const request = ++snapshotRequest.current;
     setSnapshot(undefined);
     try {
-      setSnapshot(await call(`/api/evaluation-snapshots/${id}`));
+      const detail = await call(`/api/evaluation-snapshots/${id}`);
+      if (request === snapshotRequest.current) setSnapshot(detail);
     } catch (error) {
+      if (request !== snapshotRequest.current) return;
       await loadSnapshots();
-      throw error;
+      if (request === snapshotRequest.current) throw error;
     }
   }
   async function fetchStudents(major: string) {
@@ -474,12 +481,14 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
           onSubmit={(e) => {
             e.preventDefault();
             const f = new FormData(e.currentTarget);
+            const request = ++snapshotRequest.current;
             setSnapshot(undefined);
             void perform(async () => {
               const saved = await call("/api/evaluation-snapshots", {
                 student_id: Number(f.get("student_id")),
                 rule_id: selected,
               });
+              if (request !== snapshotRequest.current) return;
               setSnapshot(saved);
               await loadSnapshots();
             });
@@ -500,10 +509,12 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
         </form>
         <button type="button" className="secondary" onClick={() => {
           const id = snapshot?.id;
+          const request = ++snapshotRequest.current;
           setSnapshot(undefined);
           void perform(async () => {
             const items = await loadSnapshots();
-            if (id !== undefined && items.some(item => item.id === id)) await openSnapshot(id);
+            if (request === snapshotRequest.current && id !== undefined &&
+                items.some(item => item.id === id)) await openSnapshot(id);
           });
         }}>刷新当前授权范围</button>
         <details className="task-details"><summary>查看历史评分</summary>
@@ -575,7 +586,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
           </tbody>
         </table></div></div>
       </details>
-      <EvaluationDashboard refresh={dashboardRefresh} openSnapshot={(id) => {
+      <EvaluationDashboard key={dashboardRefresh} refresh={dashboardRefresh} openSnapshot={(id) => {
         void perform(async () => {
           await openSnapshot(id);
           window.requestAnimationFrame(() => document.getElementById("evaluation-evidence")?.scrollIntoView());
@@ -648,14 +659,19 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
             type="button"
             onClick={() =>
               void perform(async () => {
+                const request = snapshotRequest.current;
                 const response = await fetch(
                   `/api/evaluation-snapshots/${snapshot.id}/export`,
                 );
                 if (!response.ok) {
                   const value = await response.json().catch(() => ({}));
+                  if (request !== snapshotRequest.current) return;
                   if (response.status === 403) {
                     const items = await loadSnapshots();
-                    if (!items.some(item => item.id === snapshot.id)) setSnapshot(undefined);
+                    if (request === snapshotRequest.current && !items.some(item => item.id === snapshot.id)) {
+                      snapshotRequest.current++;
+                      setSnapshot(undefined);
+                    }
                   }
                   throw Error(
                     typeof value.detail === "string"
@@ -664,6 +680,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
                   );
                 }
                 const blob = await response.blob();
+                if (request !== snapshotRequest.current) return;
                 const url = URL.createObjectURL(blob);
                 const link = document.createElement("a");
                 link.href = url;

@@ -132,34 +132,80 @@ test(mixed ? "one account respects different grants in two majors" : "the same s
     }
   }
   if (mixed) {
+    const url = `/api/users/${reader.id}/grants`;
+    const existing = await (await page.request.get(url)).json();
+    const expanded = await page.request.put(url, { headers, data: {
+      expected_version: existing.version,
+      request_id: crypto.randomUUID(),
+      grants: [...existing.grants, ...existing.grants
+        .filter((grant: { major: string; category: string; operation: string }) =>
+          grant.major === secondMajor && !(
+            ["basic", "courses"].includes(grant.category) && grant.operation === "view"))
+        .map((grant: { major: string }) => ({ ...grant, major }))],
+    } });
+    expect(expanded.ok()).toBeTruthy();
     const outputs = await context.newPage();
     await outputs.goto("/");
     await outputs.getByRole("button", { name: "科研成果导入" }).click();
     await outputs.getByRole("tab", { name: "专利" }).click();
     const title = outputs.getByRole("cell", { name: new RegExp(secondPatent) });
-    const historyButton = outputs.getByRole("button", { name: "来源与历史", exact: true });
+    const historyButton = outputs.getByRole("row").filter({ has: title })
+      .getByRole("button", { name: "来源与历史", exact: true });
     await expect(title).toBeVisible();
     await historyButton.click();
     const history = outputs.getByRole("region", { name: "成果来源与历史" });
     await expect(history.getByRole("heading", { name: new RegExp(secondPatent) })).toBeVisible();
-    const url = `/api/users/${reader.id}/grants`;
+    let releaseHistory!: () => void;
+    let historyCaptured!: () => void;
+    const captured = new Promise<void>(resolve => { historyCaptured = resolve; });
+    const release = new Promise<void>(resolve => { releaseHistory = resolve; });
+    await outputs.route(/\/api\/patents\/\d+\/history$/, async route => {
+      const response = await route.fetch();
+      historyCaptured();
+      await release;
+      await route.fulfill({ response });
+    }, { times: 1 });
+    await historyButton.click();
+    await captured;
+    let releaseScore!: () => void;
+    let scoreCaptured!: () => void;
+    const scoreReady = new Promise<void>(resolve => { scoreCaptured = resolve; });
+    const scoreRelease = new Promise<void>(resolve => { releaseScore = resolve; });
+    await restricted.route(/\/api\/evaluation-snapshots\/\d+$/, async route => {
+      const response = await route.fetch();
+      scoreCaptured();
+      await scoreRelease;
+      await route.fulfill({ response });
+    }, { times: 1 });
+    await restricted.getByRole("button", { name: /查看快照 #\d+ 的证据/ }).click();
+    await scoreReady;
     const current = await (await page.request.get(url)).json();
     const revoked = await page.request.put(url, { headers, data: {
       expected_version: current.version,
       request_id: crypto.randomUUID(),
-      grants: current.grants.filter((grant: { category: string }) => grant.category !== "patents"),
+      grants: current.grants.filter((grant: { category: string; major: string }) =>
+        grant.category !== "patents" || grant.major !== secondMajor),
     } });
     expect(revoked.ok()).toBeTruthy();
     await historyButton.click();
-    await expect(outputs.getByText("当前账号没有此类成果的查看权限。")).toBeVisible();
+    await expect(outputs.locator(".summary-pair dd").first()).toHaveText("1 项");
+    const late = outputs.waitForResponse(response => /\/api\/patents\/\d+\/history$/.test(response.url()) && response.ok());
+    releaseHistory();
+    await (await late).finished();
+    await expect(outputs.getByRole("cell", { name: new RegExp(patent) })).toBeVisible();
     await expect(history).toHaveCount(0);
     await expect(title).toHaveCount(0);
     const refreshed = restricted.waitForResponse(response =>
       new URL(response.url()).pathname === "/api/evaluation-snapshots" && response.request().method() === "GET");
     await restricted.getByRole("button", { name: "刷新当前授权范围" }).click();
     expect((await refreshed).ok()).toBeTruthy();
+    await expect(restricted.getByLabel("历史快照").getByRole("option")).toHaveCount(2);
+    const lateScore = restricted.waitForResponse(response =>
+      /\/api\/evaluation-snapshots\/\d+$/.test(response.url()) && response.ok());
+    releaseScore();
+    await (await lateScore).finished();
+    await expect(restricted.getByText("沈嘉宁 的模拟评价", { exact: true })).toHaveCount(0);
     await expect(restricted.locator("#evaluation-evidence")).toHaveCount(0);
-    await expect(restricted.getByLabel("历史快照").getByRole("option")).toHaveCount(1);
   }
   await context.close();
 });
