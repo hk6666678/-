@@ -131,6 +131,36 @@ test(mixed ? "one account respects different grants in two majors" : "the same s
       await expect(snapshot).toContainText("数据不完整");
     }
   }
+  if (mixed) {
+    const outputs = await context.newPage();
+    await outputs.goto("/");
+    await outputs.getByRole("button", { name: "科研成果导入" }).click();
+    await outputs.getByRole("tab", { name: "专利" }).click();
+    const title = outputs.getByRole("cell", { name: new RegExp(secondPatent) });
+    const historyButton = outputs.getByRole("button", { name: "来源与历史", exact: true });
+    await expect(title).toBeVisible();
+    await historyButton.click();
+    const history = outputs.getByRole("region", { name: "成果来源与历史" });
+    await expect(history.getByRole("heading", { name: new RegExp(secondPatent) })).toBeVisible();
+    const url = `/api/users/${reader.id}/grants`;
+    const current = await (await page.request.get(url)).json();
+    const revoked = await page.request.put(url, { headers, data: {
+      expected_version: current.version,
+      request_id: crypto.randomUUID(),
+      grants: current.grants.filter((grant: { category: string }) => grant.category !== "patents"),
+    } });
+    expect(revoked.ok()).toBeTruthy();
+    await historyButton.click();
+    await expect(outputs.getByText("当前账号没有此类成果的查看权限。")).toBeVisible();
+    await expect(history).toHaveCount(0);
+    await expect(title).toHaveCount(0);
+    const refreshed = restricted.waitForResponse(response =>
+      new URL(response.url()).pathname === "/api/evaluation-snapshots" && response.request().method() === "GET");
+    await restricted.getByRole("button", { name: "刷新当前授权范围" }).click();
+    expect((await refreshed).ok()).toBeTruthy();
+    await expect(restricted.locator("#evaluation-evidence")).toHaveCount(0);
+    await expect(restricted.getByLabel("历史快照").getByRole("option")).toHaveCount(1);
+  }
   await context.close();
 });
 }

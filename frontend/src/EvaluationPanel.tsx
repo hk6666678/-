@@ -343,6 +343,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
     { id: number; research_id: string; name?: string }[]
   >([]);
   const [snapshots, setSnapshots] = useState<SnapshotItem[]>([]);
+  const [dashboardRefresh, setDashboardRefresh] = useState(0);
   const [studentTotal, setStudentTotal] = useState<number>();
   const studentRequest = useRef(0);
   const [studentMajor, setStudentMajor] = useState("");
@@ -387,7 +388,20 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
     setRules(items);
   }
   async function loadSnapshots() {
-    setSnapshots((await call("/api/evaluation-snapshots")).items);
+    setSnapshots([]);
+    const { items } = await call("/api/evaluation-snapshots") as { items: SnapshotItem[] };
+    setSnapshots(items);
+    setDashboardRefresh(version => version + 1);
+    return items;
+  }
+  async function openSnapshot(id: number) {
+    setSnapshot(undefined);
+    try {
+      setSnapshot(await call(`/api/evaluation-snapshots/${id}`));
+    } catch (error) {
+      await loadSnapshots();
+      throw error;
+    }
   }
   async function fetchStudents(major: string) {
     const requestId = ++studentRequest.current;
@@ -406,7 +420,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
   );
   useEffect(() => {
     void perform(load);
-    void perform(loadSnapshots);
+    void perform(async () => { await loadSnapshots(); });
     void fetchStudents("").catch(() => {});
     void call("/api/students?include_filters=true&limit=1")
       .then((value: { filters: { majors: string[]; levels: string[] } }) =>
@@ -484,6 +498,14 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
           </label>
           <button disabled={!!rule && !rule.enabled}>保存新评分快照</button>
         </form>
+        <button type="button" className="secondary" onClick={() => {
+          const id = snapshot?.id;
+          setSnapshot(undefined);
+          void perform(async () => {
+            const items = await loadSnapshots();
+            if (id !== undefined && items.some(item => item.id === id)) await openSnapshot(id);
+          });
+        }}>刷新当前授权范围</button>
         <details className="task-details"><summary>查看历史评分</summary>
         <label>
           历史快照（进入本页自动读取，选中即重查当前授权）
@@ -492,12 +514,7 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
             value={snapshot?.id ?? ""}
             onChange={(e) => {
               if (!e.target.value) return;
-              setSnapshot(undefined);
-              void perform(async () =>
-                setSnapshot(
-                  await call(`/api/evaluation-snapshots/${e.target.value}`),
-                ),
-              );
+              void perform(() => openSnapshot(Number(e.target.value)));
             }}
           >
             <option value="">请选择历史快照</option>
@@ -558,10 +575,9 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
           </tbody>
         </table></div></div>
       </details>
-      <EvaluationDashboard refresh={snapshots[0]?.id ?? 0} openSnapshot={(id) => {
-        setSnapshot(undefined);
+      <EvaluationDashboard refresh={dashboardRefresh} openSnapshot={(id) => {
         void perform(async () => {
-          setSnapshot(await call(`/api/evaluation-snapshots/${id}`));
+          await openSnapshot(id);
           window.requestAnimationFrame(() => document.getElementById("evaluation-evidence")?.scrollIntoView());
         });
       }} />
@@ -637,6 +653,10 @@ export function EvaluationPanel({ csrf }: { csrf: string }) {
                 );
                 if (!response.ok) {
                   const value = await response.json().catch(() => ({}));
+                  if (response.status === 403) {
+                    const items = await loadSnapshots();
+                    if (!items.some(item => item.id === snapshot.id)) setSnapshot(undefined);
+                  }
                   throw Error(
                     typeof value.detail === "string"
                       ? value.detail

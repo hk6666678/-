@@ -827,7 +827,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                 "JOIN students st ON st.id=s.student_id AND st.active=1 "
                 "JOIN evaluation_rules r ON r.id=s.rule_id "
                 "ORDER BY s.id DESC"
-            ):
+            ).fetchall():
                 result = json.loads(row["result"])
                 scope = result.get("scope") or {}
                 if not student_allowed(db, actor["id"], row["student_id"]):
@@ -841,6 +841,12 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                     scope.get("major", ""),
                 ):
                     continue
+                try:
+                    load_snapshot(db, actor["id"], row["id"])
+                except HTTPException as exc:
+                    if exc.status_code == 403:
+                        continue
+                    raise
                 items.append(
                     {
                         "id": row["id"],

@@ -25,7 +25,24 @@ export function ResearchOutputs({csrf,category="research_outputs"}:{csrf:string;
   useEffect(()=>{void reload();},[voided]);
   async function preview(event:React.FormEvent<HTMLFormElement>){event.preventDefault();setBusy(true);setError("");setBatch(null);setAccept(false);try{setBatch(await call(`/api/${endpoint}/preview`,{method:"POST",headers:{"X-CSRF-Token":csrf},body:new FormData(event.currentTarget)}));}catch(e){setError(String(e));}finally{setBusy(false);}}
   async function confirm(){if(!batch)return;setBusy(true);setError("");try{await call(`/api/${endpoint}/previews/${batch.id}/confirm`,{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify({accept_changes:accept})});setBatch(null);await reload();}catch(e){setError(String(e));}finally{setBusy(false);}}
-  async function showHistory(item:Output){setError("");setSelected(item);setHistory([]);setReason("");try{const result=await call(`/api/${endpoint}/${item.id}/history`);setSelected(item);setHistory(result.items);}catch(e){setError(String(e));}}
+  async function showHistory(item: Output) {
+    setError("");
+    setSelected(null);
+    setHistory([]);
+    setReason("");
+    try {
+      const result = await call(`/api/${endpoint}/${item.id}/history`);
+      setSelected(item);
+      setHistory(result.items);
+    } catch (e) {
+      setItems([]);
+      setCounts(undefined);
+      setStats(null);
+      setLoaded(false);
+      setError(String(e));
+      await reload();
+    }
+  }
   async function voidOutput(event:React.FormEvent){event.preventDefault();if(!selected)return;setBusy(true);setError("");try{await call(`/api/${endpoint}/${selected.id}/void`,{method:"POST",headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},body:JSON.stringify({expected_version:selected.version,reason})});await showHistory({...selected,version:selected.version+1});await reload();}catch(e){setError(String(e));}finally{setBusy(false);}}
   return <section className="card"><h2>{title}</h2><details className="task-details"><summary>导入{title}</summary><p>每位参与者填写一行，共同成果使用相同业务编号。</p><a href={`/api/${endpoint}/template`}>下载{title}模板 v1</a>
     <form onSubmit={preview}><label>来源部门<input name="source_department" required /></label><label>标准 Excel 文件<input type="file" name="file" accept=".xlsx" required /></label><button disabled={busy}>预览导入</button></form>
