@@ -138,6 +138,7 @@ export function StudentPanel({ csrf, fetcher }: Props) {
     [detail, setDetail] = useState<Detail | null>(null),
     [busy, setBusy] = useState(false),
     [major, setMajor] = useState(""),
+    [studentQuery, setStudentQuery] = useState(""),
     [year, setYear] = useState(""),
     [level, setLevel] = useState(""),
     [mobilityOnly, setMobilityOnly] = useState(false),
@@ -196,6 +197,7 @@ export function StudentPanel({ csrf, fetcher }: Props) {
   async function load() {
     await act(async () => {
       const query = new URLSearchParams();
+      if (studentQuery.trim()) query.set("q", studentQuery.trim());
       if (major) query.set("major", major);
       if (year) query.set("entry_year", year);
       if (level) query.set("level", level);
@@ -307,6 +309,12 @@ export function StudentPanel({ csrf, fetcher }: Props) {
       </details>
       <section className="card">
         <h2>统一学生档案</h2>
+        <form onSubmit={(event) => { event.preventDefault(); void load(); }}>
+          <label>查找学生档案
+            <input type="search" placeholder="输入姓名、学号或研究编号" value={studentQuery} onChange={(event) => setStudentQuery(event.target.value)} />
+          </label>
+          <button disabled={busy}>查找学生</button>
+        </form>
         <details className="task-details">
         <summary>筛选学生</summary>
         <div className="account-form">
@@ -416,7 +424,7 @@ export function StudentPanel({ csrf, fetcher }: Props) {
         </table>
         {detail !== null && (
           <>
-            <h3 ref={detailHeading} tabIndex={-1}>培养时间线 · {detail.archive.name || detail.archive.research_id}</h3>
+            <h3 className="cultivation-student" ref={detailHeading} tabIndex={-1}>培养时间线 · {detail.archive.name || detail.archive.research_id}</h3>
             {detail.archive.completeness && (
               <p>
                 基础档案缺项 {detail.archive.completeness.missing.length}/{detail.archive.completeness.checked}

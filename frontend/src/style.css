@@ -1548,3 +1548,4 @@ summary:hover { color: var(--accent-deep); }
 
 .score-lead { border-inline-start: 3px solid #567899; padding: .2rem 1rem; margin-bottom: 1rem; background: #f3f7fa; overflow-wrap: anywhere; }
 .score-lead h3 { font-size: clamp(1.25rem, 2.2vw, 2rem); font-variant-numeric: tabular-nums; }
+.cultivation-student, .student-roster td:first-child { overflow-wrap: anywhere; }

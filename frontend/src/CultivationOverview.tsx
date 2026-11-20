@@ -91,6 +91,7 @@ export function CultivationOverview({ csrf, showSnapshot }: {
   }
 
   const snapshots = result?.outcomes.flatMap((item) => "snapshot" in item ? [item.snapshot] : []) ?? [];
+  const hasNoStageRecords = snapshots.length === stages.length && snapshots.every(s => s.result.assessment_count === 0);
   return (
     <>
       <form className="cultivation-scope" onSubmit={(event) => {
@@ -130,7 +131,7 @@ export function CultivationOverview({ csrf, showSnapshot }: {
       {result && (
         <>
           <h3 ref={heading} tabIndex={-1}>个人培养过程</h3>
-          <p>{studentLabel(result.student)}</p>
+          <p className="cultivation-student">{studentLabel(result.student)}</p>
           <section className="student-brief">
           <div className="brief-switch" role="group" aria-label="个人培养视图">
             {["培养概况", "个人趋势", "对比与来源"].map((name) => <button type="button" key={name}
@@ -140,7 +141,9 @@ export function CultivationOverview({ csrf, showSnapshot }: {
           {snapshots.length > 0 && (
             <>
               {snapshots.length < stages.length && <p>有环节未能完成分析，关注清单仅覆盖已返回的结果。</p>}
-              <StudentAlerts snapshots={snapshots} individual />
+              {hasNoStageRecords
+                ? <p className="reading-note">这名学生暂无课程、选题和中期记录。可到「课程导入与待关联」或「选题与中期导入」核对并补录。</p>
+                : <StudentAlerts snapshots={snapshots} individual />}
             </>
           )}
           {result.signals.blind_review && <p>盲审送审　<strong>{result.signals.blind_review.status}</strong></p>}
