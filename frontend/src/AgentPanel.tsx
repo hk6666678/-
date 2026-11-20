@@ -99,9 +99,15 @@ export function AgentPanel({ csrf }: { csrf: string }) {
         void ask();
       }}>
         <textarea ref={questionField} aria-label="问题" placeholder="输入你想查询的问题" rows={3} maxLength={2000}
-          value={question} onChange={(event) => setQuestion(event.target.value)} />
+          enterKeyHint="send" aria-describedby="agent-input-hint"
+          value={question} onChange={(event) => setQuestion(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+            event.preventDefault();
+            if (!event.repeat) event.currentTarget.form?.requestSubmit();
+          }} />
         <div className="agent-composer-actions">
-          <span>只读查询 · 每条问题独立计算</span>
+          <span id="agent-input-hint">Enter 发送 · Shift+Enter 换行</span>
           <button disabled={!status?.available || !!pending || question.trim().length < 2}>发送问题</button>
         </div>
       </form>

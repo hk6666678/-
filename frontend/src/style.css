@@ -1485,3 +1485,32 @@ summary:hover { color: var(--accent-deep); }
   .student-roster td:first-child strong { display: block; margin-bottom: 4px; font-size: 16px; }
   .workspace .student-roster td:last-child { grid-column: 2; grid-row: 1 / span 3; align-self: center; }
 }
+
+/* A quiet, centered writing surface for the research assistant. */
+.workspace .agent-home { max-width: 780px; }
+.workspace .agent-home-intro {
+  min-height: auto;
+  text-align: center;
+  background: transparent;
+  padding: clamp(18px, 5vh, 64px) 0 18px;
+  border: 0;
+}
+.workspace .agent-home-intro img {
+  width: 62px; height: 62px; margin: 0 auto 22px; padding: 7px;
+  box-shadow: 0 3px 20px #24364b10;
+}
+.workspace .agent-home-intro h2 {
+  color: #192b40; font-family: inherit; font-weight: 600;
+  font-size: clamp(24px, 3vw, 40px); letter-spacing: -.035em;
+}
+.workspace .agent-home-intro p { color: #5d7084; font-size: 14px; }
+.workspace .agent-composer {
+  border-radius: 22px; padding: clamp(16px, 2.2vw, 26px);
+  box-shadow: 0 12px 36px #253c550c, 0 2px 6px #253c5506;
+}
+.workspace .agent-composer:focus-within { border-color: #809ebd; box-shadow: 0 0 0 3px #567da013, 0 12px 32px #253c550c; }
+.workspace .agent-composer textarea { font-size: 16px; line-height: 1.65; }
+.workspace .agent-composer-actions button { border-radius: 999px; padding-inline: 20px; background: #244d75; }
+.workspace .agent-suggestions { justify-content: center; }
+.workspace .agent-suggestions button { border-radius: 14px; }
+.workspace .agent-answer { border: 1px solid #dce4ed; border-radius: 16px; }

@@ -27,7 +27,12 @@ test("enabled agent shows separate questions and source links", async ({ page })
   await expect(page.getByLabel("问题", { exact: true })).toHaveValue("目前系统多少学生？");
   for (const question of ["看看课程通过情况", "再查科研成果"]) {
     await page.getByLabel("问题").fill(question);
-    await page.getByRole("button", { name: "发送问题" }).click();
+    const field = page.getByLabel("问题", { exact: true });
+    await field.dispatchEvent("keydown", { key: "Enter", isComposing: true });
+    await expect(field).toHaveValue(question);
+    await field.press("Shift+Enter");
+    await expect(field).toHaveValue(question + "\n");
+    await field.press("Enter");
     await expect(page.getByText(question, { exact: true })).toBeVisible();
   }
   await expect(page.getByRole("link", { name: "来源", exact: true })).toHaveCount(2);
