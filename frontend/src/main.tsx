@@ -230,8 +230,10 @@ function App() {
             <br />
             质量研究平台
           </h1>
-          <p>贯通培养全过程，让每一份成长有据可循。</p></div>
-          <div className="login-scope"><span>学生档案</span><span>培养过程</span><span>科研成果</span><span>质量研究</span></div>
+          <p>查阅学生档案、培养记录与科研成果。</p></div>
+          <div className="login-scene-footer">
+            <a className="login-photo-credit" href="https://gsu.tongji.edu.cn/info/1060/1241.htm" target="_blank" rel="noreferrer">同济大学图书馆 · 校园影像</a>
+          </div>
         </section>
         <section className="login-access"><div className="login-form">
           <h2>登录工作平台</h2>
@@ -264,9 +266,9 @@ function App() {
             <button disabled={busy}>{busy ? "正在登录…" : "登录平台"}</button>
           </form>
           <p className="muted small">
-            账号由管理员统一开通。如需帮助，请联系平台维护人员。
+            账号遇到问题？请联系平台维护人员。
           </p>
-        </div><footer className="login-footer">AQP-PGS<span>研究生培养质量研究平台</span></footer></section>
+        </div></section>
       </main>
     );
   const admin = session.user.roles.includes("platform_admin");
@@ -364,6 +366,7 @@ function App() {
             </h1>
           </div>
           <div className="user-menu">
+            <span className="user-avatar" aria-hidden="true">{session.user.username.slice(0, 1).toUpperCase()}</span>
             <span title={session.user.school_view ? "全校查看和分析" : "按授权范围访问"}>{session.user.username}</span>
             <button
               className="secondary"

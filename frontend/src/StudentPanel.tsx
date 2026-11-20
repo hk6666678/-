@@ -355,7 +355,7 @@ export function StudentPanel({ csrf, fetcher }: Props) {
         {studentTotal !== undefined && (studentTotal > students.length
           ? <p>当前显示前 {students.length} 人，共 {studentTotal} 人。可通过筛选缩小范围。</p>
           : studentTotal === 0 ? <p>当前范围暂无学生档案。</p> : null)}
-        <table>
+        <table className="student-roster">
           <thead>
             <tr>
               <th>学生</th>
@@ -374,7 +374,7 @@ export function StudentPanel({ csrf, fetcher }: Props) {
               : students
             ).map((student) => (
               <tr key={student.id}>
-                <td>{student.name ? <><strong>{student.name}</strong><br /></> : null}{student.research_id}</td>
+                <td>{student.name && <strong>{student.name}</strong>}<span className="student-research-id">{student.research_id}</span></td>
                 <td>{[student.data["所属学院"], student.data["专业"]].filter(Boolean).join(" · ") || "—"}</td>
                 <td>{[student.data["入学年份"], student.data["培养层次"], student.data["学籍状态"]].filter(Boolean).join(" · ") || "—"}</td>
                 <td>

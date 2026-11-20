@@ -1080,7 +1080,6 @@ td { border-bottom: 1px solid rgba(0, 0, 0, 0.055); }
 tbody tr:last-child td { border-bottom: 0; }
 tbody tr { transition: background-color 120ms var(--ease); }
 tbody tr:hover { background: #f5f5f7; }
-.accounts-table, .evaluation-table { min-width: 700px; }
 
 /* ---------- 分段控件（成果标签页） ---------- */
 .outputs-tabs {
@@ -1280,40 +1279,209 @@ summary:hover { color: var(--accent-deep); }
   opacity: 0.85;
 }
 
-/* Academic entrance */
-.login-shell { grid-template-columns: 56% 44%; gap: 0; align-items: stretch; background: #f8f9fb; }
-.login-shell .intro { display: flex; flex-direction: column; justify-content: space-between; min-height: 100svh; padding: clamp(32px, 4.5vw, 76px); background: #102d4b; isolation: isolate; }
-.login-shell .intro::before { content: ""; position: absolute; z-index: -1; width: min(660px, 60vw); aspect-ratio: 1; right: -160px; top: 23%; background: url('/tongji-emblem.png') center / contain no-repeat; opacity: .055; filter: grayscale(1) invert(1); pointer-events: none; }
-.login-shell .intro::after { display: block; inset: 22px; width: auto; height: auto; border: 1px solid #ffffff16; border-radius: 0; box-shadow: none; z-index: -1; pointer-events: none; }
-.login-shell .login-identity { color: #f1f5fa; font-weight: 500; font-size: 15px; letter-spacing: .12em; }
-.login-shell .login-identity img { width: 54px; height: 54px; padding: 5px; }
-.login-story { padding: 65px 0 95px; }
-.login-shell .intro h1 { font-family: 'Songti SC', 'STSong', 'SimSun', serif; font-weight: 400; font-size: clamp(42px, 4.25vw, 76px); line-height: 1.45; letter-spacing: .08em; margin: 0 0 24px; color: #f6f4ed; }
-.login-shell .intro p { font-size: 15px; line-height: 1.9; color: #b9c9d8; margin: 0; letter-spacing: .06em; }
-.login-scope { display: flex; gap: 0; flex-wrap: wrap; padding-top: 25px; border-top: 1px solid #ffffff24; color: #bdccd9; font-size: 12px; letter-spacing: .12em; }
-.login-scope span + span { border-left: 1px solid #ffffff30; margin-left: 22px; padding-left: 22px; }
-.login-access { display: flex; flex-direction: column; justify-content: center; position: relative; padding: 72px 48px; }
-.login-shell .login-form { width: min(100%, 370px); margin: auto; background: transparent; border: 0; border-radius: 0; padding: 0; box-shadow: none; }
-.login-shell .login-form h2 { color: #16324c; font-size: 28px; font-weight: 600; margin: 0 0 10px; letter-spacing: .02em; }
-.login-shell .login-form > .muted { color: #728091; font-size: 13px; line-height: 1.8; }
+/* Shared research identity */
+:root {
+  --ground: #f3f5f8;
+  --paper: #fff;
+  --ink: #24364b;
+  --ink-2: #68798b;
+  --hairline: #dce3ea;
+  --accent: #315a81;
+  --accent-deep: #173957;
+  --focus-ring: #6d96ba;
+  --research-navy: #142d47;
+  --research-blue: #315a81;
+  --research-ink: #24364b;
+  --research-ground: #f3f5f8;
+  --research-rule: #dce3ea;
+}
+
+/* The entrance uses one continuous campus scene. */
+.login-shell {
+  grid-template-columns: minmax(0, 1fr) 440px;
+  gap: clamp(28px, 5vw, 88px);
+  align-items: stretch;
+  padding: 32px;
+  background: linear-gradient(90deg, #0c2136a8, #0c213630 70%), url('/tongji-library.jpg') center 55% / cover;
+}
+.login-shell .intro {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: calc(100svh - 64px);
+  padding: 20px 22px;
+  background: transparent;
+  overflow: visible;
+}
+.login-shell .intro::before, .login-shell .intro::after { display: none; }
+.login-shell .login-identity { color: #fff; font-size: 16px; font-weight: 500; letter-spacing: .08em; }
+.login-shell .login-identity img { width: 50px; height: 50px; padding: 4px; }
+.login-story { margin-top: auto; padding: 100px 0 64px; }
+.login-shell .intro h1 {
+  font-family: 'Songti SC', STSong, SimSun, serif;
+  font-size: clamp(40px, 4vw, 66px);
+  font-weight: 400;
+  line-height: 1.5;
+  letter-spacing: .05em;
+  color: #fff;
+  margin: 0 0 20px;
+  text-shadow: 0 2px 30px #05172a60;
+}
+.login-shell .intro p { margin: 0; color: #eef3f8; font-size: 14px; line-height: 1.8; }
+.login-scene-footer { padding-top: 18px; border-top: 1px solid #ffffff4d; }
+.login-photo-credit { color: #fff; font-size: 12px; text-decoration: none; }
+.login-photo-credit:hover { opacity: 1; }
+.login-access {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+  align-self: center;
+  padding: 54px 44px 44px;
+  background: #f9fbfdf5;
+  border: 1px solid #ffffffb0;
+  border-radius: 14px;
+  box-shadow: 0 24px 80px #0b243740;
+}
+.login-shell .login-form { width: 100%; margin: auto; padding: 0; border: 0; box-shadow: none; border-radius: 0; background: transparent; }
+.login-shell .login-form h2 { color: #142d47; font-size: 27px; font-weight: 600; letter-spacing: .01em; margin: 0 0 12px; }
+.login-shell .login-form > .muted { color: #61758a; font-size: 12px; line-height: 1.9; }
 .login-shell .login-form form { margin-top: 38px; }
-.login-shell .login-form label { color: #31465b; font-size: 13px; margin-bottom: 23px; }
-.login-shell .login-form input { margin-top: 9px; min-height: 52px; border: 1px solid #d7dfe7; border-radius: 6px; background: #fff; color: #16324c; padding: 12px 15px; box-shadow: 0 2px 3px #16324c03; }
-.login-shell .login-form input:focus { outline: 2px solid #426c9b; outline-offset: 3px; border-color: #426c9b; }
-.login-shell .login-form button { background: #153b61; border: 1px solid #153b61; border-radius: 6px; min-height: 52px; margin: 7px 0 18px; font-weight: 500; letter-spacing: .1em; box-shadow: 0 5px 12px #153b6117; }
-.login-shell .login-form button:hover { background: #214f7d; }
-.login-shell .login-form .small { font-size: 12px; max-width: 32em; }
-.login-footer { position: absolute; bottom: 32px; left: 48px; right: 48px; display: flex; justify-content: space-between; gap: 16px; color: #8793a0; font-size: 10px; letter-spacing: .06em; }
-@media (max-width: 850px) {
-  .login-shell { grid-template-columns: 1fr; }
-  .login-shell .intro { min-height: 330px; padding: 30px; }
-  .login-shell .intro::after { inset: 12px; }
-  .login-shell .intro::before { width: 330px; right: -60px; top: 40px; }
-  .login-story { padding: 40px 0 30px; }
-  .login-shell .intro h1 { font-size: 36px; line-height: 1.35; margin-bottom: 14px; }
-  .login-shell .intro p { font-size: 12px; }
-  .login-scope { padding-top: 18px; font-size: 10px; }
-  .login-scope span + span { margin-left: 14px; padding-left: 14px; }
-  .login-access { padding: 48px 28px 95px; min-height: 530px; }
-  .login-footer { left: 28px; right: 28px; bottom: 22px; font-size: 9px; }
+.login-shell .login-form label { font-size: 12px; font-weight: 500; margin-bottom: 24px; color: #3a5067; }
+.login-shell .login-form input { min-height: 52px; margin-top: 10px; background: #fff; border: 1px solid #d5dfe8; border-radius: 6px; color: #24364b; padding: 12px 14px; }
+.login-shell .login-form input:focus-visible { border-color: #527fa8; outline: 2px solid #6d96ba; outline-offset: 3px; }
+.login-shell .login-form button { min-height: 52px; width: 100%; background: #214c72; border: 1px solid #214c72; border-radius: 6px; font-weight: 500; letter-spacing: .12em; margin: 8px 0 18px; box-shadow: 0 5px 16px #153c6015; }
+.login-shell .login-form button:hover { background: #173957; }
+.login-shell .login-form .small { font-size: 11px; line-height: 1.9; margin-top: 18px; }
+
+/* Workspace chrome and shared business surfaces */
+.workspace { background: var(--ground); }
+.workspace .workspace-sidebar {
+  width: 250px;
+  padding: 28px 16px 18px;
+  background: #142d47;
+  border-right: 1px solid #ffffff12;
+  box-shadow: none;
+}
+.workspace .brand { padding: 0 10px 25px; margin-bottom: 14px; border-bottom: 1px solid #ffffff18; gap: 12px; font-size: 18px; font-weight: 500; letter-spacing: .03em; }
+.workspace .brand img { width: 40px; height: 40px; padding: 3px; }
+.workspace .brand small { font-size: 10px; color: #b5c6d6; margin-top: 7px; }
+.workspace .nav-group { margin-bottom: 16px; }
+.workspace .nav-group-label { color: #8fa8be; font-size: 10px; font-weight: 500; padding: 8px 13px; }
+.workspace nav button { font-size: 12px; font-weight: 400; min-height: 39px; padding: 10px 13px; border-radius: 6px; color: #c6d4e1; margin: 2px 0; border: 1px solid transparent; }
+.workspace nav button.active { background: #ffffff12; border: 1px solid #ffffff18; color: #fff; box-shadow: inset 3px 0 #a8c1d7; }
+.workspace nav button.active::before { display: none; }
+.workspace nav button:not(.active):hover { background: #ffffff0d; color: #fff; }
+.workspace nav button:focus-visible { outline: 2px solid #b4cbe0; outline-offset: -2px; }
+.workspace .aside-foot { color: #9fb4c8; border-top: 1px solid #ffffff18; padding: 18px 12px 0; font-size: 10px; }
+.workspace .content { padding: 0 clamp(22px, 3.4vw, 64px) 44px; background: var(--ground); }
+.workspace-header { min-height: 90px; padding: 20px 0; margin: 0 0 32px; border-bottom: 1px solid var(--hairline); }
+.workspace-header h1 { color: #263d54; font-size: 18px; font-weight: 600; letter-spacing: 0; }
+.workspace-header .user-menu { gap: 10px; font-size: 12px; }
+.workspace-header .user-menu .user-avatar { display: grid; place-items: center; height: 30px; width: 30px; border-radius: 50%; background: #dfe8f1; color: #315a81; font-size: 11px; }
+.workspace-header .user-menu button { font-size: 11px; padding: 7px 10px; margin-left: 8px; background: transparent; box-shadow: none; }
+.workspace h2 { font-size: 21px; font-weight: 600; letter-spacing: .01em; color: #203a53; }
+.workspace h3 { color: #29465f; font-size: 16px; font-weight: 600; }
+.workspace label { font-size: 12px; color: #435b70; }
+.workspace button { border-radius: 6px; font-size: 12px; font-weight: 500; padding: 10px 16px; }
+.workspace button.secondary { color: #365773; border-color: #d4dee8; box-shadow: 0 1px 2px #152d4510; }
+.workspace button.secondary:hover { background: #edf3f8; border-color: #b0c4d5; }
+.workspace input:not([type="checkbox"]):not([type="radio"]), .workspace select, .workspace textarea { border: 1px solid #d6dfe7; border-radius: 6px; background: #fff; font-size: 13px; }
+.workspace :is(.card, section.card) { border: 1px solid #e0e6ed; border-radius: 10px; box-shadow: 0 3px 14px #20365004; }
+.workspace .card { padding: 24px; }
+.workspace .table-wrap { border: 1px solid #dfe6ee; border-radius: 8px; overflow-x: auto; }
+.workspace th { background: #edf2f7; color: #546d84; font-size: 11px; font-weight: 600; padding: 14px 16px; border-bottom: 1px solid #dfe6ee; }
+.workspace td { padding: 14px 16px; color: #354e64; font-size: 12px; border-bottom: 1px solid #e9eef3; }
+.workspace tbody tr:hover { background: #f5f8fb; }
+.workspace .task-details { border-top: 1px solid #e1e8ef; padding-top: 12px; margin-top: 20px; }
+.workspace summary { color: #3d6389; font-size: 12px; }
+.workspace .evidence-fields > div { border-color: #e3eaf1; }
+.workspace .notice { background: #eef4fa; color: #2a5073; border-color: #d0dfed; border-left-color: #5e85a8; }
+.workspace .outputs-tabs { border-radius: 7px; background: #e7edf4; padding: 4px; gap: 3px; }
+.workspace .outputs-tabs button { border-radius: 5px; }
+.workspace .outputs-tabs button.active { color: #214d74; box-shadow: 0 1px 5px #23445a12; }
+
+/* The assistant is the platform's primary research entrance. */
+.workspace .agent-home { width: min(100%, 920px); padding-top: clamp(18px, 4vh, 48px); }
+.workspace .agent-home:has(.agent-thread) { padding-top: 0; }
+.workspace .agent-home-intro {
+  text-align: left;
+  min-height: 260px;
+  padding: 32px;
+  margin-bottom: 24px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(90deg, #102a43ee, #102a4366), url('/tongji-library.jpg') center 45% / cover;
+}
+.workspace .agent-home-intro img { margin: 0 0 28px; width: 44px; height: 44px; padding: 4px; border-radius: 50%; background: #fff; mix-blend-mode: normal; }
+.workspace .agent-home-intro h2 { font-family: 'Songti SC', STSong, SimSun, serif; font-size: clamp(25px, 2.6vw, 36px); font-weight: 400; color: #fff; line-height: 1.5; letter-spacing: .03em; }
+.workspace .agent-home-intro p { color: #e0e9f2; font-size: 12px; margin-top: 10px; }
+.workspace .agent-composer { border-radius: 12px; border: 1px solid #d5e0eb; padding: 20px; box-shadow: 0 8px 30px #193b5c08; background: #fff; }
+.workspace .agent-composer:focus-within { border-color: #7c9bb8; box-shadow: 0 8px 30px #193b5c0c; }
+.workspace .agent-composer textarea { border: 0; padding: 2px; font-size: 14px; min-height: 96px; background: transparent; }
+.workspace .agent-composer-actions { padding-top: 14px; border-top: 1px solid #edf1f5; color: #7b8a9b; font-size: 11px; }
+.workspace .agent-composer-actions button { background: #315a81; border-radius: 6px; }
+.workspace .agent-suggestions { gap: 8px; margin-top: 18px; }
+.workspace .agent-suggestions button { background: #fff; color: #526f88; font-size: 11px; padding: 10px 13px; border: 1px solid #dfe6ed; box-shadow: none; }
+.workspace .agent-question { background: #e3edf6; color: #294c6b; border-radius: 10px 10px 2px 10px; }
+.workspace .agent-answer { border-left-color: #9db7cc; border-radius: 0 8px 8px 0; background: #fff; padding: 22px; }
+.workspace .agent-connection { background: #eaf0f6; border-left-color: #829eb6; color: #405e78; border-radius: 0 6px 6px 0; font-size: 12px; }
+@media (min-width: 1600px) { .workspace .content { padding-inline: clamp(44px, 4.5vw, 100px); } }
+@media (max-width: 1000px) {
+  .login-shell { grid-template-columns: minmax(0, 1fr) 390px; padding: 22px; gap: 20px; }
+  .login-access { padding-inline: 30px; }
+  .login-shell .intro { padding-inline: 8px; min-height: calc(100svh - 44px); }
+  .login-shell .intro h1 { font-size: 38px; }
+  .workspace .workspace-sidebar { width: 220px; padding-inline: 12px; }
+  .workspace .content { padding-inline: 24px; }
+}
+@media (max-width: 700px) {
+  .login-shell { grid-template-columns: 1fr; padding: 0; gap: 0; background-position: 45% top; }
+  .login-shell .intro { min-height: 350px; padding: 26px; background: linear-gradient(0deg, #102a4399, #102a4344); }
+  .login-story { padding: 38px 0 28px; }
+  .login-shell .intro h1 { font-size: 32px; margin-bottom: 14px; }
+  .login-shell .intro p { font-size: 11px; }
+  .login-scene-footer { padding-top: 10px; }
+  .login-access { align-self: stretch; border-radius: 18px 18px 0 0; padding: 36px 28px; margin-top: -14px; background: #f9fbfd; }
+  .login-shell .login-form { max-width: 390px; }
+  .login-shell .login-form h2 { font-size: 24px; }
+}
+@media (max-width: 550px) {
+  .workspace .workspace-sidebar { width: 100%; padding: 16px 18px 8px; }
+  .workspace .brand { padding: 0; margin-bottom: 10px; border: 0; font-size: 17px; }
+  .workspace .brand img { height: 32px; width: 32px; }
+  .workspace .brand small { font-size: 9px; margin-left: 0; display: block; }
+  .workspace .mobile-nav-toggle { font-size: 12px; padding: 10px 0; }
+  .workspace .nav-group { margin-bottom: 10px; }
+  .workspace .content { padding: 0 18px 28px; }
+  .workspace-header { min-height: 74px; gap: 8px; margin-bottom: 22px; padding-block: 16px; }
+  .workspace-header h1 { font-size: 16px; }
+  .workspace-header .user-menu { gap: 6px; font-size: 10px; }
+  .workspace-header .user-menu .user-avatar { display: none; }
+  .workspace-header .user-menu button { margin-left: 0; padding: 6px; font-size: 10px; }
+  .workspace .card { padding: 18px; }
+  .workspace .agent-home { padding-top: 0; }
+  .workspace .agent-home-intro { padding: 24px; min-height: 230px; }
+  .workspace .agent-home-intro h2 { font-size: 24px; }
+  .workspace .agent-composer { padding: 16px; }
+  .workspace .agent-composer-actions { font-size: 10px; }
+  .workspace .agent-suggestions { flex-direction: column; align-items: stretch; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace *, .login-shell * { scroll-behavior: auto; transition: none; }
+}
+
+.workspace nav button, .workspace .agent-suggestions button { font-size: 13px; }
+.workspace th, .workspace .nav-group-label { font-size: 12px; }
+.workspace td { font-size: 14px; }
+.workspace .agent-composer-actions { color: #536a80; font-size: 12px; }
+.student-research-id { display: block; color: #586c80; font-size: 12px; overflow-wrap: anywhere; }
+@media (max-width: 700px) {
+  .workspace input:not([type="checkbox"]):not([type="radio"]), .workspace select, .workspace textarea, .login-shell .login-form input { font-size: 16px; }
+  .student-roster thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .student-roster, .student-roster tbody { display: block; }
+  .student-roster tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; padding: 16px 0; border-bottom: 1px solid var(--hairline); }
+  .workspace .student-roster td { grid-column: 1; padding: 0; border: 0; font-size: 13px; }
+  .student-roster td:first-child strong { display: block; margin-bottom: 4px; font-size: 16px; }
+  .workspace .student-roster td:last-child { grid-column: 2; grid-row: 1 / span 3; align-self: center; }
 }
