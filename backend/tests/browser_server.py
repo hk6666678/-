@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 from aqp.app import create_app
 
 if __name__ == "__main__":
+    os.environ["AQP_MODEL_KEY_BROWSER_TEST"] = "synthetic-browser-test"
     with tempfile.TemporaryDirectory(prefix="aqp-browser-") as directory:
         database = Path(directory) / "fixture.sqlite3"
         subprocess.run(
