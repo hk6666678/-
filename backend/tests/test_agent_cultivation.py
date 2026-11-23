@@ -533,6 +533,12 @@ def test_agent_milestone_alerts_report_explicit_overdue(
     events = client.get("/api/audit", params={"action": "cultivation.milestone_alerts"})
     assert events.json()["items"], "milestone alerts audit missing"
 
+    replace_grants(client, headers, grants_for(["basic", "topic"], ["view", "analyze", "identity"]))
+    personal = ask(client, headers, "学号001的学生触发了哪些预警？").json()
+    assert "选题超期" in personal["answer"]
+    assert "2025-01-10" in personal["answer"] and "2025-03-01" in personal["answer"]
+    assert "中期未授权" in personal["answer"]
+
     replace_grants(client, headers, grants_for(["basic", "midterm"], ["view", "analyze"]))
     revoked = ask(client, headers, "示例学院计算机的选题中期超期情况")
     assert revoked.status_code == 403

@@ -15,6 +15,7 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from aqp.analysis import outcome as course_outcome
+from aqp.analysis import Scope, calculate, sources
 from aqp.authorization import (
     allowed,
     grants_for,
@@ -1021,7 +1022,7 @@ def execute_plan(
             row = matches[0]
         else:
             row = db.execute(
-                "SELECT id FROM students WHERE active=1 AND (id=? OR research_id=?) ORDER BY id LIMIT 1",
+                "SELECT id,college,major FROM students WHERE active=1 AND (id=? OR research_id=?) ORDER BY id LIMIT 1",
                 (plan.student_id, plan.research_id),
             ).fetchone()
         if row is None:
@@ -1040,10 +1041,32 @@ def execute_plan(
                 "url": f"/api/cultivation/students/{row['id']}/mentor-course-comparison",
             }]
         result = student_signals(db, actor, row["id"])
+        checks = []
+        links = [{"label": "学生档案", "url": f"/api/students/{row['id']}"}]
+        for category, label in (("topic", "选题"), ("midterm", "中期")):
+            if not all(allowed(db, actor, category, op, row["college"], row["major"])
+                       for op in ("view", "analyze")):
+                checks.append(f"{label}未授权，无法判断该环节预警。")
+                continue
+            scope = Scope(category=category, student_id=row["id"], college=row["college"], major=row["major"])
+            inputs = sources(db, scope, actor)
+            summary, evidence = calculate(inputs.rows, inputs.rules, scope)
+            if not evidence:
+                checks.append(f"{label}暂无记录，无法判断该环节预警。")
+            elif summary["unknown"]:
+                checks.append(f"{label}有 {summary['unknown']} 条考核结果未知，未参与考核结果预警判断。")
+            for record, timing in zip(evidence, summary["reminders"], strict=True):
+                data = record["payload"]
+                if timing["overdue"]:
+                    checks.append(f"{label}超期：计划 {data['计划日期']}，实际 {data.get('实际日期') or '尚未完成'}。")
+                if category == "midterm" and record["status"] == "不通过":
+                    checks.append(f"中期未通过：{data.get('考核批次', '')}。")
+            if evidence and len(links) == 1:
+                links.append({"label": "选题与中期记录", "url": f"/api/milestones?student_id={row['id']}"})
         return {
-            **result, "filters": {"student_id": row["id"]},
+            **result, "milestone_checks": checks, "filters": {"student_id": row["id"]},
             "limitations": "逐项检查授权可见的个人课程、选题、中期和成果增量趋势，以及盲审送审、学籍异动、同届成果对比。历史观测或登记覆盖不足时保留待核查状态。盲审缺失日期或状态时不得推断逾期。学院课程控制图用course_control_chart，选题中期超期与中期未通过用milestone_alerts。",
-        }, [{"label": "学生档案", "url": f"/api/students/{row['id']}"}]
+        }, links
     if plan.tool == "course_control_chart":
         from aqp.cultivation_models import course_control_chart
 
@@ -1343,7 +1366,7 @@ def register_agent(
                 plan = AgentPlan(tool="student_alerts", student_lookup=direct_alert[1])
                 direct_result, direct_links = execute_plan(db, actor["id"], plan, loaders)
                 assert direct_result is not None
-                lines = []
+                lines = list(direct_result.get("milestone_checks", []))
                 if trend := direct_result.get("course_trend"):
                     lines.append(f"课程趋势：{trend['signal']}")
                 for trend in direct_result.get("milestone_trends", []):
