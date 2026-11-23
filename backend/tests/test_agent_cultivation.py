@@ -538,6 +538,11 @@ def test_agent_milestone_alerts_report_explicit_overdue(
     assert "选题超期" in personal["answer"]
     assert "2025-01-10" in personal["answer"] and "2025-03-01" in personal["answer"]
     assert "中期未授权" in personal["answer"]
+    for question in ("合成学生的培养进度有什么需要我跟进的？", "帮我看看学号 001 的学生有没有延期的环节"):
+        checked = ask(client, headers, question)
+        assert checked.status_code == 200, checked.text
+        assert checked.json()["plan"]["tool"] == "student_alerts"
+        assert "选题超期" in checked.json()["answer"]
 
     replace_grants(client, headers, grants_for(["basic", "midterm"], ["view", "analyze"]))
     revoked = ask(client, headers, "示例学院计算机的选题中期超期情况")

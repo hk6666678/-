@@ -1356,7 +1356,11 @@ def register_agent(
                         "evidence_links": evidence, "model_version": version, "generated_at": int(time.time())}
 
         direct_alert = re.fullmatch(
-            r"(?:请问\s*)?学号\s*([0-9]{3,20})\s*(?:的学生|的研究生)?\s*(?:有|触发了)(?:哪些|什么|没有)?(?:培养)?预警[？?。]?",
+            r"(?:请问|帮我看看)?\s*学号\s*([0-9]{3,20})\s*(?:的学生|的研究生)?\s*"
+            r"(?:(?:有|触发了)(?:哪些|什么|没有)?(?:培养)?预警|有没有(?:延期|超期)的环节)[？?。]?",
+            body.question.strip(),
+        ) or re.fullmatch(
+            r"([\u3400-\u9fff·]{2,20})的培养进度有什么需要(?:我)?跟进的[？?。]?",
             body.question.strip(),
         )
         if direct_alert:
@@ -1383,6 +1387,9 @@ def register_agent(
                     lines.append("已登记成果数低于同届同专业学生中位数。")
                 if notice := direct_result.get("notice"):
                     lines.append(notice)
+                if direct_result.get("filters"):
+                    lines.insert(0, f"查询对象：{direct_alert[1]}。")
+                    lines.append("核对依据：研究分析 → 培养过程分析，选择该生后查看培养概况、个人趋势和来源记录。")
                 audit(db, actor["id"], "agent.answer", plan.tool)
                 return {
                     "answer": "\n".join(lines) or "当前资料不足以判断个人预警。",
@@ -1511,8 +1518,10 @@ def register_agent(
         assert tool_result is not None
         return {
             "answer": (
-                f"{summary_text}\\n系统依据："
-                f"{json.dumps(system_basis(tool_result), ensure_ascii=False)}"
+                f"{summary_text}\n"
+                + ("核对人数：数据管理 → 基础导入与学生档案，使用相同筛选条件。\n" if plan.tool == "student_counts" else "")
+                + "系统依据："
+                + json.dumps(system_basis(tool_result), ensure_ascii=False)
             ),
             "plan": plan.model_dump(),
             "tool_result": tool_result,
