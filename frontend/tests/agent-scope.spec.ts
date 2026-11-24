@@ -41,10 +41,10 @@ test("agent answers and evidence respect the student's program and stage permiss
     const saved = await page.request.post(`${confirmation}/${id}/confirm`,{headers,data:{accept_changes:false}});
     expect(saved.ok(),await saved.text()).toBeTruthy();
   }
-  await seed("basic",[["学号","姓名","所属学院","专业","培养层次","入学年份"],[number,name,college,major,"硕士","2022"],["990002","林清秋",college,other,"硕士","2022"]],"/api/imports/basic/preview","/api/imports");
+  await seed("basic",[["学号","姓名","所属学院","专业","培养层次","入学年份"],[number,name,college,major,"硕士","2022"],["990002",name,college,other,"硕士","2022"]],"/api/imports/basic/preview","/api/imports");
   await seed("courses",[["学号","姓名","课程编号","课程名称","修读学期","考核次数","评分制度","原始成绩","所属学院","专业"],
     ...["2022春","2022秋","2023春","2023秋","2024春","2024秋"].map((term,i)=>[number,name,"C"+i,"统计"+i,term,1,"百分制",[80,82,81,82,80,60][i],college,major])],"/api/imports/courses/preview","/api/imports/courses");
-  await seed("topic",[["学号","姓名","所属学院","专业","考核批次","评分制度","原始成绩","选题标题","计划日期","实际日期"],[number,name,college,major,"甲批","百分制",81,title,"2025-03-10","2025-03-18"]],"/api/milestones/topic/preview","/api/milestone-imports");
+  await seed("topic",[["学号","姓名","所属学院","专业","考核批次","评分制度","原始成绩","选题标题","计划日期","实际日期"],[number,name,college,major,"甲批","百分制",81,title,"2025-03-10","2025-03-18"],["990002",name,college,other,"乙批","百分制",89,"乙生独有选题","2025-04-20","2025-04-17"]],"/api/milestones/topic/preview","/api/milestone-imports");
   await seed("midterm",[["学号","姓名","所属学院","专业","考核批次","评分制度","原始成绩","计划日期","实际日期","业务通过结果"],[number,name,college,major,"中期密封批次","百分制",85,"2025-09-17","2025-09-16","通过"]],"/api/milestones/midterm/preview","/api/milestone-imports");
   const click = (p:Page, label:string)=>p.getByRole("button",{name:label,exact:true}).click();
   await click(page,"培养过程分析");
@@ -63,6 +63,18 @@ test("agent answers and evidence respect the student's program and stage permiss
     expect(await response.text()).toContain(label === "选题超期" ? title : "百分制");
   }
 
+  const ids: Record<string,string> = {};
+  for (const [num, planned, actual] of [[number,"2025-03-10","2025-03-18"],["990002","2025-04-20","2025-04-17"]]) {
+    ids[num] = (await select.locator("option").filter({hasText:num}).getAttribute("value"))!;
+    await select.selectOption(ids[num]);
+    const snapshot = page.waitForResponse(r=>r.url().endsWith("/api/analyses/topic") && r.request().method()==="POST");
+    await click(page,"查看培养过程");
+    const result = await (await snapshot).json();
+    expect(result.evidence).toHaveLength(1);
+    expect(result.evidence[0]).toMatchObject({student_id:Number(ids[num]),payload:{"计划日期":planned,"实际日期":actual}});
+    expect(result.result.reminders[0].overdue).toBe(num===number);
+    await expect(page.locator(".cultivation-student")).toContainText(num);
+  }
   // Only the model planner and prose are synthetic. The application computes the scoped count.
   const model = createServer(async (req,res)=>{
     let body = "";
@@ -114,6 +126,37 @@ test("agent answers and evidence respect the student's program and stage permiss
         texts.push(await response.text());
       }
       if (!full) expect(texts.join(" ")).not.toMatch(/合成选题水文测量|中期密封批次|2025-03-(10|18)|2025-09-1[67]|选题超期|(?:选题|中期)有\s*1\s*条/);
+      if (!full) {
+        // The prior assertions cover course-only access. Now allow the reader to see A's topic.
+        const user = (await (await p.request.get("/api/me")).json()).user;
+        const grants = ["basic","courses","topic"].flatMap(category =>
+          (category === "basic" ? ["identity","view"] : ["view","analyze"]).map(operation=>({category,operation,college,major})));
+        expect((await page.request.put(`/api/users/${user.id}/grants`,{headers,data:{
+          expected_version:user.version,request_id:crypto.randomUUID(),grants,
+        }})).ok()).toBeTruthy();
+      }
+      const named = await ask("陈清禾的培养进度有什么需要我跟进的？");
+      if (full) {
+        expect(named.answer).toContain("请补充学号");
+        expect(named.evidence_links).toEqual([]);
+        expect(Object.keys(named.tool_result)).toEqual(["notice"]);
+      }
+      for (const num of full ? [number,"990002"] : [number]) {
+        const data = full ? await ask(`帮我看看学号 ${num} 的学生有没有延期的环节`) : named;
+        const card = p.locator(".agent-answer").last();
+        await expect(card).toContainText(num===number ? "选题超期" : "选题按期完成");
+        await expect(card).toContainText(num===number ? "2025-03-18" : "2025-04-17");
+        await card.locator("summary").first().click();
+        const evidence = [JSON.stringify(data),await card.innerText()];
+        const urls = await card.getByRole("link").evaluateAll(links=>links.map(link=>link.getAttribute("href")));
+        expect(urls).toEqual([`/api/students/${ids[num]}`,`/api/milestones?student_id=${ids[num]}`]);
+        for (const url of urls) {
+          const source = await p.request.get(url!);
+          expect(source.ok()).toBeTruthy();
+          evidence.push(await source.text());
+        }
+        expect(evidence.join(" ")).not.toMatch(num===number ? /990002|测试乙专业|乙生独有选题|2025-04-(17|20)|多位匹配/ : /990001|合成选题水文测量|2025-03-(10|18)/);
+      }
     }
   } finally {
     const current = await (await page.request.get("/api/model/config")).json();

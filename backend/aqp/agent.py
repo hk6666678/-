@@ -1059,6 +1059,8 @@ def execute_plan(
                 data = record["payload"]
                 if timing["overdue"]:
                     checks.append(f"{label}超期：计划 {data['计划日期']}，实际 {data.get('实际日期') or '尚未完成'}。")
+                elif timing["overdue"] is False and data.get("实际日期"):
+                    checks.append(f"{label}按期完成：计划 {data['计划日期']}，实际 {data['实际日期']}。")
                 if category == "midterm" and record["status"] == "不通过":
                     checks.append(f"中期未通过：{data.get('考核批次', '')}。")
             if evidence and len(links) == 1:
@@ -1315,18 +1317,6 @@ def register_agent(
                     "model_version": version, "generated_at": int(time.time()),
                 }
 
-        with connection(path) as db:
-            deny_unauthorized_question(db, actor["id"], body.question)
-            scope_options = [
-                {"college": college, "major": major}
-                for college, major in sorted(
-                    {
-                        (grant["college"], grant["major"])
-                        for grant in grants_for(db, actor["id"])
-                        if grant["category"] == "basic" and grant["operation"] == "view"
-                    }
-                )
-            ]
         direct_mentor = re.fullmatch(
             r"(?:请问\s*)?([\w\-· ]{1,99}?)(导师|课题组)\s*(?:截至|截止)\s*(\d{4}-\d{2}-\d{2})\s*的?(?:培养)?效能(?:如何|怎么样)?[？?。]?",
             body.question.strip(),
@@ -1366,10 +1356,12 @@ def register_agent(
         if direct_alert:
             with connection(path) as db:
                 actor, _ = current(db, request)
-                deny_unauthorized_question(db, actor["id"], body.question)
                 plan = AgentPlan(tool="student_alerts", student_lookup=direct_alert[1])
                 direct_result, direct_links = execute_plan(db, actor["id"], plan, loaders)
                 assert direct_result is not None
+                # Exact local lookups resolve only rows with view and identity grants.
+                if not direct_result.get("filters") and not direct_result.get("notice", "").startswith("授权范围内有多位"):
+                    deny_unauthorized_question(db, actor["id"], body.question)
                 lines = list(direct_result.get("milestone_checks", []))
                 if trend := direct_result.get("course_trend"):
                     lines.append(f"课程趋势：{trend['signal']}")
@@ -1397,6 +1389,18 @@ def register_agent(
                     "model_version": version, "generated_at": int(time.time()),
                 }
 
+        with connection(path) as db:
+            deny_unauthorized_question(db, actor["id"], body.question)
+            scope_options = [
+                {"college": college, "major": major}
+                for college, major in sorted(
+                    {
+                        (grant["college"], grant["major"])
+                        for grant in grants_for(db, actor["id"])
+                        if grant["category"] == "basic" and grant["operation"] == "view"
+                    }
+                )
+            ]
         plan_text = invoke_model(
             path,
             "agent",
