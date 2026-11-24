@@ -18,6 +18,8 @@ test("agent answers and evidence respect the student's program and stage permiss
   await login(page, "synthetic-admin");
   const me = await (await page.request.get("/api/me")).json();
   const headers = {"X-CSRF-Token":me.csrf_token};
+  // 本用例整体替换管理员的业务授权。套件共用一个隔离库，后面的用例按管理员原先的授权起步，收尾时必须还原。
+  const originalGrants = await (await page.request.get("/api/access/grants")).json();
   const reader = await (await page.request.post("/api/users", {headers, data:{
     username:"agent-scope-reader", password, roles:["college_analyst"], request_id:crypto.randomUUID(),
   }})).json();
@@ -168,6 +170,8 @@ test("agent answers and evidence respect the student's program and stage permiss
   } finally {
     const current = await (await page.request.get("/api/model/config")).json();
     await page.request.put("/api/model/config",{headers,data:{...original,expected_version:current.version}});
+    const latest = await (await page.request.get("/api/me")).json();
+    await page.request.put(`/api/users/${latest.user.id}/grants`,{headers,data:{grants:originalGrants,expected_version:latest.user.version,request_id:crypto.randomUUID()}});
     await context.close();
     model.close();
   }
