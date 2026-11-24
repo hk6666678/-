@@ -178,6 +178,9 @@ def create_app(db_path: Path | None = None) -> FastAPI:
     from aqp.mentor_research import register_mentor_research
 
     register_mentor_research(app, path, current)
+    from aqp.data_quality import register_data_quality
+
+    register_data_quality(app, path, current)
     student_report, college_report = register_reports(app, path, current, snapshot_loader)
     from aqp.candidates import register_candidates
 

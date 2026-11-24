@@ -20,6 +20,7 @@ const MilestonePanel = lazy(() => import("./MilestonePanel").then((module) => ({
 const PaperPanel = lazy(() => import("./PaperPanel").then((module) => ({ default: module.PaperPanel })));
 const CoursePanel = lazy(() => import("./CoursePanel").then((module) => ({ default: module.CoursePanel })));
 const ResolutionPanel = lazy(() => import("./ResolutionPanel").then((module) => ({ default: module.ResolutionPanel })));
+const DataQualityPanel = lazy(() => import("./DataQualityPanel").then((module) => ({ default: module.DataQualityPanel })));
 const StudentPanel = lazy(() => import("./StudentPanel").then((module) => ({ default: module.StudentPanel })));
 
 type Role =
@@ -394,6 +395,7 @@ function App() {
         </header>
         {alert}
         <Suspense fallback={<p role="status">正在加载页面…</p>}>
+          {page === "maintenance" && <DataQualityPanel />}
           {page === "maintenance" && (
             <ResolutionPanel csrf={session.csrf_token} />
           )}
