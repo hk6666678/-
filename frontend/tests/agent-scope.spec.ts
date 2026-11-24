@@ -98,10 +98,11 @@ test("agent answers and evidence respect the student's program and stage permiss
       await expect(p.locator(".student-roster tbody tr")).toHaveCount(full ? 2 : 1);
       await expect(p.locator(".student-roster")).toContainText(name);
       await click(p,"Agent 智能问答");
-      async function ask(question:string) {
+      async function ask(question:string, enter = false) {
         await p.getByLabel("问题",{exact:true}).fill(question);
         const result = p.waitForResponse(r=>r.url().endsWith("/api/agent/query"));
-        await click(p,"发送问题");
+        if (enter) await p.getByLabel("问题",{exact:true}).press("Enter");
+        else await click(p,"发送问题");
         const response = await result;
         expect(response.ok(),await response.text()).toBeTruthy();
         return response.json();
@@ -142,7 +143,13 @@ test("agent answers and evidence respect the student's program and stage permiss
         expect(Object.keys(named.tool_result)).toEqual(["notice"]);
       }
       for (const num of full ? [number,"990002"] : [number]) {
-        const data = full ? await ask(`帮我看看学号 ${num} 的学生有没有延期的环节`) : named;
+        if (full && num === "990002") {
+          await ask("陈清禾的培养进度有什么需要我跟进的？");
+          const wrong = await ask("999999", true);
+          expect(wrong.evidence_links).toEqual([]);
+          await expect(p.locator(".agent-answer").last()).toContainText("重新输入学号");
+        }
+        const data = full ? await ask(num, true) : named;
         const card = p.locator(".agent-answer").last();
         await expect(card).toContainText(num===number ? "选题超期" : "选题按期完成");
         await expect(card).toContainText(num===number ? "2025-03-18" : "2025-04-17");

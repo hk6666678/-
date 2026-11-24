@@ -64,6 +64,7 @@ CORRELATION_VARIABLES = Literal["course_pass_ratio", "output_count", "score_tota
 
 class AgentQuery(BaseModel):
     question: str = Field(min_length=2, max_length=2000, pattern=r".*\S.*")
+    student_number: str = Field(default="", max_length=100)
 
 
 class AgentPlan(BaseModel):
@@ -912,6 +913,7 @@ def execute_plan(
     actor: int,
     plan: AgentPlan,
     loaders: AgentLoaders,
+    *, student_number: str = "",
 ) -> tuple[dict[str, Any] | None, list[dict[str, str]]]:
     plan = resolve_named_ids(db, actor, plan)
     if plan.tool == "student_profile":
@@ -1010,6 +1012,7 @@ def execute_plan(
                 )
                 if (not plan.college or candidate["college"] == plan.college)
                 and (not plan.major or candidate["major"] == plan.major)
+                and (not student_number or (candidate["name"] == lookup and candidate["student_number"] == student_number))
                 and student_allowed(db, actor, candidate["id"])
                 and all(basic_scope(db, actor, op, json.loads(candidate["payload"]))
                         for op in ("view", "identity"))
@@ -1357,7 +1360,7 @@ def register_agent(
             with connection(path) as db:
                 actor, _ = current(db, request)
                 plan = AgentPlan(tool="student_alerts", student_lookup=direct_alert[1])
-                direct_result, direct_links = execute_plan(db, actor["id"], plan, loaders)
+                direct_result, direct_links = execute_plan(db, actor["id"], plan, loaders, student_number=body.student_number)
                 assert direct_result is not None
                 # Exact local lookups resolve only rows with view and identity grants.
                 if not direct_result.get("filters") and not direct_result.get("notice", "").startswith("授权范围内有多位"):
@@ -1379,13 +1382,21 @@ def register_agent(
                     lines.append("已登记成果数低于同届同专业学生中位数。")
                 if notice := direct_result.get("notice"):
                     lines.append(notice)
+                clarify_number = not direct_alert[1].isdigit() and (
+                    direct_result.get("notice", "").startswith("授权范围内有多位")
+                    or (body.student_number and not direct_result.get("filters"))
+                )
+                if clarify_number:
+                    lines = ["请重新输入学号并按回车。" if body.student_number else "匹配到多名同名学生，请补充学号并按回车。"]
                 if direct_result.get("filters"):
-                    lines.insert(0, f"查询对象：{direct_alert[1]}。")
+                    subject = f"{direct_alert[1]}（学号 {body.student_number}）" if body.student_number else direct_alert[1]
+                    lines.insert(0, f"查询对象：{subject}。")
                     lines.append("核对依据：研究分析 → 培养过程分析，选择该生后查看培养概况、个人趋势和来源记录。")
                 audit(db, actor["id"], "agent.answer", plan.tool)
                 return {
                     "answer": "\n".join(lines) or "当前资料不足以判断个人预警。",
                     "plan": plan.model_dump(), "tool_result": direct_result, "evidence_links": direct_links,
+                    "needs_student_number": bool(clarify_number),
                     "model_version": version, "generated_at": int(time.time()),
                 }
 

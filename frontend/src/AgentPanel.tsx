@@ -6,6 +6,7 @@ type Turn = {
   question: string;
   result?: {
     answer: string;
+    needs_student_number?: boolean;
     evidence_links: { label: string; url: string }[];
     tool_result: unknown;
   };
@@ -17,6 +18,7 @@ export function AgentPanel({ csrf }: { csrf: string }) {
   const [question, setQuestion] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
   const [pending, setPending] = useState("");
+  const [clarification, setClarification] = useState("");
   const latest = useRef<HTMLDivElement>(null);
   const questionField = useRef<HTMLTextAreaElement>(null);
 
@@ -41,16 +43,20 @@ export function AgentPanel({ csrf }: { csrf: string }) {
   async function ask() {
     const prompt = question.trim();
     if (!status?.available || pending || prompt.length < 2) return;
+    const followUp = clarification && /^[\w-]{2,100}$/.test(prompt);
+    const original = followUp ? clarification : prompt;
+    if (!followUp) setClarification("");
     setPending(prompt);
     setQuestion("");
     try {
       const response = await fetch("/api/agent/query", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
-        body: JSON.stringify({ question: prompt }),
+        body: JSON.stringify({ question: original, ...(followUp && {student_number: prompt}) }),
       });
       const value = await response.json().catch(() => null);
       if (!response.ok) throw Error(typeof value?.detail === "string" ? value.detail : "暂时无法完成查询。");
+      setClarification(value.needs_student_number ? original : "");
       setTurns((previous) => [...previous, { question: prompt, result: value }]);
     } catch (err) {
       setTurns((previous) => [...previous, { question: prompt, error: err instanceof Error ? err.message : String(err) }]);
@@ -98,7 +104,7 @@ export function AgentPanel({ csrf }: { csrf: string }) {
         event.preventDefault();
         void ask();
       }}>
-        <textarea ref={questionField} aria-label="问题" placeholder="输入你想查询的问题" rows={3} maxLength={2000}
+        <textarea ref={questionField} aria-label="问题" placeholder={clarification ? "输入学号，按回车继续查询" : "输入你想查询的问题"} rows={3} maxLength={2000}
           enterKeyHint="send" aria-describedby="agent-input-hint"
           value={question} onChange={(event) => setQuestion(event.target.value)}
           onKeyDown={(event) => {
