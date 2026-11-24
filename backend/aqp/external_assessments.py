@@ -22,6 +22,7 @@ REVIEW_TOPICS = {
     "主要问题": ("不足", "欠缺", "缺少", "不充分", "存在问题"),
     "修改建议": ("建议", "应补充", "可补充", "需完善", "可改进"),
 }
+QUOTE_LIMIT = 200
 
 
 class AssessmentInput(BaseModel):
@@ -161,7 +162,7 @@ def register_external_assessments(
                 "template": template(db, "simulation-v1"),
             }
 
-    def keyword_data(db: sqlite3.Connection, actor: int, terms: str, classify: bool, paper_version_id: int | None = None) -> dict[str, Any]:
+    def keyword_data(db: sqlite3.Connection, actor: int, terms: str, classify: bool, paper_version_id: int | None = None, quotes: bool = False) -> dict[str, Any]:
         words = list(
             dict.fromkeys(
                 word.strip().casefold() for word in terms.split(",") if word.strip()
@@ -171,6 +172,8 @@ def register_external_assessments(
             raise HTTPException(422, "请输入 1～30 个关键词，每词最长 50 字")
         counts = dict.fromkeys(words, 0)
         categories: dict[str, list[dict[str, Any]]] = {topic: [] for topic in REVIEW_TOPICS}
+        matched_quotes: list[dict[str, Any]] = []
+        truncated = False
         scanned = skipped = 0
         for row in db.execute(
             "SELECT * FROM external_assessments WHERE category='blind_reviews' AND (? IS NULL OR paper_version_id=?) ORDER BY id",
@@ -185,21 +188,42 @@ def register_external_assessments(
             comment = row["comment"].casefold()
             for word in words:
                 counts[word] += comment.count(word)
+            if not (classify or quotes):
+                continue
+            sentences = [
+                sentence.strip()
+                for sentence in re.split(r"(?<=[。！？；])|\r?\n", row["comment"])
+                if sentence.strip()
+            ]
+            if quotes:
+                # Each review contributes at most its first matching sentence per
+                # word, so the list stays bounded by reviews x words.
+                for word in words:
+                    sentence = next((text for text in sentences if word in text.casefold()), None)
+                    if sentence is None:
+                        continue
+                    if len(matched_quotes) >= QUOTE_LIMIT:
+                        truncated = True
+                        break
+                    matched_quotes.append({
+                        "word": word, "review_id": row["id"],
+                        "paper_version_id": row["paper_version_id"], "quote": sentence[:500],
+                    })
             if classify:
-                for sentence in re.split(r"(?<=[。！？；])|\r?\n", row["comment"]):
-                    sentence = sentence.strip()
+                for sentence in sentences:
                     for topic, markers in REVIEW_TOPICS.items():
                         if len(categories[topic]) < 20 and any(marker in sentence for marker in markers):
                             categories[topic].append({"review_id": row["id"], "quote": sentence[:500]})
         audit(db, actor, "external_assessment.keywords", "blind_reviews")
         return {"counts": counts, "scanned": scanned, "skipped": skipped,
-                **({"categories": categories} if classify else {})}
+                **({"categories": categories} if classify else {}),
+                **({"quotes": matched_quotes, "quotes_truncated": truncated} if quotes else {})}
 
     @app.get("/api/external-assessments/keywords")
-    def keywords(request: Request, terms: str, classify: bool = False, paper_version_id: int | None = None) -> dict[str, Any]:
+    def keywords(request: Request, terms: str, classify: bool = False, paper_version_id: int | None = None, quotes: bool = False) -> dict[str, Any]:
         with connection(path) as db:
             actor, _ = current(db, request)
-            return keyword_data(db, actor["id"], terms, classify, paper_version_id)
+            return keyword_data(db, actor["id"], terms, classify, paper_version_id, quotes)
 
     @app.post("/api/external-assessments")
     def create(body: AssessmentInput, request: Request) -> dict[str, Any]:

@@ -34,6 +34,8 @@ export function AssessmentPanel({ csrf }: { csrf: string }) {
   const [keywordResult, setKeywordResult] = useState<{
     counts: Record<string, number>; scanned: number; skipped: number;
     categories?: Record<string, { review_id: number; quote: string }[]>;
+    quotes?: { word: string; review_id: number; paper_version_id: number; quote: string }[];
+    quotes_truncated?: boolean;
   }>();
   const [keywordBusy, setKeywordBusy] = useState(false);
   const comparisons = new Map<string, { paper: number; template: string; item: string; blind: number[]; defense: number[] }>();
@@ -171,12 +173,16 @@ export function AssessmentPanel({ csrf }: { csrf: string }) {
         <summary>盲审意见关键词统计</summary>
         <form onSubmit={async (e) => {
           e.preventDefault();
-          const terms = String(new FormData(e.currentTarget).get("terms")).replaceAll("，", ",");
+          const data = new FormData(e.currentTarget);
+          const terms = String(data.get("terms")).replaceAll("，", ",");
+          const showQuotes = data.get("quotes") === "on";
           setKeywordResult(undefined);
           setError("");
           setKeywordBusy(true);
           try {
-            setKeywordResult(await call(`/api/external-assessments/keywords?${new URLSearchParams({ terms, classify: "true" })}`));
+            setKeywordResult(await call(`/api/external-assessments/keywords?${new URLSearchParams({
+              terms, classify: "true", ...(showQuotes ? { quotes: "true" } : {}),
+            })}`));
           } catch (err) {
             setError(String(err));
           } finally {
@@ -185,11 +191,32 @@ export function AssessmentPanel({ csrf }: { csrf: string }) {
         }}>
           <label>关键词（逗号分隔）<input name="terms" required maxLength={1600}
             defaultValue="创新性,创新点,研究方法,数据不足,论证不足,写作规范,参考文献" /></label>
+          <label><input type="checkbox" name="quotes" defaultChecked />同时列出命中这些关键词的评语原句</label>
           <button disabled={keywordBusy}>统计关键词</button>
         </form>
         {keywordResult && <>
           <p>已统计 {keywordResult.scanned} 条，因评语下载未授权跳过 {keywordResult.skipped} 条。按字面匹配出现次数。</p>
           <ul>{Object.entries(keywordResult.counts).map(([word, count]) => <li key={word}>{word} · {count} 次</li>)}</ul>
+          {keywordResult.quotes && (
+            <section aria-label="关键词命中的评语原句">
+              <h4>关键词命中的评语原句</h4>
+              <p>每条评语对每个关键词只列出第一处命中的句子。原句来自盲评专家意见，仅作证据摘录，不代表系统评价。</p>
+              {keywordResult.quotes.length ? (
+                <div className="table-wrap"><table>
+                  <thead><tr><th>关键词</th><th>评语</th><th>论文版本</th><th>原句</th></tr></thead>
+                  <tbody>{keywordResult.quotes.map((item) => (
+                    <tr key={`${item.word}-${item.review_id}`}>
+                      <td>{item.word}</td>
+                      <td>评语 #{item.review_id}</td>
+                      <td>#{item.paper_version_id}</td>
+                      <td className="evidence-value">{item.quote}</td>
+                    </tr>
+                  ))}</tbody>
+                </table></div>
+              ) : <p>没有命中这些关键词的评语原句。</p>}
+              {keywordResult.quotes_truncated && <p>命中原句较多，仅列出前 {keywordResult.quotes.length} 条；可缩小关键词范围或指定论文版本后再查。</p>}
+            </section>
+          )}
           {keywordResult.categories && (
             <details>
               <summary>评语分类与原句</summary>
