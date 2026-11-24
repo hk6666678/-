@@ -1,4 +1,5 @@
 import { CollegeSelect } from "./CollegeSelect";
+import { MentorResearch } from "./MentorResearch";
 import { useEffect, useState } from "react";
 type Directory = {
   id: number;
@@ -565,6 +566,7 @@ export function MentorGroupPanel({ csrf }: { csrf: string }) {
           )}
         </div>
       )}
+      <MentorResearch mentors={mentors} groups={groups} />
       <details className="task-details"><summary>业务目录</summary>
 
       <label>

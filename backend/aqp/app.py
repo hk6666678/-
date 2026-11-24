@@ -175,6 +175,9 @@ def create_app(db_path: Path | None = None) -> FastAPI:
 
     snapshot_loader, evaluation_dashboard, evaluation_rolling = register_evaluation(app, path, current)
     register_mentor_groups(app, path, current, snapshot_loader)
+    from aqp.mentor_research import register_mentor_research
+
+    register_mentor_research(app, path, current)
     student_report, college_report = register_reports(app, path, current, snapshot_loader)
     from aqp.candidates import register_candidates
 
