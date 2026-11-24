@@ -1549,3 +1549,24 @@ summary:hover { color: var(--accent-deep); }
 .score-lead { border-inline-start: 3px solid #567899; padding: .2rem 1rem; margin-bottom: 1rem; background: #f3f7fa; overflow-wrap: anywhere; }
 .score-lead h3 { font-size: clamp(1.25rem, 2.2vw, 2rem); font-variant-numeric: tabular-nums; }
 .cultivation-student, .student-roster td:first-child { overflow-wrap: anywhere; }
+
+/* 导出格式选择：行内下拉，不占用整行宽度 */
+.export-format-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+.export-format-picker label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  white-space: nowrap;
+}
+.export-format-picker select {
+  display: inline-block;
+  width: auto;
+  margin: 0;
+  min-width: 220px;
+}

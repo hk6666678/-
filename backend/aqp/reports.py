@@ -16,8 +16,8 @@ from fastapi.responses import Response
 from aqp.analysis import outcome
 from aqp.attachments import authorize_students
 from aqp.authorization import allowed, school_operation_allowed, student_allowed
-from aqp.exports import excel_report
 from aqp.mentor_groups import group_facts
+from aqp.report_documents import ReportFormat, export_report
 from aqp.research_outputs import current_participant
 from aqp.store import audit, connection
 
@@ -27,6 +27,9 @@ OUTPUT_CATEGORY_TABLE = [
     ("awards", "awards"),
     ("conferences", "conferences"),
 ]
+# Shared default for the three export endpoints; a module constant keeps the
+# signature free of a call expression.
+REPORT_FORMAT = Query(default="xlsx", alias="format")
 YEAR_KEY = {
     "patents": "申请日期",
     "awards": "获奖年份",
@@ -656,7 +659,10 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any], snap
             return report
 
     @app.get("/api/reports/students/{student_id}/export")
-    def student_export(student_id: int, request: Request) -> Response:
+    def student_export(
+        student_id: int, request: Request,
+        fmt: ReportFormat = REPORT_FORMAT,
+    ) -> Response:
         with connection(path) as db:
             actor, _ = current(db, request)
             report = student_report(db, actor["id"], student_id)
@@ -670,13 +676,14 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any], snap
                 report["student"]["college"],
                 report["student"]["major"],
             )
-            audit(db, actor["id"], "reports.export", f"student:{student_id}")
+            audit(db, actor["id"], "reports.export", f"student:{student_id}:{fmt}")
             db.commit()
-            return excel_report(report, f"report-student-{student_id}")
+            return export_report(report, f"report-student-{student_id}", fmt)
 
     @app.get("/api/reports/mentor-groups/export")
     def group_export(
-        request: Request, as_of: date, mentor_id: int | None = None, group_id: int | None = None
+        request: Request, as_of: date, mentor_id: int | None = None, group_id: int | None = None,
+        fmt: ReportFormat = REPORT_FORMAT,
     ) -> Response:
         with connection(path) as db:
             actor, _ = current(db, request)
@@ -692,23 +699,28 @@ def register_reports(app: FastAPI, path: Path, current: Callable[..., Any], snap
                 db,
                 actor["id"],
                 "reports.export",
-                f"group:{mentor_id or '*'}/{group_id or '*'}@{as_of}",
+                f"group:{mentor_id or '*'}/{group_id or '*'}@{as_of}:{fmt}",
             )
             db.commit()
-            return excel_report(report, f"report-group-{mentor_id or group_id or 'all'}")
+            return export_report(
+                report, f"report-group-{mentor_id or group_id or 'all'}", fmt
+            )
 
     @app.get("/api/reports/colleges/export")
-    def college_export(request: Request, college: str, major: str) -> Response:
+    def college_export(
+        request: Request, college: str, major: str,
+        fmt: ReportFormat = REPORT_FORMAT,
+    ) -> Response:
         with connection(path) as db:
             actor, _ = current(db, request)
             report = college_report(db, actor["id"], college, major)
             require_section_exports(
                 db, actor["id"], report["sections"], college, major
             )
-            audit(db, actor["id"], "reports.export", f"college:{college}/{major}")
+            audit(db, actor["id"], "reports.export", f"college:{college}/{major}:{fmt}")
             db.commit()
             # Attachment names stay ASCII; the scope itself is inside the
             # workbook, and non-latin-1 header values would break the download.
-            return excel_report(report, "report-college")
+            return export_report(report, "report-college", fmt)
 
     return student_report, college_report

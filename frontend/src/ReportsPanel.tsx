@@ -99,6 +99,7 @@ const categoryNames: Record<string, string> = {
   conferences: "会议",
 };
 const tongjiMajorNames = new Set(tongjiMajors);
+type ExportFormat = "xlsx" | "pdf" | "docx";
 type DirectoryRow = {
   id: number;
   mentor_number?: string;
@@ -174,6 +175,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
   const [groupDate, setGroupDate] = useState(new Date().toISOString().slice(0, 10));
   const [college, setCollege] = useState("");
   const [major, setMajor] = useState("");
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("xlsx");
 
   async function get(url: string): Promise<Response> {
     const response = await fetch(url);
@@ -194,8 +196,12 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
       setError(String(e));
     }
   }
-  async function download(url: string, filename: string) {
-    const response = await fetch(url);
+  // Excel keeps every field and its evidence; PDF and Word are laid out for reading.
+  async function download(url: string, basename: string) {
+    const target =
+      exportFormat === "xlsx" ? url : `${url}${url.includes("?") ? "&" : "?"}format=${exportFormat}`;
+    const filename = `${basename}.${exportFormat}`;
+    const response = await fetch(target);
     if (!response.ok) {
       const value = await response.json().catch(() => ({}));
       throw Error(
@@ -268,6 +274,16 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
       </details>
       {error && <p role="alert">{error}</p>}
       {notice && <p className="notice compact-notice" role="status">{notice}</p>}
+      <p className="export-format-picker">
+        <label>
+          导出格式
+          <select aria-label="导出格式" value={exportFormat} onChange={(event) => setExportFormat(event.target.value as ExportFormat)}>
+            <option value="xlsx">Excel（全部字段与证据）</option>
+            <option value="pdf">PDF（阅读版）</option>
+            <option value="docx">Word（阅读版）</option>
+          </select>
+        </label>
+      </p>
 
       <article className="card">
         <h3>学生发展报告</h3>
@@ -329,7 +345,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
                 void perform(() =>
                   download(
                     `/api/reports/students/${studentReport.student.id}/export`,
-                    `report-student-${studentReport.student.id}.xlsx`,
+                    `report-student-${studentReport.student.id}`,
                   ),
                 )
               }
@@ -500,7 +516,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
                   if (groupReport.group_id) query.set("group_id", String(groupReport.group_id));
                   return download(
                     `/api/reports/mentor-groups/export?${query}`,
-                    `report-group-${groupReport.mentor_id ?? groupReport.group_id ?? "all"}.xlsx`,
+                    `report-group-${groupReport.mentor_id ?? groupReport.group_id ?? "all"}`,
                   );
                 })
               }
@@ -583,7 +599,7 @@ export function ReportsPanel({ csrf }: { csrf: string }) {
                 void perform(() =>
                   download(
                     `/api/reports/colleges/export?college=${encodeURIComponent(collegeReport.scope.college)}&major=${encodeURIComponent(collegeReport.scope.major)}`,
-                    "report-college.xlsx",
+                    "report-college",
                   ),
                 )
               }
