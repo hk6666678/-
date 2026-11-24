@@ -776,7 +776,7 @@ def test_citation_batch_revoked_second_row_rolls_back(client, tmp_path):  # noqa
     assert client.get("/api/patents/citations/template").status_code == 404
 
 
-def test_partial_revocation_filters_all_output_categories(client, tmp_path):
+def test_partial_revocation_filters_all_output_categories(client, tmp_path):  # noqa: F811
     import json
 
     from aqp.store import connection

@@ -14,8 +14,8 @@ from typing import Any, Literal, NamedTuple
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from aqp.analysis import outcome as course_outcome
 from aqp.analysis import Scope, calculate, sources
+from aqp.analysis import outcome as course_outcome
 from aqp.authorization import (
     allowed,
     grants_for,
@@ -1046,14 +1046,17 @@ def execute_plan(
         result = student_signals(db, actor, row["id"])
         checks = []
         links = [{"label": "学生档案", "url": f"/api/students/{row['id']}"}]
-        for category, label in (("topic", "选题"), ("midterm", "中期")):
+        stages: tuple[tuple[Literal["topic", "midterm"], str], ...] = (
+            ("topic", "选题"), ("midterm", "中期"),
+        )
+        for category, label in stages:
             if not all(allowed(db, actor, category, op, row["college"], row["major"])
                        for op in ("view", "analyze")):
                 checks.append(f"{label}未授权，无法判断该环节预警。")
                 continue
-            scope = Scope(category=category, student_id=row["id"], college=row["college"], major=row["major"])
-            inputs = sources(db, scope, actor)
-            summary, evidence = calculate(inputs.rows, inputs.rules, scope)
+            stage_scope = Scope(category=category, student_id=row["id"], college=row["college"], major=row["major"])
+            inputs = sources(db, stage_scope, actor)
+            summary, evidence = calculate(inputs.rows, inputs.rules, stage_scope)
             if not evidence:
                 checks.append(f"{label}暂无记录，无法判断该环节预警。")
             elif summary["unknown"]:

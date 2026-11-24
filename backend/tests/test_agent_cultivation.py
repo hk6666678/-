@@ -1,3 +1,4 @@
+# ruff: noqa: F811
 import json
 from io import BytesIO
 
@@ -118,7 +119,7 @@ def ask(http: TestClient, headers: dict, question: str):
 
 
 def test_agent_cultivation_factors_dispatch_and_revocation(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch  # noqa: F811
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
 ):
     headers = login_admin(client)
     replace_grants(
@@ -166,7 +167,7 @@ def test_agent_cultivation_factors_dispatch_and_revocation(
 
 
 def test_agent_student_alerts_dispatch_links_and_revocation(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch  # noqa: F811
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
 ):
     headers = login_admin(client)
     replace_grants(
@@ -291,7 +292,7 @@ def test_agent_student_alerts_dispatch_links_and_revocation(
 
 
 def test_agent_rejects_incomplete_cultivation_plans(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch  # noqa: F811
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
 ):
     headers = login_admin(client)
     enable_agent(client, headers, monkeypatch)
@@ -359,7 +360,7 @@ def courses_workbook(rows: list[tuple[str, str | float]]) -> bytes:
 
 
 def test_agent_course_control_chart_flags_outlier(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch  # noqa: F811
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
 ):
     headers = login_admin(client)
     replace_grants(
@@ -432,7 +433,7 @@ def test_agent_course_control_chart_flags_outlier(
 
 
 def test_agent_milestone_alerts_report_explicit_overdue(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch  # noqa: F811
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
 ):
     headers = login_admin(client)
     replace_grants(
@@ -551,7 +552,7 @@ def test_agent_milestone_alerts_report_explicit_overdue(
 
 
 def test_agent_mentor_effectiveness_dispatch_and_revocation(
-    client: TestClient, monkeypatch: pytest.MonkeyPatch  # noqa: F811
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
 ):
     headers = login_admin(client)
     replace_grants(
