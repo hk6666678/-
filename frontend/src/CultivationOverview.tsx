@@ -28,12 +28,17 @@ function studentLabel(student: Student) {
   return [student.name, student.student_number || student.research_id, student.data["所属学院"], student.data["专业"]].filter(Boolean).join(" · ");
 }
 
-export type EvidenceTarget = { student: number; kind: "courses" | "topic"; record?: number };
+export type EvidenceTarget = { student: number; kind: "courses" | "topic"; record?: number; actual?: string; date?: string };
 
-export function CultivationOverview({ csrf, showSnapshot, target }: {
+function changed(target:EvidenceTarget, row:Snapshot["evidence"][number]) {
+  return target.actual !== undefined && (target.actual !== (row.payload["实际日期"] || "") || target.date !== row.payload["计划日期"]);
+}
+
+export function CultivationOverview({ csrf, showSnapshot, target, checked }: {
   csrf: string;
   showSnapshot: (snapshot: Snapshot | null) => void;
   target?: EvidenceTarget;
+  checked?: (denied:boolean, trend?:Signals["course_trend"]) => void;
 }) {
   const [query, setQuery] = useState("");
   const [roster, setRoster] = useState<{ items: Student[]; total: number }>();
@@ -93,8 +98,16 @@ export function CultivationOverview({ csrf, showSnapshot, target }: {
           headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
           body: JSON.stringify(scope),
         });
+        if (target?.kind === "topic" && stage.key === "topic" && response.status === 403) {
+          const signals: Signals = await signalsRequest;
+          checked?.(true, signals.course_trend);
+        }
         const data = await response.json();
         if (response.ok && data.scope?.student_id === scope.student_id) {
+          if (stage.key === "topic" && target?.kind === "topic") {
+            const row = (data as Snapshot).evidence.find(e => e.id === target.record);
+            if (row && changed(target,row)) checked?.(false);
+          }
           outcomes.push({ snapshot: data });
         } else {
           outcomes.push({ error: typeof data.detail === "string" ? data.detail : "未取得该学生的分析结果，请刷新后重试。" });
@@ -224,6 +237,7 @@ export function CultivationOverview({ csrf, showSnapshot, target }: {
             const topic = snapshots.find(s => s.category === "topic");
             const row = topic?.evidence.find(e => e.id === target.record);
             return row ? <section><h4>选题日期依据</h4>
+              {changed(target,row) && <p>{row.payload["实际日期"] && topic?.result.reminders?.some(r => r.record_id === row.id && r.overdue === false) ? "记录已更正，现在按期完成。" : "记录已更正，请核对最新日期。"}</p>}
               <p>{row.payload["选题标题"]} · 计划 {row.payload["计划日期"]} · 实际 {row.payload["实际日期"] || "尚未完成"}</p>
               <a href={`/api/records/topic/${row.id}`} target="_blank" rel="noreferrer">查看此条来源记录</a></section>
               : <p>当前无法核对这条选题记录。</p>;

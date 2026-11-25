@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 type ModelStatus = { available: boolean; message: string };
 type Turn = {
+  stale?: boolean;
   question: string;
   result?: {
     answer: string;
@@ -70,7 +71,19 @@ export function AgentPanel({ csrf }: { csrf: string }) {
   if (target) return <section className="card">
     <button onClick={() => setTarget(undefined)}>返回首页对话</button>
     <h2>培养过程分析 · 个人趋势</h2>
-    <CultivationOverview csrf={csrf} target={target} showSnapshot={() => {}} />
+    <CultivationOverview csrf={csrf} target={target} showSnapshot={() => {}} checked={(denied, trend) => {
+      setTurns(previous => previous.map(turn => {
+        const facts = turn.result?.tool_result as {filters?: {student_id:number}; evidence_actions?: EvidenceTarget[]} | undefined;
+        if (!turn.result || facts?.filters?.student_id !== target.student || !facts.evidence_actions) return turn;
+        if (!denied) return facts.evidence_actions.some(a => a.kind === "topic" && a.record === target.record && a.actual === target.actual && a.date === target.date)
+          ? {...turn, stale:true} : turn;
+        return {...turn, stale:false, result:{
+          answer:["当前无权查看选题依据。", trend?.description].filter(Boolean).join(" "),
+          evidence_links:[], tool_result:{filters:facts.filters, course_trend:trend,
+            evidence_actions:trend ? [{kind:"courses", label:"查看课程成绩依据"}] : []}
+        }};
+      }));
+    }} />
   </section>;
   return (
     <section className="agent-home" aria-label="Agent 对话">
@@ -89,16 +102,16 @@ export function AgentPanel({ csrf }: { csrf: string }) {
               {turn.result && (
                 <div className="agent-answer">
                   <h3>Agent 回答</h3>
-                  <p>{turn.result.answer}</p>
+                  <p>{turn.stale && <strong>原选题结论已过时，请查看最新日期依据。<br /></strong>}{turn.result.answer}</p>
                   <div className="agent-evidence">
                     {(() => {
                       const facts = turn.result.tool_result as { filters?: {student_id:number}; evidence_actions?: {
-                        kind: EvidenceTarget["kind"]; label:string; record?:number; date?:string;
+                        kind: EvidenceTarget["kind"]; label:string; record?:number; date?:string; actual?:string;
                       }[] } | null;
                       const student = facts?.filters?.student_id;
                       return student && facts?.evidence_actions?.map(action =>
                         <button type="button" key={action.record ?? action.kind} onClick={() =>
-                          setTarget({student, kind:action.kind, record:action.record})}>{action.label}{action.date && `（${action.date}）`}</button>);
+                          setTarget({...action, student})}>{action.label}{action.date && `（${action.date}）`}</button>);
                     })()}
                     {turn.result.evidence_links.map((link) => <a key={link.url} href={link.url}>{link.label}</a>)}
                   </div>

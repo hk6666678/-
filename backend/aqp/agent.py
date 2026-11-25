@@ -1068,7 +1068,7 @@ def execute_plan(
                 data = record["payload"]
                 if category == "topic" and timing["overdue"] is not None and (timing["overdue"] or data.get("实际日期")):
                     evidence_actions.append({"kind": "topic", "record": record["id"], "label": "查看选题日期依据",
-                                             "date": data["计划日期"]})
+                                             "date": data["计划日期"], "actual": data.get("实际日期") or ""})
                 if timing["overdue"]:
                     checks.append(f"{label}超期：{timing['timing_note']}")
                 elif timing["overdue"] is False and data.get("实际日期"):

@@ -178,6 +178,39 @@ test("agent answers and evidence respect the student's program and stage permiss
         await click(p,"返回首页对话");
         await expect(card).toContainText(num===number ? "选题超期" : "选题按期完成");
       }
+      if (!full) {
+        const record = named.tool_result.evidence_actions.find((a:{kind:string})=>a.kind==="topic").record;
+        async function correct(actual:string, version:number) {
+          const url = `/api/records/topic/${record}`;
+          const preview = await page.request.post(url+"/preview",{headers,data:{expected_version:version,data:{"实际日期":actual},reason:"合成日期核对"}});
+          expect(preview.ok(),await preview.text()).toBeTruthy();
+          const saved = await page.request.post(url+"/confirm",{headers,data:{expected_version:version,proposal_id:(await preview.json()).proposal_id}});
+          expect(saved.ok(),await saved.text()).toBeTruthy();
+        }
+        await correct("2025-03-09",1);
+        const card = p.locator(".agent-answer").last();
+        await card.getByRole("button",{name:/查看选题日期依据/}).click();
+        await expect(p.locator(".cultivation-student")).toContainText(number);
+        const detail = p.locator(".student-brief section").first();
+        await expect(detail).toContainText("计划 2025-03-10 · 实际 2025-03-09");
+        expect.soft(await detail.innerText()).toContain("记录已更正，现在按期完成");
+        await click(p,"返回首页对话");
+        expect.soft(await card.innerText()).toContain("原选题结论已过时");
+
+        await correct("2025-03-18",2);
+        await ask("陈清禾的培养进度有什么需要我跟进的？");
+        await expect(card).toContainText("选题超期");
+        const url = `/api/users/${reader.id}/grants`;
+        const grants = await (await page.request.get(url)).json();
+        expect((await page.request.put(url,{headers,data:{expected_version:grants.version,request_id:crypto.randomUUID(),
+          grants:grants.grants.filter((g:{category:string;operation:string})=>!(g.category==="topic" && g.operation==="view"))}})).ok()).toBeTruthy();
+        await card.getByRole("button",{name:/查看选题日期依据/}).click();
+        await expect(p.locator(".student-brief")).toContainText("未授权");
+        await click(p,"返回首页对话");
+        expect.soft(await p.locator(".agent-thread").textContent()).not.toMatch(/选题超期|2025-03-(10|18)|合成选题水文测量|查看选题日期依据/);
+        await card.getByRole("button",{name:"查看课程成绩依据"}).click();
+        await expect(p.locator("details[open] table")).toContainText("2024秋");
+      }
     }
   } finally {
     const current = await (await page.request.get("/api/model/config")).json();
