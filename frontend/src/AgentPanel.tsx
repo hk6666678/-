@@ -1,4 +1,5 @@
 import { AgentEvidence } from "./AgentEvidence";
+import { CultivationOverview, type EvidenceTarget } from "./CultivationOverview";
 import { useEffect, useRef, useState } from "react";
 
 type ModelStatus = { available: boolean; message: string };
@@ -14,6 +15,7 @@ type Turn = {
 };
 
 export function AgentPanel({ csrf }: { csrf: string }) {
+  const [target, setTarget] = useState<EvidenceTarget>();
   const [status, setStatus] = useState<ModelStatus>();
   const [question, setQuestion] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -65,6 +67,11 @@ export function AgentPanel({ csrf }: { csrf: string }) {
     }
   }
 
+  if (target) return <section className="card">
+    <button onClick={() => setTarget(undefined)}>返回首页对话</button>
+    <h2>培养过程分析 · 个人趋势</h2>
+    <CultivationOverview csrf={csrf} target={target} showSnapshot={() => {}} />
+  </section>;
   return (
     <section className="agent-home" aria-label="Agent 对话">
       {!turns.length && !pending ? (
@@ -84,6 +91,15 @@ export function AgentPanel({ csrf }: { csrf: string }) {
                   <h3>Agent 回答</h3>
                   <p>{turn.result.answer}</p>
                   <div className="agent-evidence">
+                    {(() => {
+                      const facts = turn.result.tool_result as { filters?: {student_id:number}; evidence_actions?: {
+                        kind: EvidenceTarget["kind"]; label:string; record?:number; date?:string;
+                      }[] } | null;
+                      const student = facts?.filters?.student_id;
+                      return student && facts?.evidence_actions?.map(action =>
+                        <button type="button" key={action.record ?? action.kind} onClick={() =>
+                          setTarget({student, kind:action.kind, record:action.record})}>{action.label}{action.date && `（${action.date}）`}</button>);
+                    })()}
                     {turn.result.evidence_links.map((link) => <a key={link.url} href={link.url}>{link.label}</a>)}
                   </div>
                   <details>

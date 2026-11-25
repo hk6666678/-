@@ -1045,6 +1045,9 @@ def execute_plan(
             }]
         result = student_signals(db, actor, row["id"])
         checks = []
+        evidence_actions = []
+        if result.get("course_trend"):
+            evidence_actions.append({"kind": "courses", "label": "查看课程成绩依据"})
         links = [{"label": "学生档案", "url": f"/api/students/{row['id']}"}]
         stages: tuple[tuple[Literal["topic", "midterm"], str], ...] = (
             ("topic", "选题"), ("midterm", "中期"),
@@ -1063,6 +1066,9 @@ def execute_plan(
                 checks.append(f"{label}有 {summary['unknown']} 条考核结果未知，未参与考核结果预警判断。")
             for record, timing in zip(evidence, summary["reminders"], strict=True):
                 data = record["payload"]
+                if category == "topic" and timing["overdue"] is not None and (timing["overdue"] or data.get("实际日期")):
+                    evidence_actions.append({"kind": "topic", "record": record["id"], "label": "查看选题日期依据",
+                                             "date": data["计划日期"]})
                 if timing["overdue"]:
                     checks.append(f"{label}超期：{timing['timing_note']}")
                 elif timing["overdue"] is False and data.get("实际日期"):
@@ -1073,6 +1079,7 @@ def execute_plan(
                 links.append({"label": "选题与中期记录", "url": f"/api/milestones?student_id={row['id']}"})
         return {
             **result, "milestone_checks": checks, "filters": {"student_id": row["id"]},
+            "evidence_actions": evidence_actions,
             "limitations": "逐项检查授权可见的个人课程、选题、中期和成果增量趋势，以及盲审送审、学籍异动、同届成果对比。历史观测或登记覆盖不足时保留待核查状态。盲审缺失日期或状态时不得推断逾期。学院课程控制图用course_control_chart，选题中期超期与中期未通过用milestone_alerts。",
         }, links
     if plan.tool == "course_control_chart":

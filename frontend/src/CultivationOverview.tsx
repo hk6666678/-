@@ -28,9 +28,12 @@ function studentLabel(student: Student) {
   return [student.name, student.student_number || student.research_id, student.data["所属学院"], student.data["专业"]].filter(Boolean).join(" · ");
 }
 
-export function CultivationOverview({ csrf, showSnapshot }: {
+export type EvidenceTarget = { student: number; kind: "courses" | "topic"; record?: number };
+
+export function CultivationOverview({ csrf, showSnapshot, target }: {
   csrf: string;
   showSnapshot: (snapshot: Snapshot | null) => void;
+  target?: EvidenceTarget;
 }) {
   const [query, setQuery] = useState("");
   const [roster, setRoster] = useState<{ items: Student[]; total: number }>();
@@ -40,6 +43,19 @@ export function CultivationOverview({ csrf, showSnapshot }: {
   const [result, setResult] = useState<{ student: Student; outcomes: Outcome[]; signals: Signals }>();
   const [view, setView] = useState("培养概况");
   const heading = useRef<HTMLHeadingElement>(null);
+  const [targetError, setTargetError] = useState("");
+  useEffect(() => {
+    if (!target) return;
+    let active = true;
+    void (async () => {
+      const response = await fetch(`/api/students/${target.student}`);
+      if (!response.ok) throw Error();
+      const student: Student = await response.json();
+      if (student.id !== target.student) throw Error();
+      if (active) await load({college: student.data["所属学院"], major: student.data["专业"], student_id:student.id}, student);
+    })().catch(() => { if (active) setTargetError("当前无法读取这名学生的依据，请核对权限。"); });
+    return () => { active = false; };
+  }, [target]);
 
   useEffect(() => { if (result) heading.current?.focus(); }, [result]);
   useEffect(() => {
@@ -59,7 +75,7 @@ export function CultivationOverview({ csrf, showSnapshot }: {
   }, [query]);
 
   async function load(scope: Scope, student: Student) {
-    setView("培养概况");
+    setView(target ? "个人趋势" : "培养概况");
     setRunning(true);
     setResult(undefined);
     showSnapshot(null);
@@ -95,7 +111,8 @@ export function CultivationOverview({ csrf, showSnapshot }: {
   const hasNoStageRecords = snapshots.length === stages.length && snapshots.every(s => s.result.assessment_count === 0);
   return (
     <>
-      <form className="cultivation-scope" onSubmit={(event) => {
+      {targetError && <p role="alert">{targetError}</p>}
+      {!target && <form className="cultivation-scope" onSubmit={(event) => {
         event.preventDefault();
         const student = roster?.items.find((item) => String(item.id) === studentId);
         if (student) void load({
@@ -127,17 +144,17 @@ export function CultivationOverview({ csrf, showSnapshot }: {
             : roster.total > pageSize ? <p>共 {roster.total} 人，输入姓名或编号缩小范围。</p> : null}
           <button disabled={!studentId}>查看培养过程</button>
         </fieldset>
-      </form>
+      </form>}
       {running && <p role="status">正在分析课程、选题和中期。</p>}
       {result && (
         <>
           <h3 ref={heading} tabIndex={-1}>个人培养过程</h3>
           <p className="cultivation-student">{studentLabel(result.student)}</p>
           <section className="student-brief">
-          <div className="brief-switch" role="group" aria-label="个人培养视图">
+          {!target && <div className="brief-switch" role="group" aria-label="个人培养视图">
             {["培养概况", "个人趋势", "对比与来源"].map((name) => <button type="button" key={name}
               aria-pressed={view === name} onClick={() => { setView(name); showSnapshot(null); }}>{name}</button>)}
-          </div>
+          </div>}
           {view === "培养概况" && <>
           {snapshots.length > 0 && (
             <>
@@ -203,6 +220,14 @@ export function CultivationOverview({ csrf, showSnapshot }: {
             ) : <p>{result.signals.notice}</p>}
           </section></>}
           {view === "个人趋势" && <>
+          {target?.kind === "topic" && (() => {
+            const topic = snapshots.find(s => s.category === "topic");
+            const row = topic?.evidence.find(e => e.id === target.record);
+            return row ? <section><h4>选题日期依据</h4>
+              <p>{row.payload["选题标题"]} · 计划 {row.payload["计划日期"]} · 实际 {row.payload["实际日期"] || "尚未完成"}</p>
+              <a href={`/api/records/topic/${row.id}`} target="_blank" rel="noreferrer">查看此条来源记录</a></section>
+              : <p>当前无法核对这条选题记录。</p>;
+          })()}
           {result.signals.course_notice && <p>{result.signals.course_notice}</p>}
           {result.outcomes.map((outcome, i) => "error" in outcome
             ? <p key={i}>{stages[i].label} · {outcome.error}</p>
@@ -211,7 +236,7 @@ export function CultivationOverview({ csrf, showSnapshot }: {
 
           {!result.signals.course_trend && !result.signals.milestone_trends?.length && !result.signals.output_trend && <p>{result.signals.notice || "暂无个人趋势记录。"}</p>}
           {result.signals.course_trend && (
-            <details className="task-details">
+            <details className="task-details" open={target?.kind === "courses" || undefined}>
               <summary>{result.signals.course_trend.description ?? `个人课程趋势 · ${result.signals.course_trend.signal}`} · 查看依据</summary>
               <p>{result.signals.course_trend.signal}。按百分制学期均分比较，最近一学期与至少 5 个历史学期的均值 ± 3σ 比对，只用于核查。</p>
               {result.signals.course_trend.limits && <p>控制限 {result.signals.course_trend.limits.join(" 至 ")} 分</p>}

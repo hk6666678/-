@@ -130,6 +130,13 @@ test("agent answers and evidence respect the student's program and stage permiss
       }
       if (!full) expect(texts.join(" ")).not.toMatch(/合成选题水文测量|中期密封批次|2025-03-(10|18)|2025-09-1[67]|选题超期|(?:选题|中期)有\s*1\s*条/);
       if (!full) {
+        await expect(answer.getByRole("button",{name:/查看选题日期依据/})).toHaveCount(0);
+        await answer.getByRole("button",{name:"查看课程成绩依据"}).click();
+        await expect(p.locator(".student-brief details[open] table")).toContainText("2024秋");
+        await click(p,"返回首页对话");
+        await expect(answer).toContainText("选题未授权");
+      }
+      if (!full) {
         // The prior assertions cover course-only access. Now allow the reader to see A's topic.
         const user = (await (await p.request.get("/api/me")).json()).user;
         const grants = ["basic","courses","topic"].flatMap(category =>
@@ -165,6 +172,11 @@ test("agent answers and evidence respect the student's program and stage permiss
           evidence.push(await source.text());
         }
         expect(evidence.join(" ")).not.toMatch(num===number ? /990002|测试乙专业|乙生独有选题|2025-04-(17|20)|多位匹配/ : /990001|合成选题水文测量|2025-03-(10|18)/);
+        await card.getByRole("button",{name:/查看选题日期依据/}).click();
+        await expect(p.locator(".cultivation-student")).toContainText(num);
+        await expect(p.locator(".student-brief section").first()).toContainText(num===number ? "实际 2025-03-18" : "实际 2025-04-17");
+        await click(p,"返回首页对话");
+        await expect(card).toContainText(num===number ? "选题超期" : "选题按期完成");
       }
     }
   } finally {
