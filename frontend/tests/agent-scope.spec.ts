@@ -139,7 +139,7 @@ test("agent answers and evidence respect the student's program and stage permiss
       if (!full) {
         // The prior assertions cover course-only access. Now allow the reader to see A's topic.
         const user = (await (await p.request.get("/api/me")).json()).user;
-        const grants = ["basic","courses","topic"].flatMap(category =>
+        const grants = ["basic","courses","topic","midterm","research_papers","awards","patents","conferences"].flatMap(category =>
           (category === "basic" ? ["identity","view"] : ["view","analyze"]).map(operation=>({category,operation,college,major})));
         expect((await page.request.put(`/api/users/${user.id}/grants`,{headers,data:{
           expected_version:user.version,request_id:crypto.randomUUID(),grants,
@@ -188,6 +188,14 @@ test("agent answers and evidence respect the student's program and stage permiss
           expect(saved.ok(),await saved.text()).toBeTruthy();
         }
         await correct("2025-03-09",1);
+        const adminAnswers = page.locator(".agent-answer");
+        const oldA = adminAnswers.filter({hasText:"选题超期"}).last();
+        const oldB = adminAnswers.filter({hasText:"2025-04-17"}).last();
+        await oldA.getByRole("button",{name:/查看选题日期依据/}).click();
+        await expect(page.locator(".student-brief")).toContainText("记录已更正，现在按期完成");
+        await click(page,"返回首页对话");
+        await expect(oldA).toContainText("原选题结论已过时");
+        await expect(oldB).not.toContainText("原选题结论已过时");
         const card = p.locator(".agent-answer").last();
         await card.getByRole("button",{name:/查看选题日期依据/}).click();
         await expect(p.locator(".cultivation-student")).toContainText(number);
@@ -208,10 +216,23 @@ test("agent answers and evidence respect the student's program and stage permiss
         await expect(p.locator(".student-brief")).toContainText("未授权");
         await click(p,"返回首页对话");
         expect.soft(await p.locator(".agent-thread").textContent()).not.toMatch(/选题超期|2025-03-(10|18)|合成选题水文测量|查看选题日期依据/);
+        await expect(card).toContainText("中期按期完成：计划 2025-09-17，实际 2025-09-16");
+        await expect(card).toContainText("成果增量");
+        await card.locator("summary").first().click();
+        await expect(card.getByRole("link",{name:"学生档案"})).toBeVisible();
         await card.getByRole("button",{name:"查看课程成绩依据"}).click();
         await expect(p.locator("details[open] table")).toContainText("2024秋");
       }
     }
+    const grants = await (await page.request.get(`/api/users/${me.user.id}/grants`)).json();
+    expect((await page.request.put(`/api/users/${me.user.id}/grants`,{headers,data:{
+      expected_version:grants.version,request_id:crypto.randomUUID(),
+      grants:grants.grants.filter((g:{category:string;operation:string})=>!(g.category==="topic" && g.operation==="view")),
+    }})).ok()).toBeTruthy();
+    await page.locator(".agent-answer").filter({hasText:"2025-03-18"}).last().getByRole("button",{name:/查看选题日期依据/}).click();
+    await expect(page.locator(".student-brief")).toContainText("未授权");
+    await click(page,"返回首页对话");
+    await expect(page.locator(".agent-thread")).not.toContainText("2025-04-17");
   } finally {
     const current = await (await page.request.get("/api/model/config")).json();
     await page.request.put("/api/model/config",{headers,data:{...original,expected_version:current.version}});

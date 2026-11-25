@@ -3,7 +3,9 @@ import { CultivationOverview, type EvidenceTarget } from "./CultivationOverview"
 import { useEffect, useRef, useState } from "react";
 
 type ModelStatus = { available: boolean; message: string };
+type AlertFacts = { filters?: {student_id:number}; evidence_actions?: (Omit<EvidenceTarget,"student"> & {label:string})[] };
 type Turn = {
+  request?: {question:string; student_number?:string};
   stale?: boolean;
   question: string;
   result?: {
@@ -51,16 +53,17 @@ export function AgentPanel({ csrf }: { csrf: string }) {
     if (!followUp) setClarification("");
     setPending(prompt);
     setQuestion("");
+    const request = {question:original, ...(followUp && {student_number:prompt})};
     try {
       const response = await fetch("/api/agent/query", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
-        body: JSON.stringify({ question: original, ...(followUp && {student_number: prompt}) }),
+        body: JSON.stringify(request),
       });
       const value = await response.json().catch(() => null);
       if (!response.ok) throw Error(typeof value?.detail === "string" ? value.detail : "暂时无法完成查询。");
       setClarification(value.needs_student_number ? original : "");
-      setTurns((previous) => [...previous, { question: prompt, result: value }]);
+      setTurns((previous) => [...previous, { question: prompt, request, result: value }]);
     } catch (err) {
       setTurns((previous) => [...previous, { question: prompt, error: err instanceof Error ? err.message : String(err) }]);
     } finally {
@@ -71,17 +74,44 @@ export function AgentPanel({ csrf }: { csrf: string }) {
   if (target) return <section className="card">
     <button onClick={() => setTarget(undefined)}>返回首页对话</button>
     <h2>培养过程分析 · 个人趋势</h2>
-    <CultivationOverview csrf={csrf} target={target} showSnapshot={() => {}} checked={(denied, trend) => {
+    <CultivationOverview csrf={csrf} target={target} showSnapshot={() => {}} onTopicChanged={() => {
       setTurns(previous => previous.map(turn => {
-        const facts = turn.result?.tool_result as {filters?: {student_id:number}; evidence_actions?: EvidenceTarget[]} | undefined;
-        if (!turn.result || facts?.filters?.student_id !== target.student || !facts.evidence_actions) return turn;
-        if (!denied) return facts.evidence_actions.some(a => a.kind === "topic" && a.record === target.record && a.actual === target.actual && a.date === target.date)
+        const facts = turn.result?.tool_result as AlertFacts | undefined;
+        return facts?.filters?.student_id === target.student && facts.evidence_actions?.some(action =>
+          action.kind === "topic" && action.record === target.record && action.actual === target.actual && action.date === target.date)
           ? {...turn, stale:true} : turn;
-        return {...turn, stale:false, result:{
-          answer:["当前无权查看选题依据。", trend?.description].filter(Boolean).join(" "),
-          evidence_links:[], tool_result:{filters:facts.filters, course_trend:trend,
-            evidence_actions:trend ? [{kind:"courses", label:"查看课程成绩依据"}] : []}
-        }};
+      }));
+    }} onTopicDenied={async () => {
+      // The same grant may cover several students already discussed in this conversation.
+      const queries = new Map<number, NonNullable<Turn["request"]>>();
+      const replacements = new Map<Turn, Turn>();
+      for (const turn of turns) {
+        const facts = turn.result?.tool_result as AlertFacts | undefined;
+        const id = facts?.filters?.student_id;
+        if (!id || !facts?.evidence_actions || !turn.request) continue;
+        queries.set(id, turn.request);
+        replacements.set(turn, {...turn, stale:false, result:{
+          answer:"权限已变化，正在重新核对培养依据。", evidence_links:[], tool_result:null,
+        }});
+      }
+      setTurns(previous => previous.map(turn => replacements.get(turn) ?? turn));
+      await Promise.all(Array.from(queries, async ([id, request]) => {
+        let result: Turn["result"];
+        try {
+          const response = await fetch("/api/agent/query", {
+            method:"POST", headers:{"Content-Type":"application/json","X-CSRF-Token":csrf},
+            body:JSON.stringify(request),
+          });
+          if (!response.ok) throw Error();
+          const fresh = await response.json();
+          if (fresh.tool_result?.filters?.student_id !== id) throw Error();
+          result = fresh;
+        } catch {
+          result = {answer:"权限已变化，暂时无法重新核对培养依据，请重新查询。", evidence_links:[], tool_result:null};
+        }
+        const pendingTurns = new Set(Array.from(replacements).filter(([old]) =>
+          (old.result?.tool_result as AlertFacts).filters?.student_id === id).map(([,pending]) => pending));
+        setTurns(previous => previous.map(turn => pendingTurns.has(turn) ? {...turn, result} : turn));
       }));
     }} />
   </section>;
@@ -105,9 +135,7 @@ export function AgentPanel({ csrf }: { csrf: string }) {
                   <p>{turn.stale && <strong>原选题结论已过时，请查看最新日期依据。<br /></strong>}{turn.result.answer}</p>
                   <div className="agent-evidence">
                     {(() => {
-                      const facts = turn.result.tool_result as { filters?: {student_id:number}; evidence_actions?: {
-                        kind: EvidenceTarget["kind"]; label:string; record?:number; date?:string; actual?:string;
-                      }[] } | null;
+                      const facts = turn.result.tool_result as AlertFacts | null;
                       const student = facts?.filters?.student_id;
                       return student && facts?.evidence_actions?.map(action =>
                         <button type="button" key={action.record ?? action.kind} onClick={() =>

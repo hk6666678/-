@@ -34,11 +34,12 @@ function changed(target:EvidenceTarget, row:Snapshot["evidence"][number]) {
   return target.actual !== undefined && (target.actual !== (row.payload["实际日期"] || "") || target.date !== row.payload["计划日期"]);
 }
 
-export function CultivationOverview({ csrf, showSnapshot, target, checked }: {
+export function CultivationOverview({ csrf, showSnapshot, target, onTopicChanged, onTopicDenied }: {
   csrf: string;
   showSnapshot: (snapshot: Snapshot | null) => void;
   target?: EvidenceTarget;
-  checked?: (denied:boolean, trend?:Signals["course_trend"]) => void;
+  onTopicChanged?: () => void;
+  onTopicDenied?: (student: Student) => Promise<void>;
 }) {
   const [query, setQuery] = useState("");
   const [roster, setRoster] = useState<{ items: Student[]; total: number }>();
@@ -99,14 +100,13 @@ export function CultivationOverview({ csrf, showSnapshot, target, checked }: {
           body: JSON.stringify(scope),
         });
         if (target?.kind === "topic" && stage.key === "topic" && response.status === 403) {
-          const signals: Signals = await signalsRequest;
-          checked?.(true, signals.course_trend);
+          await onTopicDenied?.(student);
         }
         const data = await response.json();
         if (response.ok && data.scope?.student_id === scope.student_id) {
           if (stage.key === "topic" && target?.kind === "topic") {
             const row = (data as Snapshot).evidence.find(e => e.id === target.record);
-            if (row && changed(target,row)) checked?.(false);
+            if (row && changed(target,row)) onTopicChanged?.();
           }
           outcomes.push({ snapshot: data });
         } else {
