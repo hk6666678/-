@@ -13,8 +13,9 @@ type Outcome = { snapshot: Snapshot } | { error: string };
 type Scope = { college: string; major: string; student_id: number };
 type Student = { id: number; research_id: string; name?: string; student_number?: string; data: Record<string, string> };
 type Signals = {
-  course_trend?: { signal: string; baseline_count: number; limits?: [number, number]; observations: { term: string; mean: number; records: number }[] };
-  milestone_trends?: { label: string; signal: string; limits?: [number, number]; observations: { date: string; mean: number; record_ids: number[] }[] }[];
+  course_notice?: string;
+  course_trend?: { description?: string; signal: string; baseline_count: number; limits?: [number, number]; observations: { term: string; mean: number; records: number }[] };
+  milestone_trends?: { description?: string; label: string; signal: string; limits?: [number, number]; observations: { date: string; mean: number; record_ids: number[] }[] }[];
   output_trend?: { signal: string; declining?: boolean; limits?: [number, number]; observations: { term: string; count: number | null }[] };
   blind_review?: { batch: string; due: string; status: string };
   mobility?: { type: string; date?: string } | null;
@@ -202,11 +203,17 @@ export function CultivationOverview({ csrf, showSnapshot }: {
             ) : <p>{result.signals.notice}</p>}
           </section></>}
           {view === "个人趋势" && <>
+          {result.signals.course_notice && <p>{result.signals.course_notice}</p>}
+          {result.outcomes.map((outcome, i) => "error" in outcome
+            ? <p key={i}>{stages[i].label} · {outcome.error}</p>
+            : outcome.snapshot.category !== "courses" && outcome.snapshot.result.reminders?.filter(r => r.overdue && r.timing_note).map(r =>
+                <p key={r.record_id}>{stages[i].label}超期：{r.timing_note} <a href={`/api/records/${outcome.snapshot.category}/${r.record_id}`}>查看日期来源</a></p>))}
+
           {!result.signals.course_trend && !result.signals.milestone_trends?.length && !result.signals.output_trend && <p>{result.signals.notice || "暂无个人趋势记录。"}</p>}
           {result.signals.course_trend && (
             <details className="task-details">
-              <summary>个人课程趋势 · {result.signals.course_trend.signal}</summary>
-              <p>按百分制学期均分比较，最近一学期与至少 5 个历史学期的均值 ± 3σ 比对，只用于核查。</p>
+              <summary>{result.signals.course_trend.description ?? `个人课程趋势 · ${result.signals.course_trend.signal}`} · 查看依据</summary>
+              <p>{result.signals.course_trend.signal}。按百分制学期均分比较，最近一学期与至少 5 个历史学期的均值 ± 3σ 比对，只用于核查。</p>
               {result.signals.course_trend.limits && <p>控制限 {result.signals.course_trend.limits.join(" 至 ")} 分</p>}
               <table>
                 <thead><tr><th>学期</th><th>平均分</th><th>成绩条数</th></tr></thead>
@@ -218,8 +225,8 @@ export function CultivationOverview({ csrf, showSnapshot }: {
           )}
           {result.signals.milestone_trends?.map((trend) => (
             <details className="task-details" key={trend.label}>
-              <summary>个人{trend.label}趋势 · {trend.signal}</summary>
-              <p>使用有实际日期的百分制记录，同日取均分。至少需要 5 个历史观测日。</p>
+              <summary>{trend.description ?? `个人${trend.label}趋势 · ${trend.signal}`} · 查看依据</summary>
+              <p>{trend.signal}。使用有实际日期的百分制记录，同日取均分。至少需要 5 个历史观测日。</p>
               {trend.limits && <p>控制限 {trend.limits.join(" 至 ")} 分</p>}
               {trend.observations.length > 0 && <table>
                 <thead><tr><th>考核日期</th><th>平均分</th><th>记录编号</th></tr></thead>

@@ -49,6 +49,7 @@ export type Snapshot = {
     reminders: {
       record_id: number;
       overdue: boolean | null;
+      timing_note?: string;
       missing_conditions: string[];
     }[];
   };

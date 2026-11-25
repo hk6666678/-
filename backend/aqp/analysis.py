@@ -394,9 +394,15 @@ def reminder(e: dict[str, Any]) -> dict[str, Any]:
     if actual is None and p.get("完成状态") != "未完成":
         missing.append("实际日期或明确未完成状态")
     overdue = None if missing or planned is None else (actual or date.today()) > planned
+    timing_note = None
+    if overdue:
+        days = ((actual or date.today()) - planned).days
+        timing_note = (f"计划 {planned}，实际 {actual}，晚了 {days} 天。" if actual else
+                       f"计划 {planned}，截至 {date.today()} 尚未完成，已超期 {days} 天。")
     return {
         "record_id": e["id"],
         "overdue": overdue,
+        "timing_note": timing_note,
         "missing_conditions": missing,
         "as_of": date.today().isoformat(),
         "dependency_token": e["dependency_token"],

@@ -221,6 +221,25 @@ def personal_control_limits(values: Sequence[float]) -> dict[str, Any]:
     }
 
 
+def describe_personal_trend(label, trend):
+    course = label == "课程"
+    unit = "个学期" if course else "个考核日"
+    observations = trend["observations"]
+    if not observations:
+        return f"{label}暂无可用于比较的百分制成绩，暂无法判断变化。"
+    latest = observations[-1]
+    current = f"{latest.get('term') or latest['date']} 的{label}均分为 {latest['mean']:g} 分"
+    count = trend["baseline_count"]
+    if count < 5:
+        return f"{current}；此前有 {count} {unit}可比较，还需 {5-count} {unit}才能判断趋势。"
+    if not trend.get("limits"):
+        return f"{current}；此前成绩没有波动，暂无法估计通常的变化范围。"
+    low, high = trend["limits"]
+    comparison = {"低于控制下限": f"低于参考下限 {low:g} 分", "高于控制上限": f"高于参考上限 {high:g} 分",
+                  "在控制限内": f"处于参考范围 {low:g} 至 {high:g} 分内"}[trend["signal"]]
+    return f"{current}，与该生此前 {count} {unit}相比，{comparison}。"
+
+
 def output_trend(start: str, end: str, details: list[str]) -> dict[str, Any]:
     def index(term: str) -> int:
         if not re.fullmatch(r"20[0-9]{2}[春秋]", term):
@@ -319,6 +338,11 @@ def student_signals(db: sqlite3.Connection, aid: int, student_id: int) -> dict[s
                     for term, value in zip(ordered, values, strict=True)
                 ],
             }
+            result["course_trend"]["description"] = describe_personal_trend("课程", result["course_trend"])
+        else:
+            result["course_notice"] = "课程暂无可用于比较的百分制学期均分，暂无法判断变化。"
+    else:
+        result["course_notice"] = "课程未授权，无法判断成绩变化。"
     milestone_trends = []
     for category, label in (("topic", "选题"), ("midterm", "中期")):
         if not all(allowed(db, aid, category, op, student["college"], student["major"])
@@ -352,6 +376,7 @@ def student_signals(db: sqlite3.Connection, aid: int, student_id: int) -> dict[s
             **personal_control_limits([mean(score for _, score in entries) for _, entries in sorted(days.items())]),
             "observations": observations,
         })
+        milestone_trends[-1]["description"] = describe_personal_trend(label, milestone_trends[-1])
     if milestone_trends:
         result["milestone_trends"] = milestone_trends
     if all(

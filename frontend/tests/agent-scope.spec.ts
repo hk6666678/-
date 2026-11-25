@@ -114,7 +114,7 @@ test("agent answers and evidence respect the student's program and stage permiss
       await expect(p.locator(".agent-answer").last()).toContainText(full ? "2 名" : "1 名");
       const alert = await ask(`学号 ${number} 的学生触发了哪些预警？`);
       const answer = p.locator(".agent-answer").last();
-      await expect(answer).toContainText("课程趋势：低于控制下限");
+      await expect(answer).toContainText("2024秋 的课程均分为 60 分，与该生此前 5 个学期相比，低于参考下限");
       await expect(answer).toContainText(full ? "选题超期" : "选题未授权");
       await answer.locator("summary").first().click();
       if (!full) {

@@ -45,6 +45,9 @@ test("only a basic archive exists across six modules", async ({ page }) => {
   await expect(page.getByText(/这名学生暂无课程、选题和中期记录/)).toBeVisible();
   await expect(page.getByText(/暂无法判断这三个环节是否触发预警/)).toBeVisible();
   await expect(page.getByText("已分析环节暂无已确认预警")).toHaveCount(0);
+  await nav("个人趋势");
+  await expect(page.getByText("课程暂无可用于比较的百分制学期均分，暂无法判断变化。")).toBeVisible();
+  await expect(page.getByText(/中期暂无可用于比较的百分制成绩/)).toBeVisible();
 
   await nav("科研成果导入");
   for (const label of ["科研论文","专利","获奖项目","会议"]) {

@@ -1064,7 +1064,7 @@ def execute_plan(
             for record, timing in zip(evidence, summary["reminders"], strict=True):
                 data = record["payload"]
                 if timing["overdue"]:
-                    checks.append(f"{label}超期：计划 {data['计划日期']}，实际 {data.get('实际日期') or '尚未完成'}。")
+                    checks.append(f"{label}超期：{timing['timing_note']}")
                 elif timing["overdue"] is False and data.get("实际日期"):
                     checks.append(f"{label}按期完成：计划 {data['计划日期']}，实际 {data['实际日期']}。")
                 if category == "midterm" and record["status"] == "不通过":
@@ -1370,9 +1370,11 @@ def register_agent(
                     deny_unauthorized_question(db, actor["id"], body.question)
                 lines = list(direct_result.get("milestone_checks", []))
                 if trend := direct_result.get("course_trend"):
-                    lines.append(f"课程趋势：{trend['signal']}")
+                    lines.append(trend["description"])
+                elif notice := direct_result.get("course_notice"):
+                    lines.append(notice)
                 for trend in direct_result.get("milestone_trends", []):
-                    lines.append(f"{trend['label']}趋势：{trend['signal']}")
+                    lines.append(trend["description"])
                 if trend := direct_result.get("output_trend"):
                     lines.append(f"成果增量：{trend['signal']}")
                     if trend.get("declining"):
