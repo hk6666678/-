@@ -40,4 +40,4 @@ jobs:
         working-directory: frontend
         env:
           AQP_BROWSER: chrome
-        run: npm run test:e2e -- partial-access.spec.ts evaluation.spec.ts
+        run: npm run test:e2e -- partial-access.spec.ts evaluation.spec.ts agent-scope.spec.ts

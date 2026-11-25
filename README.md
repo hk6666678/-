@@ -61,6 +61,7 @@ GitHub Actions 在推送和 PR 时用 Windows 运行权限回归，以匹配浏�
 | 评分与导出 | [test_evaluation.py](backend/tests/test_evaluation.py) 验证撤销来源权限后，评分历史、详情、仪表盘和导出遵循当前授权。 | `.\.venv\Scripts\python.exe -m pytest -q backend/tests/test_evaluation.py` |
 | 成果列表与汇总 | [test_research_outputs.py](backend/tests/test_research_outputs.py) 和 [test_other_outputs.py](backend/tests/test_other_outputs.py) 覆盖科研论文、专利、获奖、会议及跨专业撤权后的统计。 | `.\.venv\Scripts\python.exe -m pytest -q backend/tests/test_research_outputs.py backend/tests/test_other_outputs.py` |
 | 页面刷新与迟到响应 | [partial-access.spec.ts](frontend/tests/partial-access.spec.ts) 验证部分撤权、保留仍有权限的数据及迟到响应，[evaluation.spec.ts](frontend/tests/evaluation.spec.ts) 验证评分页面和导出。 | `npm --prefix frontend run test:e2e -- partial-access.spec.ts evaluation.spec.ts` |
+| 首页 Agent 权限与证据 | [agent-scope.spec.ts](frontend/tests/agent-scope.spec.ts) 验证可见学生人数、同名学生定位、日期更正，以及选题撤权后四类成果来源仍可核对。 | `npm --prefix frontend run test:e2e -- agent-scope.spec.ts` |
 
 开发前端可在 frontend 执行 `npm run dev`，并在另一个终端执行启动脚本。Vite 将 API 代理到本机 8000 端口。退出删除服务端会话；停用及角色改变撤销该账号所有会话。登录有限次尝试保护，超限后需等待五分钟。模型默认禁用；Agent查询界面已覆盖学生培养与论文解释的只读工具边界，未配置获准模型时明确显示未启用，不用模拟回答冒充真实结果。真实模型效果验收仍待获准服务。
 
