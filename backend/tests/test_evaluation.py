@@ -313,6 +313,8 @@ def test_score_evidence_missing_stale_and_current_access(client, tmp_path):
         "/api/evaluation-snapshots", headers=headers, json=body
     ).json()
     assert missing["total"] is None
+    empty_row, = client.get("/api/evaluation-snapshots/dashboard").json()["items"]
+    assert empty_row["id"] == missing["id"] and empty_row["current"] and empty_row["total"] is None
     assert missing["inputs"][0]["value"] is None
     with connection(dbpath) as db:
         db.execute(

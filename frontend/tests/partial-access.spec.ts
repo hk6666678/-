@@ -200,6 +200,9 @@ test(mixed ? "one account respects different grants in two majors" : "the same s
     await restricted.getByRole("button", { name: "刷新当前授权范围" }).click();
     expect((await refreshed).ok()).toBeTruthy();
     await expect(restricted.getByLabel("历史快照").getByRole("option")).toHaveCount(2);
+    const dashboard = restricted.locator("section.card").filter({has: restricted.getByRole("heading", {name:"拔尖人才模拟识别仪表盘"})});
+    await expect(dashboard.getByRole("cell", {name:student.research_id,exact:true})).toBeVisible();
+    await expect(dashboard.getByRole("cell", {name:secondStudent!.research_id,exact:true})).toHaveCount(0);
     const lateScore = restricted.waitForResponse(response =>
       /\/api\/evaluation-snapshots\/\d+$/.test(response.url()) && response.ok());
     releaseScore();

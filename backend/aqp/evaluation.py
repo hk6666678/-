@@ -249,6 +249,28 @@ def builtin_evaluation(college: str, major: str) -> dict[str, Any]:
     }
 
 
+class OutputIndex:
+    """Share decoded source rows within one bulk read; never cache authorization."""
+
+    def __init__(self):
+        self.tables = {}
+        self.version = None
+
+    def matches(self, db, table, number):
+        version = db.execute("PRAGMA data_version").fetchone()[0]
+        if version != self.version:
+            self.tables.clear()
+            self.version = version
+        if table not in self.tables:
+            by_student = {}
+            for row in db.execute(f"SELECT * FROM {table}_outputs WHERE active=1 ORDER BY id"):
+                payload = json.loads(row["payload"])
+                for participant_number in {p["student_number"] for p in payload["participants"]}:
+                    by_student.setdefault(participant_number, []).append((row, payload))
+            self.tables[table] = by_student
+        return self.tables[table].get(number, ())
+
+
 def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -> tuple[Callable[..., dict[str, Any]], Callable[..., dict[str, Any]], Callable[..., dict[str, Any]]]:
     def deny(db: Any, actor: int, target: str, message: str) -> None:
         # Matches the analysis module: refusals stay auditable.
@@ -288,7 +310,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
             return {"items": items}
 
     def inputs(
-        db: Any, actor: int, student_id: int, config: dict[str, Any]
+        db: Any, actor: int, student_id: int, config: dict[str, Any], output_index: OutputIndex | None = None
     ) -> tuple[list[dict[str, Any]], str]:
         student = db.execute(
             "SELECT * FROM students WHERE id=? AND active=1", (student_id,)
@@ -320,10 +342,12 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
             missing = "尚无可查证来源记录"
             if category != "courses":
                 table = "research" if category == "research_papers" else category
-                for row in db.execute(
-                    f"SELECT * FROM {table}_outputs WHERE active=1 ORDER BY id"
-                ):
-                    payload = json.loads(row["payload"])
+                records = output_index.matches(db, table, student["student_number"]) if output_index else (
+                    (row, json.loads(row["payload"])) for row in db.execute(
+                        f"SELECT * FROM {table}_outputs WHERE active=1 ORDER BY id"
+                    )
+                )
+                for row, payload in records:
                     matches = [
                         p
                         for p in payload["participants"]
@@ -475,7 +499,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
         ).hexdigest()
         return result, digest
 
-    def load_snapshot(db: Any, actor: int, ident: int, export: bool = False) -> dict[str, Any]:
+    def load_snapshot(db: Any, actor: int, ident: int, export: bool = False, *, output_index: OutputIndex | None = None) -> dict[str, Any]:
         saved = db.execute(
             "SELECT * FROM evaluation_snapshots WHERE id=?", (ident,)
         ).fetchone()
@@ -492,7 +516,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                 if not allowed(db, actor, category, "export", config["college"], config["major"]):
                     deny(db, actor, str(ident), "评价或指标来源导出授权不足")
         _, digest = inputs(
-            db, actor, saved["student_id"], config
+            db, actor, saved["student_id"], config, output_index
         )
         result = json.loads(saved["result"])
         return {
@@ -599,13 +623,14 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
 
     def dashboard_data(db: Any, actor: int) -> dict[str, Any]:
         items = []
+        output_index = OutputIndex()
         for row in db.execute(
             "SELECT e.id,e.rule_id,st.research_id,st.college,st.major "
             "FROM evaluation_snapshots e JOIN students st ON st.id=e.student_id "
             "WHERE st.active=1 AND e.id=(SELECT MAX(id) FROM evaluation_snapshots WHERE student_id=e.student_id)"
         ).fetchall():
             try:
-                result = load_snapshot(db, actor, row["id"])
+                result = load_snapshot(db, actor, row["id"], output_index=output_index)
             except HTTPException as exc:
                 if exc.status_code == 403:
                     continue
@@ -816,6 +841,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
 
     @app.get("/api/evaluation-snapshots")
     def snapshot_listing(request: Request) -> dict[str, Any]:
+        output_index = OutputIndex()
         with connection(path) as db:
             actor, _ = current(db, request)
             items = []
@@ -842,7 +868,7 @@ def register_evaluation(app: FastAPI, path: Path, current: Callable[..., Any]) -
                 ):
                     continue
                 try:
-                    load_snapshot(db, actor["id"], row["id"])
+                    load_snapshot(db, actor["id"], row["id"], output_index=output_index)
                 except HTTPException as exc:
                     if exc.status_code == 403:
                         continue
