@@ -26,7 +26,7 @@ test("agent answers and evidence respect the student's program and stage permiss
   for (const user of [me.user, reader]) {
     const full = user.id === me.user.id;
     const grants = (full ? [major, other] : [major]).flatMap(major =>
-      (full ? ["basic","courses","topic","midterm"] : ["basic","courses"]).flatMap(category =>
+      (full ? ["basic","courses","topic","midterm","research_papers","patents","awards","conferences"] : ["basic","courses"]).flatMap(category =>
         (full ? ["maintain","identity","view","analyze"] : category === "basic" ? ["identity","view"] : ["view","analyze"])
           .map(operation => ({college,major,category,operation}))));
     expect((await page.request.put(`/api/users/${user.id}/grants`, {headers,data:{
@@ -48,6 +48,33 @@ test("agent answers and evidence respect the student's program and stage permiss
     ...["2022春","2022秋","2023春","2023秋","2024春","2024秋"].map((term,i)=>[number,name,"C"+i,"统计"+i,term,1,"百分制",[80,82,81,82,80,60][i],college,major])],"/api/imports/courses/preview","/api/imports/courses");
   await seed("topic",[["学号","姓名","所属学院","专业","考核批次","评分制度","原始成绩","选题标题","计划日期","实际日期"],[number,name,college,major,"甲批","百分制",81,title,"2025-03-10","2025-03-18"],["990002",name,college,other,"乙批","百分制",89,"乙生独有选题","2025-04-20","2025-04-17"]],"/api/milestones/topic/preview","/api/milestone-imports");
   await seed("midterm",[["学号","姓名","所属学院","专业","考核批次","评分制度","原始成绩","计划日期","实际日期","业务通过结果"],[number,name,college,major,"中期密封批次","百分制",85,"2025-09-17","2025-09-16","通过"]],"/api/milestones/midterm/preview","/api/milestone-imports");
+  const outputs = [
+    {category:"research_papers", path:"research-outputs", tab:"科研论文", label:"论文", title:"流域水位预测", fields:["业务编号/DOI","论文标题"], extra:["发表年份"], values:[2025]},
+    {category:"patents", path:"patents", tab:"专利", label:"专利", title:"便携式水位仪", fields:["申请号","专利名称"], extra:["专利类型","申请日期"], values:["发明","2025-03-01"]},
+    {category:"awards", path:"awards", tab:"获奖项目", label:"获奖", title:"河道测绘创新奖", fields:["业务编号","获奖项目名称"], extra:["获奖等级","获奖年份"], values:["一等奖",2025]},
+    {category:"conferences", path:"conferences", tab:"会议", label:"会议", title:"水文遥感研讨会", fields:["业务编号","会议名称"], extra:["报告类型","会议日期"], values:["口头报告","2025-05-01"]},
+  ];
+  async function openOutputSources(card:ReturnType<Page["locator"]>) {
+    const section = card.locator("section").filter({hasText:"同届成果对比"});
+    await expect(section).toContainText("本人登记成果4 项");
+    await section.getByText("成果来源（4）",{exact:true}).click();
+    const urls = [];
+    for (const output of outputs) {
+      const link = section.getByRole("link",{name:new RegExp(output.label+"记录")});
+      const opened = card.page().waitForEvent("popup");
+      await link.click();
+      const source = await opened;
+      try {
+        await expect(source).toHaveURL(new RegExp("/api/"+output.path+"/[0-9]+/history$"));
+        await expect(source.locator("body")).toContainText(output.title);
+        await expect(source.locator("body")).toContainText(number);
+        await expect(source.locator("body")).toContainText(name);
+        urls.push(source.url());
+      } finally { await source.close(); }
+    }
+    return urls;
+  }
+  let originalSources:string[] = [];
   const click = (p:Page, label:string)=>p.getByRole("button",{name:label,exact:true}).click();
   await click(page,"培养过程分析");
   const select = page.getByLabel("研究生",{exact:true});
@@ -138,12 +165,27 @@ test("agent answers and evidence respect the student's program and stage permiss
       }
       if (!full) {
         // The prior assertions cover course-only access. Now allow the reader to see A's topic.
+        await seed("basic",[["学号","姓名","所属学院","专业","培养层次","入学年份"],
+          ...["林嘉","何宁","苏明"].map((n,i)=>[String(990003+i),n,college,major,"硕士",2022])],"/api/imports/basic/preview","/api/imports");
+        for (const output of outputs) {
+          await seed(output.category,[[...output.fields,"学号","姓名","作者次序","参与角色","所属学院","专业",...output.extra],
+            ["WATER-"+output.path,output.title,number,name,1,"第一作者",college,major,...output.values]],
+            "/api/"+output.path+"/preview","/api/"+output.path+"/previews");
+        }
         const user = (await (await p.request.get("/api/me")).json()).user;
         const grants = ["basic","courses","topic","midterm","research_papers","awards","patents","conferences"].flatMap(category =>
-          (category === "basic" ? ["identity","view"] : ["view","analyze"]).map(operation=>({category,operation,college,major})));
+          (category === "basic" ? ["identity","view"] : ["identity","view","analyze"]).map(operation=>({category,operation,college,major})));
         expect((await page.request.put(`/api/users/${user.id}/grants`,{headers,data:{
           expected_version:user.version,request_id:crypto.randomUUID(),grants,
         }})).ok()).toBeTruthy();
+      }
+      if (!full) {
+        await click(p,"科研成果导入");
+        for (const output of outputs) {
+          await p.getByRole("tab",{name:output.tab,exact:true}).click();
+          await expect(p.getByRole("cell",{name:new RegExp(output.title)})).toBeVisible();
+        }
+        await click(p,"Agent 智能问答");
       }
       const named = await ask("陈清禾的培养进度有什么需要我跟进的？");
       if (full) {
@@ -163,8 +205,9 @@ test("agent answers and evidence respect the student's program and stage permiss
         await expect(card).toContainText(num===number ? "选题超期" : "选题按期完成");
         await expect(card).toContainText(num===number ? "2025-03-18" : "2025-04-17");
         await card.locator("summary").first().click();
+        if (!full) originalSources = await openOutputSources(card);
         const evidence = [JSON.stringify(data),await card.innerText()];
-        const urls = await card.getByRole("link").evaluateAll(links=>links.map(link=>link.getAttribute("href")));
+        const urls = await card.locator(".agent-evidence").getByRole("link").evaluateAll(links=>links.map(link=>link.getAttribute("href")));
         expect(urls).toEqual([`/api/students/${ids[num]}`,`/api/milestones?student_id=${ids[num]}`]);
         for (const url of urls) {
           const source = await p.request.get(url!);
@@ -219,6 +262,7 @@ test("agent answers and evidence respect the student's program and stage permiss
         await expect(card).toContainText("中期按期完成：计划 2025-09-17，实际 2025-09-16");
         await expect(card).toContainText("成果增量");
         await card.locator("summary").first().click();
+        expect(await openOutputSources(card)).toEqual(originalSources);
         await expect(card.getByRole("link",{name:"学生档案"})).toBeVisible();
         await card.getByRole("button",{name:"查看课程成绩依据"}).click();
         await expect(p.locator("details[open] table")).toContainText("2024秋");
